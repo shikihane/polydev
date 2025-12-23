@@ -242,18 +242,36 @@ echo "✅ Updated session_id to: $new_session_id"
 if [ "$choice" = "1" ]; then
   echo ""
   echo "🤖 Starting Claude..."
-  tb_send_command "$new_session_id" "claude --dangerously-skip-permissions"
 
-  # Wait and send prompt
-  (
-    sleep 4
-    if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then
-      prompt=$(cat "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md")
-      tb_send_command "$new_session_id" "$prompt"
+  # Start Claude
+  if ! tb_send_command "$new_session_id" "claude --dangerously-skip-permissions"; then
+    echo "❌ Failed to start Claude"
+    echo "   Session ID: $new_session_id"
+    echo "   Try manually: ./scripts/focus-session.sh $WORKTREE_PATH"
+    exit 1
+  fi
+
+  # Wait for Claude to start (with visual feedback)
+  tb_wait_for_claude "$new_session_id" 15
+
+  # Send the agent prompt
+  if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then
+    echo ""
+    echo "📤 Sending agent prompt..."
+    prompt=$(cat "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md")
+
+    if tb_send_multiline_text "$new_session_id" "$prompt" "true"; then
+      echo "   ✅ Prompt sent successfully"
+    else
+      echo "   ⚠️  Warning: Prompt may not have been sent"
+      echo "   You can manually send it by attaching to the session"
     fi
-  ) &
+  else
+    echo "⚠️  Warning: Agent prompt file not found"
+    echo "   Claude started without initial prompt"
+  fi
 
-  echo "✅ Claude started"
+  echo "✅ Claude started and configured"
 fi
 
 echo ""

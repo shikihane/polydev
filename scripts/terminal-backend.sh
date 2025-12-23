@@ -114,6 +114,29 @@ _tmux_send_command() {
   fi
 }
 
+_tmux_send_multiline_text() {
+  local session_id="$1"
+  local text="$2"
+  local execute="${3:-true}"
+
+  _parse_session_id "$session_id"
+
+  # For multiline text, send without -l flag so newlines are processed
+  # But we need to escape the text to avoid shell interpretation
+  # Best approach: use a temp file
+  local tmp_file="/tmp/tmux_multiline.$$"
+  printf '%s' "$text" > "$tmp_file"
+
+  # Use load-buffer and paste-buffer for safe multiline sending
+  _tmux load-buffer "$tmp_file"
+  _tmux paste-buffer -t "$TARGET"
+  rm -f "$tmp_file"
+
+  if [ "$execute" = "true" ]; then
+    _tmux send-keys -t "$TARGET" C-m
+  fi
+}
+
 _tmux_focus_session() {
   local session_id="$1"
   _parse_session_id "$session_id"
@@ -300,6 +323,27 @@ _wezterm_send_command() {
   fi
 }
 
+_wezterm_send_multiline_text() {
+  local session_id="$1"
+  local text="$2"
+  local execute="${3:-true}"
+
+  local pane_id
+  pane_id=$(_wezterm_get_pane_id "$session_id")
+
+  if [ -z "$pane_id" ]; then
+    return 1
+  fi
+
+  # For multiline text, send the entire text with newlines preserved
+  # wezterm cli send-text handles this correctly
+  if [ "$execute" = "true" ]; then
+    printf '%s\r' "$text" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  else
+    printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  fi
+}
+
 _wezterm_focus_session() {
   local session_id="$1"
   local pane_id
@@ -483,6 +527,56 @@ tb_poll_sessions() {
       _wezterm_poll_sessions "$workspace"
       ;;
   esac
+}
+
+# Send multiline text (e.g., from a file)
+# Usage: tb_send_multiline_text <session_id> <text> [execute=true]
+# This properly handles newlines and sends the entire text as one message
+tb_send_multiline_text() {
+  local session_id="$1"
+  local text="$2"
+  local execute="${3:-true}"
+
+  case "$TB_BACKEND" in
+    tmux)
+      _tmux_send_multiline_text "$session_id" "$text" "$execute"
+      ;;
+    wezterm)
+      _wezterm_send_multiline_text "$session_id" "$text" "$execute"
+      ;;
+  esac
+}
+
+# Wait for Claude Code to start and be ready for input
+# Usage: tb_wait_for_claude <session_id> [timeout_seconds=30]
+# Returns: 0 if ready, 1 if timeout
+tb_wait_for_claude() {
+  local session_id="$1"
+  local timeout="${2:-30}"
+  local elapsed=0
+  local interval=2
+
+  echo "⏳ Waiting for Claude to start (timeout: ${timeout}s)..."
+
+  while [ $elapsed -lt $timeout ]; do
+    # Simple heuristic: wait for session to be responsive
+    # Check if session is still alive
+    if ! tb_is_session_alive "$session_id"; then
+      echo "❌ Session died during startup"
+      return 1
+    fi
+
+    sleep $interval
+    elapsed=$((elapsed + interval))
+
+    # Print progress
+    echo -n "."
+  done
+
+  echo ""
+  echo "⚠️  Timeout reached. Claude might still be starting..."
+  echo "   Proceeding anyway..."
+  return 0
 }
 
 # Get current backend

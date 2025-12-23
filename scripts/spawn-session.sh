@@ -172,16 +172,34 @@ sed_inplace "s|PENDING_PANE_ID|$session_id|" "$WORKTREE_PATH/task.toon"
 # Start Claude
 echo ""
 echo "🤖 Starting Claude agent..."
-tb_send_command "$session_id" "claude --dangerously-skip-permissions"
 
-# Wait for Claude to start, then send prompt
-(
-  sleep 4
+if ! tb_send_command "$session_id" "claude --dangerously-skip-permissions"; then
+  echo "❌ Failed to start Claude"
+  echo "   Session ID: $session_id"
+  echo "   Try manually: ./scripts/focus-session.sh $WORKTREE_PATH"
+  exit 1
+fi
+
+# Wait for Claude to start
+tb_wait_for_claude "$session_id" 15
+
+# Send the agent prompt
+if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then
+  echo ""
+  echo "📤 Sending agent prompt..."
   prompt=$(cat "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md")
-  tb_send_command "$session_id" "$prompt"
-) &
 
-echo "   ✅ Claude launched"
+  if tb_send_multiline_text "$session_id" "$prompt" "true"; then
+    echo "   ✅ Prompt sent successfully"
+  else
+    echo "   ⚠️  Warning: Prompt may not have been sent"
+    echo "   You can manually send it by attaching to the session"
+  fi
+else
+  echo "⚠️  Warning: Agent prompt file not found"
+fi
+
+echo "   ✅ Claude launched and configured"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎉 Session spawned successfully!"
