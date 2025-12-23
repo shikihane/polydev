@@ -121,9 +121,18 @@ echo ""
 echo "🗑️  Deleting files..."
 
 # Delete everything except backups
-find "$WORKTREE_PATH" -mindepth 1 -maxdepth 1 ! -name '.task_backups' -exec rm -rf {} + 2>/dev/null || true
-
-echo "✅ Cleanup complete!"
+if ! find "$WORKTREE_PATH" -mindepth 1 -maxdepth 1 ! -name '.task_backups' -exec rm -rf {} + 2>&1; then
+  echo ""
+  echo "⚠️  Warning: Some files could not be deleted"
+  echo "   This may be due to permission issues or files in use"
+  echo "   You may need to manually remove remaining files"
+  echo ""
+  echo "Remaining files:"
+  ls -la "$WORKTREE_PATH" 2>/dev/null || true
+  echo ""
+else
+  echo "✅ Cleanup complete!"
+fi
 echo ""
 echo "Backups preserved at: $WORKTREE_PATH/.task_backups"
 echo ""

@@ -117,6 +117,14 @@ echo "🔨 Creating new terminal session..."
 PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "workspace")")
 WORKSPACE="${PROJECT_NAME}-parallel"
 
+# Check if PLAN.md exists
+if [ ! -f "$PLAN_FILE" ]; then
+  echo "⚠️  Warning: PLAN.md not found in worktree"
+  echo "   Recovery will proceed without plan file"
+  echo "   You may need to restore PLAN.md manually"
+  PLAN_FILE=""
+fi
+
 new_session_id=$(tb_create_worktree_session "$WORKSPACE" "$branch" "$WORKTREE_PATH" "$PLAN_FILE")
 echo "✅ Created: $new_session_id"
 
@@ -132,13 +140,13 @@ if [ -f "$TASK_FILE" ]; then
 fi
 
 # Replace old session_id with new one
+# Use | delimiter which is safe for session_id format (wo:workspace:branch.N)
 tmp_file="${TASK_FILE}.tmp.$$"
 if [ "$old_session_id" = "PENDING_PANE_ID" ]; then
   sed "s|PENDING_PANE_ID|$new_session_id|" "$TASK_FILE" > "$tmp_file"
 else
-  # Escape special chars in old_session_id for sed
-  old_session_id_escaped=$(echo "$old_session_id" | sed 's|[.[\*^$]|\\&|g')
-  sed "s|$old_session_id_escaped|$new_session_id|g" "$TASK_FILE" > "$tmp_file"
+  # No escaping needed - session_id never contains | character
+  sed "s|$old_session_id|$new_session_id|g" "$TASK_FILE" > "$tmp_file"
 fi
 mv "$tmp_file" "$TASK_FILE"
 

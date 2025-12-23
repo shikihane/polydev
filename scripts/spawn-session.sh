@@ -14,11 +14,29 @@ ORCHESTRATOR_DIR="$(dirname "$SCRIPT_DIR")"
 # Source terminal backend abstraction
 source "$SCRIPT_DIR/terminal-backend.sh"
 
-# Portable sed -i (works on GNU and BSD/macOS)
+# Portable sed -i (works on GNU and BSD/macOS) with atomic operations
 sed_inplace() {
   local expr="$1" file="$2"
   local tmp="${file}.tmp.$$"
-  sed "$expr" "$file" > "$tmp" && mv "$tmp" "$file"
+  local backup="${file}.backup.$$"
+
+  # Create safety backup
+  if ! cp "$file" "$backup" 2>/dev/null; then
+    echo "❌ Error: Cannot create backup of $file" >&2
+    return 1
+  fi
+
+  # Try sed operation
+  if sed "$expr" "$file" > "$tmp" && mv "$tmp" "$file"; then
+    rm -f "$backup"
+    return 0
+  else
+    # Restore on failure
+    echo "⚠️  Warning: sed operation failed, restoring original" >&2
+    mv "$backup" "$file"
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 # Backup task.toon before modification
@@ -32,8 +50,8 @@ backup_task_toon() {
   local timestamp=$(date +%Y%m%d_%H%M%S)
   cp "$task_file" "$backup_dir/task.toon.${timestamp}.bak"
 
-  # Keep only last 10 backups
-  (cd "$backup_dir" && ls -t task.toon.*.bak 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null) || true
+  # Keep only last 10 backups (safer than xargs for portability)
+  (cd "$backup_dir" && ls -t task.toon.*.bak 2>/dev/null | tail -n +11 | while read f; do rm -f "$f"; done) 2>/dev/null || true
 }
 
 WORKSPACE="$1"
