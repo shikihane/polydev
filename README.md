@@ -192,6 +192,8 @@ Phase 6: 清理（需人工确认）
 
 ### 手动操作脚本
 
+#### 正常操作
+
 ```bash
 # 创建会话
 ./scripts/spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
@@ -206,6 +208,30 @@ Phase 6: 清理（需人工确认）
 ./scripts/git-info.sh diff .worktrees/auth
 ./scripts/git-info.sh conflicts .worktrees/auth
 ./scripts/git-info.sh status .worktrees/auth
+```
+
+#### 故障恢复（新增 🆕）
+
+```bash
+# 恢复崩溃的会话
+./scripts/restore-session.sh .worktrees/auth
+
+# 查看备份
+ls -lt .worktrees/auth/.task_backups/
+
+# 手动恢复备份
+cp .worktrees/auth/.task_backups/task.toon.20251224_143022.bak \
+   .worktrees/auth/task.toon
+```
+
+#### 安全清理（新增 🆕）
+
+```bash
+# 安全清理 worktree（带确认和备份）
+./scripts/cleanup-worktree.sh .worktrees/auth
+
+# 从 git 移除 worktree
+git worktree remove .worktrees/auth
 ```
 
 ### 调试 tmux 会话（Linux/macOS）
@@ -267,19 +293,23 @@ worktree-orchestrator/
 │   ├── spawn-session.sh        # 创建 worktree + 终端会话
 │   ├── poll.sh                 # 轮询状态监控
 │   ├── focus-session.sh        # 激活指定会话
-│   └── git-info.sh             # Git 状态检查
+│   ├── git-info.sh             # Git 状态检查
+│   ├── restore-session.sh      # 🆕 会话恢复脚本
+│   └── cleanup-worktree.sh     # 🆕 安全清理工具
 ├── hooks/
 │   ├── on-session-start.sh     # 会话启动钩子
 │   └── on-stop.sh              # 会话停止钩子
 ├── templates/
 │   ├── claude-settings.json    # Claude 设置模板
 │   ├── task.toon.template      # 任务状态文件模板
-│   └── worktree-agent-prompt.md # 子代理提示词
+│   ├── worktree-agent-prompt.md # 子代理提示词
+│   └── worktree.gitignore      # 🆕 Git 忽略规则模板
 ├── skills/
 │   └── worktree-executor/      # 子代理执行技能（依赖 superpowers:executing-plans）
 │       └── SKILL.md
 └── docs/
-    └── plans/                  # 设计文档
+    ├── plans/                  # 设计文档
+    └── RECOVERY_FIXES.md       # 🆕 恢复缺陷修复文档
 ```
 
 ---
@@ -307,6 +337,52 @@ tmux -S /tmp/worktree-orchestrator.sock list-sessions
 ### Q: Windows 上 WezTerm CLI 不工作？
 
 确保 WezTerm 已添加到系统 PATH，并且 Python 3 已安装。
+
+### Q: 会话崩溃了怎么办？🆕
+
+使用恢复脚本：
+
+```bash
+./scripts/restore-session.sh .worktrees/your-branch
+```
+
+脚本会自动：
+1. 检测并恢复 task.toon（如果缺失）
+2. 创建新的终端会话
+3. 更新 session_id
+4. 重启 Claude（可选）
+
+### Q: task.toon 被误删了怎么办？🆕
+
+不用担心！task.toon 会自动备份：
+
+```bash
+# 查看备份
+ls .worktrees/your-branch/.task_backups/
+
+# 使用恢复脚本（会自动从最新备份恢复）
+./scripts/restore-session.sh .worktrees/your-branch
+
+# 或者手动恢复
+cp .worktrees/your-branch/.task_backups/task.toon.TIMESTAMP.bak \
+   .worktrees/your-branch/task.toon
+```
+
+备份保留最近 10 个版本。
+
+### Q: 如何安全地清理 worktree？🆕
+
+使用安全清理脚本，避免误删：
+
+```bash
+./scripts/cleanup-worktree.sh .worktrees/your-branch
+```
+
+脚本会：
+1. 显示将要删除的文件
+2. 自动备份 task.toon
+3. 要求确认（需输入目录名）
+4. 保留备份目录
 
 ### Q: 如何清理残留的 worktrees？
 

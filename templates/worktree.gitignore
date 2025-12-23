@@ -1,0 +1,19 @@
+# Worktree Orchestrator - Git Ignore Template
+# Copy this to your main project .gitignore
+
+# Worktree directories
+.worktrees/
+
+# Task state and backups (IMPORTANT: Keep task.toon tracked!)
+# We want to track task.toon but ignore backups
+.task_backups/
+*.tmp.*
+
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Terminal backend state
+/tmp/worktree-orchestrator-map.json
