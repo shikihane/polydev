@@ -184,14 +184,34 @@ verification:
 ./scripts/spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
 ```
 
+**spawn-session.sh 自动执行：**
+1. 创建 git worktree 和分支
+2. 复制 .claude 配置和 hooks
+3. 生成 task.toon
+4. **自动创建首个备份** 🆕
+5. 创建终端会话
+6. 启动 Claude agent
+
 ### 4.2 Poll Loop
 
 ```bash
 while branches_remaining; do
   result=$(./scripts/poll.sh .worktrees 10)
+
+  # 检测崩溃并自动恢复 🆕
+  if status == "crashed"; then
+    ./scripts/restore-session.sh <worktree-path>
+  fi
+
   handle_completed_branch "$result"
 done
 ```
+
+**Poll 监控内容：**
+- overall_status: 任务进度
+- agent_status: Claude 是否存活
+- session_id: 终端会话标识
+- last_update: 最后更新时间
 
 ---
 
@@ -280,12 +300,82 @@ cd <worktree>
     ↓
 询问: "确认清理这些 worktrees? (y/n)"
     ↓
-确认后:
+确认后，对每个 worktree:
+    ./scripts/cleanup-worktree.sh <worktree-path>
+      ↓
+      - 显示将删除的文件
+      - 自动备份 task.toon
+      - 要求二次确认（输入目录名）
+      - 保留 .task_backups/ 目录
+    ↓
     git worktree remove <path>
     git branch -d <branch>
-    # 使用抽象层清理会话
-    tb_cleanup_session <session_id>
 ```
+
+**注意**: `cleanup-worktree.sh` 提供安全保护：
+- 多重确认防止误删
+- 自动备份 task.toon
+- 保留备份目录用于审计
+
+---
+
+## Session Recovery（会话恢复）🆕
+
+### 自动备份机制
+
+**task.toon 自动备份：**
+- 每次修改 task.toon 前自动备份
+- 备份位置：`<worktree>/.task_backups/task.toon.TIMESTAMP.bak`
+- 保留最近 10 个版本
+- 使用时间戳命名，易于识别
+
+### 恢复场景
+
+| 场景 | 症状 | 解决方案 |
+|------|------|----------|
+| **会话崩溃** | poll.sh 报告 agent_status: crashed | `restore-session.sh` |
+| **task.toon 丢失** | 文件被误删或损坏 | `restore-session.sh` 自动从备份恢复 |
+| **系统重启** | 所有会话丢失 | 对每个 worktree 运行 `restore-session.sh` |
+| **终端断开** | 无法连接到会话 | `restore-session.sh` 重建会话 |
+
+### 恢复流程
+
+```bash
+./scripts/restore-session.sh <worktree-path>
+```
+
+**脚本功能：**
+1. 检测 task.toon 是否存在
+2. 如缺失，从 `.task_backups/` 恢复最新备份
+3. 检查会话是否存活
+4. 创建新终端会话并更新 session_id
+5. 可选：自动重启 Claude
+
+**交互选项：**
+- `[1]` 创建新会话并启动 Claude（推荐）
+- `[2]` 仅创建会话（手动启动 Claude）
+- `[3]` 取消
+
+### 恢复后验证
+
+```bash
+# 检查 task.toon 是否正确
+cat <worktree>/task.toon
+
+# 验证会话存活
+source scripts/terminal-backend.sh
+tb_is_session_alive "wo:workspace:branch.0"
+
+# 聚焦到会话
+./scripts/focus-session.sh <worktree-path>
+```
+
+### 预防措施
+
+1. **不要手动删除 `.task_backups/`**
+2. **定期检查会话状态**：`./scripts/poll.sh .worktrees 10`
+3. **遇到错误时先恢复再调试**
+4. **保留备份用于审计**
 
 ---
 
@@ -315,9 +405,11 @@ last_update: 2024-01-15T10:35:00Z
 | Script | Purpose |
 |--------|---------|
 | `scripts/terminal-backend.sh` | 终端后端抽象层 (tmux/wezterm) |
-| `scripts/poll.sh` | 轮询状态，有变化时返回 |
 | `scripts/spawn-session.sh` | 创建 worktree + 终端会话 + Claude |
+| `scripts/poll.sh` | 轮询状态，有变化时返回 |
 | `scripts/focus-session.sh` | 激活指定会话 |
+| `scripts/restore-session.sh` | 🆕 恢复崩溃的会话（从备份恢复 task.toon） |
+| `scripts/cleanup-worktree.sh` | 🆕 安全清理 worktree（带确认和备份） |
 | `scripts/git-info.sh` | 只读 git 状态检查 |
 
 ---
@@ -330,6 +422,8 @@ last_update: 2024-01-15T10:35:00Z
 4. **验收通过才能合并**
 5. **合并后再次验收**
 6. **人工确认才能清理**
+7. **会话崩溃时先恢复再继续** 🆕
+8. **不要手动删除 .task_backups/** 🆕
 
 ---
 
