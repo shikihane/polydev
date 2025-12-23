@@ -1,0 +1,11 @@
+meta{worktree,branch,pane_id,created}:
+  {{WORKTREE_PATH}},{{BRANCH_NAME}},PENDING_PANE_ID,{{CREATED}}
+
+verification{level,fallback,commands}:
+  {{VERIFY_LEVEL}},{{VERIFY_FALLBACK}},{{VERIFY_COMMANDS}}
+
+tasks[0]{id,desc,status}:
+
+overall_status: pending
+agent_status: pending
+last_update: {{CREATED}}

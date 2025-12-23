@@ -1,0 +1,39 @@
+# Runtime directories
+.worktrees/
+*.worktree/
+
+# Claude local settings
+.claude/
+.claude.local.json
+
+# Backup files
+*.backup
+*.bak
+
+# Log files
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# tmux socket
+/tmp/worktree-orchestrator.sock
+
+# Python cache (if using Python scripts in the future)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node modules (if using Node scripts in the future)
+node_modules/
+
+# Task status files (generated at runtime)
+*.toon
+!templates/*.toon.template
