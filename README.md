@@ -210,11 +210,14 @@ Phase 6: 清理（需人工确认）
 ./scripts/git-info.sh status .worktrees/auth
 ```
 
-#### 故障恢复（新增 🆕）
+#### 会话管理（新增 🆕）
 
 ```bash
-# 恢复崩溃的会话
+# 自动检测并处理（会话崩溃/停止/想重启）
 ./scripts/restore-session.sh .worktrees/auth
+
+# 强制重启活跃会话（跳过交互）
+./scripts/restore-session.sh .worktrees/auth --force
 
 # 查看备份
 ls -lt .worktrees/auth/.task_backups/
@@ -223,6 +226,11 @@ ls -lt .worktrees/auth/.task_backups/
 cp .worktrees/auth/.task_backups/task.toon.20251224_143022.bak \
    .worktrees/auth/task.toon
 ```
+
+**restore-session.sh 智能处理：**
+- 会话存活 → 提供附加/重启选项
+- 会话崩溃 → 自动从备份恢复并重启
+- task.toon 丢失 → 从备份恢复
 
 #### 安全清理（新增 🆕）
 
@@ -338,19 +346,30 @@ tmux -S /tmp/worktree-orchestrator.sock list-sessions
 
 确保 WezTerm 已添加到系统 PATH，并且 Python 3 已安装。
 
-### Q: 会话崩溃了怎么办？🆕
+### Q: 会话出问题了怎么办？🆕
 
-使用恢复脚本：
+使用会话管理脚本（处理所有情况）：
 
 ```bash
+# 自动检测并处理
 ./scripts/restore-session.sh .worktrees/your-branch
+
+# 强制重启（用于 Claude 卡住的情况）
+./scripts/restore-session.sh .worktrees/your-branch --force
 ```
 
-脚本会自动：
-1. 检测并恢复 task.toon（如果缺失）
-2. 创建新的终端会话
-3. 更新 session_id
-4. 重启 Claude（可选）
+**脚本智能处理：**
+1. **会话存活** → 提供选项：附加/重启/取消
+2. **会话崩溃** → 自动从备份恢复并重启
+3. **Claude 停止** → 提示重启
+4. **task.toon 丢失** → 从备份恢复
+
+**适用场景：**
+- 会话崩溃（crashed）
+- Claude 意外停止（idle）
+- Claude 卡住无响应（active 但无更新）
+- 想重新开始任务
+- 系统重启后恢复
 
 ### Q: task.toon 被误删了怎么办？🆕
 

@@ -1,13 +1,16 @@
 #!/bin/bash
-# restore-session.sh - Restore crashed or lost worktree sessions
+# restore-session.sh - Manage worktree sessions (restore/restart/attach)
 #
-# Usage: restore-session.sh <worktree_path>
+# Usage: restore-session.sh <worktree_path> [--force]
 #
-# This script:
-# 1. Checks if session is alive
-# 2. Restores task.toon from backup if corrupted/missing
-# 3. Recreates terminal session if needed
-# 4. Restarts Claude agent
+# This script handles multiple scenarios:
+# 1. Session crashed → Restore from backup and restart
+# 2. Session idle (stopped) → Restart with existing task.toon
+# 3. Session active but want restart → Kill and restart (with --force)
+# 4. task.toon missing → Restore from backup
+#
+# Options:
+#   --force    Force restart even if session is alive
 
 set -e
 
@@ -18,10 +21,30 @@ ORCHESTRATOR_DIR="$(dirname "$SCRIPT_DIR")"
 source "$SCRIPT_DIR/terminal-backend.sh"
 
 WORKTREE_PATH="$1"
+FORCE_RESTART=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force)
+      FORCE_RESTART=true
+      shift
+      ;;
+    *)
+      if [ -z "$WORKTREE_PATH" ]; then
+        WORKTREE_PATH="$1"
+      fi
+      shift
+      ;;
+  esac
+done
 
 if [ -z "$WORKTREE_PATH" ] || [ ! -d "$WORKTREE_PATH" ]; then
-  echo "Usage: restore-session.sh <worktree_path>"
-  echo "Example: restore-session.sh .worktrees/feature-auth"
+  echo "Usage: restore-session.sh <worktree_path> [--force]"
+  echo ""
+  echo "Examples:"
+  echo "  restore-session.sh .worktrees/feature-auth           # Restore/restart session"
+  echo "  restore-session.sh .worktrees/feature-auth --force   # Force restart active session"
   exit 1
 fi
 
@@ -75,13 +98,12 @@ old_session_id=$(echo "$meta_line" | cut -d',' -f3)
 echo "  Branch: $branch"
 echo "  Old Session ID: $old_session_id"
 
-# Step 3: Check if session is alive
+# Step 3: Check if session is alive and determine action
+SESSION_ALIVE=false
 if [ "$old_session_id" != "PENDING_PANE_ID" ]; then
   if tb_is_session_alive "$old_session_id"; then
-    echo ""
-    echo "✅ Session is already alive: $old_session_id"
-    echo "   Use focus-session.sh to attach to it"
-    exit 0
+    SESSION_ALIVE=true
+    echo "  Status: ✅ ACTIVE"
   else
     echo "  Status: 💀 DEAD"
   fi
@@ -89,12 +111,76 @@ else
   echo "  Status: ⏳ NEVER STARTED"
 fi
 
-# Step 4: Prompt user for recovery
+# Step 4: Handle active session
+if [ "$SESSION_ALIVE" = "true" ]; then
+  if [ "$FORCE_RESTART" = "true" ]; then
+    echo ""
+    echo "⚠️  Forcing restart of active session (--force flag)"
+    echo ""
+    echo "This will:"
+    echo "  1. Kill the current session"
+    echo "  2. Create a new session"
+    echo "  3. Restart Claude"
+    echo ""
+    echo -n "Continue? [y/N] "
+    read -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+      echo "Cancelled."
+      exit 0
+    fi
+
+    # Kill existing session
+    echo ""
+    echo "🔪 Killing existing session..."
+    tb_cleanup_session "$old_session_id"
+    echo "   ✅ Session terminated"
+  else
+    # Session is alive and no --force flag
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Session is currently active"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "What would you like to do?"
+    echo "  [1] Attach to existing session (focus-session.sh)"
+    echo "  [2] Kill and restart session"
+    echo "  [3] Cancel"
+    echo ""
+    echo -n "Choose [1-3]: "
+    read -r choice
+
+    case "$choice" in
+      1)
+        echo ""
+        echo "📍 Focusing session..."
+        tb_focus_session "$old_session_id"
+        echo "   ✅ Session focused"
+        echo ""
+        echo "Alternatively, run:"
+        echo "  ./scripts/focus-session.sh $WORKTREE_PATH"
+        exit 0
+        ;;
+      2)
+        echo ""
+        echo "🔪 Killing existing session..."
+        tb_cleanup_session "$old_session_id"
+        echo "   ✅ Session terminated"
+        # Continue to restart
+        ;;
+      *)
+        echo "Cancelled."
+        exit 0
+        ;;
+    esac
+  fi
+fi
+
+# Step 5: Prompt user for restart action (session is dead or killed)
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Recovery options:"
-echo "  [1] Create new session and restart Claude"
-echo "  [2] Just create session (no Claude start)"
+echo "Session restart options:"
+echo "  [1] Create new session and restart Claude (recommended)"
+echo "  [2] Just create session (manual Claude start)"
 echo "  [3] Cancel"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -n "Choose [1-3]: "
@@ -109,7 +195,7 @@ case "$choice" in
     ;;
 esac
 
-# Step 5: Create new session
+# Step 6: Create new session
 echo ""
 echo "🔨 Creating new terminal session..."
 
@@ -128,7 +214,7 @@ fi
 new_session_id=$(tb_create_worktree_session "$WORKSPACE" "$branch" "$WORKTREE_PATH" "$PLAN_FILE")
 echo "✅ Created: $new_session_id"
 
-# Step 6: Update task.toon with new session_id
+# Step 7: Update task.toon with new session_id
 echo ""
 echo "📝 Updating task.toon..."
 
@@ -152,7 +238,7 @@ mv "$tmp_file" "$TASK_FILE"
 
 echo "✅ Updated session_id to: $new_session_id"
 
-# Step 7: Start Claude if requested
+# Step 8: Start Claude if requested
 if [ "$choice" = "1" ]; then
   echo ""
   echo "🤖 Starting Claude..."

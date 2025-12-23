@@ -192,26 +192,77 @@ verification:
 5. 创建终端会话
 6. 启动 Claude agent
 
-### 4.2 Poll Loop
+### 4.2 Poll Loop with Session Management 🆕
 
 ```bash
 while branches_remaining; do
   result=$(./scripts/poll.sh .worktrees 10)
 
-  # 检测崩溃并自动恢复 🆕
-  if status == "crashed"; then
-    ./scripts/restore-session.sh <worktree-path>
+  # 解析状态
+  worktree=$(echo "$result" | cut -d',' -f1)
+  overall_status=$(echo "$result" | cut -d',' -f3)
+  agent_status=$(echo "$result" | cut -d',' -f4)
+
+  # 处理不同的 agent 状态
+  case "$agent_status" in
+    crashed)
+      # 会话崩溃 → 自动恢复
+      echo "🔧 Detected crashed session in $worktree, restoring..."
+      ./scripts/restore-session.sh "$worktree" --force
+      ;;
+
+    idle)
+      # Claude 停止但任务未完成 → 询问是否重启
+      if [ "$overall_status" != "completed" ] && [ "$overall_status" != "merged" ]; then
+        echo "⚠️  Agent stopped in $worktree (status: $overall_status)"
+        echo -n "Restart session? [Y/n] "
+        read -r response
+        if [[ ! "$response" =~ ^[Nn]$ ]]; then
+          ./scripts/restore-session.sh "$worktree"
+        fi
+      fi
+      ;;
+
+    active)
+      # 检查长时间无更新（可能卡住）
+      last_update=$(echo "$result" | cut -d',' -f5)
+      minutes_since_update=$(( ($(date +%s) - $(date -d "$last_update" +%s)) / 60 ))
+
+      if [ $minutes_since_update -gt 30 ]; then
+        echo "⚠️  No updates for $minutes_since_update minutes in $worktree"
+        echo -n "Session might be stuck. Restart? [y/N] "
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+          ./scripts/restore-session.sh "$worktree" --force
+        fi
+      fi
+      ;;
+  esac
+
+  # 处理完成的分支
+  if [ "$overall_status" = "completed" ]; then
+    handle_completed_branch "$worktree"
   fi
 
-  handle_completed_branch "$result"
+  # 处理需要人工介入
+  if [ "$overall_status" = "hil" ]; then
+    handle_human_in_loop "$worktree"
+  fi
 done
 ```
 
-**Poll 监控内容：**
-- overall_status: 任务进度
-- agent_status: Claude 是否存活
-- session_id: 终端会话标识
-- last_update: 最后更新时间
+**Poll 监控策略：**
+
+| agent_status | 主 Agent 行为 |
+|--------------|---------------|
+| `active` | 正常监控；长时间无更新时提示 |
+| `idle` | 如果任务未完成，询问是否重启 |
+| `crashed` | **自动恢复**（使用 --force） |
+
+**关键原则：**
+1. **crashed** → 自动恢复（无需询问）
+2. **idle** → 询问用户（可能是正常停止）
+3. **active 但长时间无更新** → 询问用户（可能卡住）
 
 ---
 
@@ -329,32 +380,50 @@ cd <worktree>
 - 保留最近 10 个版本
 - 使用时间戳命名，易于识别
 
-### 恢复场景
+### 会话管理场景
 
-| 场景 | 症状 | 解决方案 |
-|------|------|----------|
-| **会话崩溃** | poll.sh 报告 agent_status: crashed | `restore-session.sh` |
-| **task.toon 丢失** | 文件被误删或损坏 | `restore-session.sh` 自动从备份恢复 |
-| **系统重启** | 所有会话丢失 | 对每个 worktree 运行 `restore-session.sh` |
-| **终端断开** | 无法连接到会话 | `restore-session.sh` 重建会话 |
+| 场景 | agent_status | 症状 | 解决方案 |
+|------|--------------|------|----------|
+| **会话崩溃** | crashed | poll.sh 报告 session 不存在 | `restore-session.sh` 自动恢复 |
+| **Claude 停止** | idle | Claude 退出但 task 未完成 | `restore-session.sh` 重启 |
+| **Claude 卡住** | active | 长时间无更新 | `restore-session.sh --force` 强制重启 |
+| **系统重启** | crashed | 所有会话丢失 | 对每个 worktree 运行 `restore-session.sh` |
+| **task.toon 丢失** | N/A | 文件被误删或损坏 | `restore-session.sh` 从备份恢复 |
+| **主动重启** | active | 想换提示词/重新开始 | `restore-session.sh` 选择重启 |
 
-### 恢复流程
+### 会话管理流程
 
 ```bash
+# 基本用法（自动检测并处理）
 ./scripts/restore-session.sh <worktree-path>
+
+# 强制重启活跃会话
+./scripts/restore-session.sh <worktree-path> --force
 ```
 
-**脚本功能：**
-1. 检测 task.toon 是否存在
-2. 如缺失，从 `.task_backups/` 恢复最新备份
-3. 检查会话是否存活
-4. 创建新终端会话并更新 session_id
-5. 可选：自动重启 Claude
+**脚本智能处理：**
 
-**交互选项：**
-- `[1]` 创建新会话并启动 Claude（推荐）
-- `[2]` 仅创建会话（手动启动 Claude）
-- `[3]` 取消
+1. **检测 task.toon 状态**
+   - 缺失 → 从 `.task_backups/` 恢复最新备份
+   - 存在 → 解析 session_id 和 branch 信息
+
+2. **检测会话状态**
+   - `active` → 提示用户选择（附加/重启/取消）
+   - `dead/idle` → 自动进入重启流程
+
+3. **会话操作选项**
+   - 会话活跃时:
+     - `[1]` 附加到现有会话（focus-session.sh）
+     - `[2]` 杀掉并重启会话
+     - `[3]` 取消
+   - 会话死亡时:
+     - `[1]` 创建新会话并启动 Claude（推荐）
+     - `[2]` 仅创建会话（手动启动）
+     - `[3]` 取消
+
+4. **--force 模式**
+   - 跳过交互，直接杀掉并重启
+   - 适用于自动化脚本
 
 ### 恢复后验证
 
