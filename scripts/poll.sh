@@ -73,12 +73,17 @@ while true; do
     # Build detailed attention list
     if $needs_attention; then
       reason=""
+      # Read blocking_reason for blocked/hil status (use :- for empty string fallback)
+      blocking_reason=$(grep "^blocking_reason:" "$task_file" 2>/dev/null | cut -d' ' -f2- | head -c 50)
+      # Trim whitespace
+      blocking_reason="${blocking_reason#"${blocking_reason%%[![:space:]]*}"}"
+
       case "$overall_status" in
         completed) reason="ready for test & merge" ;;
-        hil)       reason="needs human input" ;;
+        hil)       reason="${blocking_reason:+$blocking_reason}"; reason="${reason:-needs human input}" ;;
         conflict)  reason="merge conflict" ;;
         rejected)  reason="tests failed, needs fix" ;;
-        blocked)   reason="stuck on issue" ;;
+        blocked)   reason="${blocking_reason:+$blocking_reason}"; reason="${reason:-stuck on issue}" ;;
         cleanup_pending) reason="awaiting cleanup confirmation" ;;
       esac
       case "$agent_status" in

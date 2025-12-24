@@ -69,6 +69,7 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 ├── ./scripts/focus-session.sh    → 聚焦会话
 ├── ./scripts/list-sessions.sh    → 列出所有会话
 ├── ./scripts/close-session.sh    → 关闭/终结会话
+├── ./scripts/capture-screen.sh   → 读取会话当前屏幕内容
 └── ./scripts/cleanup-worktree.sh → 清理 worktree
 ```
 
@@ -113,6 +114,10 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 # 关闭/终结会话
 ./scripts/close-session.sh <session_id>
 
+# 读取会话当前屏幕内容（调试用）
+./scripts/capture-screen.sh <worktree-path>           # 当前可见屏幕
+./scripts/capture-screen.sh <worktree-path> --lines 100  # 最近 100 行
+
 # 清理 worktree（完成后使用）
 ./scripts/cleanup-worktree.sh <worktree-path>
 ```
@@ -135,7 +140,8 @@ while branches_remaining; do
 
   case "$overall_status" in
     completed) # 验收并合并
-    hil)       # 人工介入
+    hil)       # 人工介入（必须人类决策）
+    blocked)   # 需要协助（主 agent 尝试解决，失败则升级为 hil）
   esac
 done
 ```
@@ -379,8 +385,19 @@ while branches_remaining; do
     handle_completed_branch "$worktree"
   fi
 
-  # 处理需要人工介入
+  # 处理需要协助（主 agent 可能能解决）
+  if [ "$overall_status" = "blocked" ]; then
+    blocking_reason=$(grep "^blocking_reason:" "$worktree/task.toon" | cut -d' ' -f2-)
+    echo "🚫 Task blocked in $worktree: $blocking_reason"
+    # 分析原因，尝试解决
+    # 如果解决了 → restore-session.sh 重启
+    # 如果解决不了 → 升级为 hil，通知人类
+  fi
+
+  # 处理需要人工介入（必须人类决策）
   if [ "$overall_status" = "hil" ]; then
+    blocking_reason=$(grep "^blocking_reason:" "$worktree/task.toon" | cut -d' ' -f2-)
+    echo "🙋 Human input needed in $worktree: $blocking_reason"
     handle_human_in_loop "$worktree"
   fi
 done
@@ -599,6 +616,7 @@ tasks[3]{id,desc,status}:
 
 overall_status: in_progress
 agent_status: active
+blocking_reason:
 last_update: 2024-01-15T10:35:00Z
 ```
 
@@ -615,6 +633,7 @@ last_update: 2024-01-15T10:35:00Z
 | `scripts/send-command.sh` | 向会话发送命令（带回车执行） |
 | `scripts/list-sessions.sh` | 列出所有活动会话（支持 workspace 过滤） |
 | `scripts/close-session.sh` | 关闭/终结指定会话 |
+| `scripts/capture-screen.sh` | 读取会话当前屏幕内容（调试用） |
 | `scripts/restore-session.sh` | 恢复崩溃的会话（从备份恢复 task.toon） |
 | `scripts/cleanup-worktree.sh` | 安全清理 worktree（带确认和备份） |
 | `scripts/git-info.sh` | 只读 git 状态检查 |
@@ -650,7 +669,22 @@ last_update: 2024-01-15T10:35:00Z
 | `conflict` | 合并冲突 |
 | `merged` | 合并成功 |
 | `cleanup_pending` | 等待清理确认 |
-| `hil` | 需要人类介入 |
+| `blocked` | 需要协助（主 agent/其他 agent 可能能解决） |
+| `hil` | 需要人类介入（必须人类决策） |
+
+### blocked vs hil
+
+| 状态 | 谁来解决 | 典型场景 |
+|------|---------|----------|
+| `blocked` | 主 agent / 其他 agent | 依赖另一个分支、体系 bug、环境问题、协调问题 |
+| `hil` | 必须人类 | 设计决策、凭据/权限、安全问题、需求歧义 |
+
+**处理流程：**
+```
+blocked → 主 agent 分析 blocking_reason → 尝试解决
+        → 成功 → restore-session.sh 重启
+        → 失败 → 升级为 hil，通知人类
+```
 
 ### agent_status
 

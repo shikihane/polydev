@@ -278,7 +278,15 @@ tmux -S /tmp/worktree-orchestrator.sock attach
 | `conflict` | 合并冲突 |
 | `merged` | 合并成功 |
 | `cleanup_pending` | 等待清理确认 |
-| `hil` | 需要人类介入 |
+| `blocked` | 需要协助（主代理/其他代理可能能解决） |
+| `hil` | 需要人类介入（必须人类决策） |
+
+### blocked vs hil
+
+| 状态 | 谁来解决 | 典型场景 |
+|------|---------|----------|
+| `blocked` | 主代理 / 其他代理 | 依赖另一个分支、体系 bug、环境问题 |
+| `hil` | 必须人类 | 设计决策、凭据/权限、安全问题、需求歧义 |
 
 ### 代理状态 (agent_status)
 
@@ -301,9 +309,10 @@ worktree-orchestrator/
 │   ├── spawn-session.sh        # 创建 worktree + 终端会话
 │   ├── poll.sh                 # 轮询状态监控
 │   ├── focus-session.sh        # 激活指定会话
+│   ├── capture-screen.sh       # 读取会话当前屏幕内容
 │   ├── git-info.sh             # Git 状态检查
-│   ├── restore-session.sh      # 🆕 会话恢复脚本
-│   └── cleanup-worktree.sh     # 🆕 安全清理工具
+│   ├── restore-session.sh      # 会话恢复脚本
+│   └── cleanup-worktree.sh     # 安全清理工具
 ├── hooks/
 │   ├── on-session-start.sh     # 会话启动钩子
 │   └── on-stop.sh              # 会话停止钩子

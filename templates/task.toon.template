@@ -8,4 +8,5 @@ tasks[0]{id,desc,status}:
 
 overall_status: pending
 agent_status: pending
+blocking_reason:
 last_update: {{CREATED}}
