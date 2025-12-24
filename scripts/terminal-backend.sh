@@ -18,8 +18,45 @@ set -e
 # =============================================================================
 
 TB_SOCKET="/tmp/worktree-orchestrator.sock"
-WO_MAP_FILE="/tmp/worktree-orchestrator-map.json"
 TB_BACKEND=""
+TB_PYTHON=""
+
+# Map file paths - need both Unix (for bash) and Windows (for Python) formats
+# On MSYS/MinGW, /tmp is virtual but Python sees different path
+WO_MAP_FILE="/tmp/worktree-orchestrator-map.json"
+
+# Convert to Windows-compatible path for Python using cygpath
+# cygpath -m gives mixed format (forward slashes) which Python handles well
+if command -v cygpath &>/dev/null; then
+  WO_MAP_FILE_WIN="$(cygpath -m /tmp)/worktree-orchestrator-map.json"
+else
+  # Fallback for non-MSYS environments
+  WO_MAP_FILE_WIN="$WO_MAP_FILE"
+fi
+
+# Detect Python command (python3 or python)
+_tb_detect_python() {
+  if [ -n "$TB_PYTHON" ]; then
+    return 0
+  fi
+
+  if command -v python3 &>/dev/null; then
+    TB_PYTHON="python3"
+  elif command -v python &>/dev/null; then
+    # Verify it's Python 3
+    if python -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
+      TB_PYTHON="python"
+    else
+      echo "Error: Python 3 is required but not found" >&2
+      return 1
+    fi
+  else
+    echo "Error: Python is required but not found" >&2
+    return 1
+  fi
+
+  export TB_PYTHON
+}
 
 # =============================================================================
 # Initialization
@@ -29,6 +66,9 @@ _tb_init() {
   if [ -n "$TB_BACKEND" ]; then
     return 0
   fi
+
+  # Detect Python first (needed for wezterm backend)
+  _tb_detect_python
 
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*|Windows*)
@@ -206,17 +246,21 @@ _wezterm_save_mapping() {
 
   _wezterm_init_map
 
+  # Use Windows path for Python on MSYS/MinGW
+  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
   local tmp_file="${WO_MAP_FILE}.tmp.$$"
-  python3 -c "
+  local tmp_file_py="${map_file_py}.tmp.$$"
+
+  $TB_PYTHON -c "
 import json
 import sys
 
-with open('$WO_MAP_FILE', 'r') as f:
+with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
 data['$pane_id'] = '$session_id'
 
-with open('$tmp_file', 'w') as f:
+with open(r'$tmp_file_py', 'w') as f:
     json.dump(data, f, indent=2)
 " && mv "$tmp_file" "$WO_MAP_FILE"
 }
@@ -226,10 +270,13 @@ _wezterm_get_pane_id() {
 
   _wezterm_init_map
 
-  python3 -c "
+  # Use Windows path for Python on MSYS/MinGW
+  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
+
+  $TB_PYTHON -c "
 import json
 
-with open('$WO_MAP_FILE', 'r') as f:
+with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
 for pane_id, sid in data.items():
@@ -244,16 +291,20 @@ _wezterm_remove_mapping() {
 
   _wezterm_init_map
 
+  # Use Windows path for Python on MSYS/MinGW
+  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
   local tmp_file="${WO_MAP_FILE}.tmp.$$"
-  python3 -c "
+  local tmp_file_py="${map_file_py}.tmp.$$"
+
+  $TB_PYTHON -c "
 import json
 
-with open('$WO_MAP_FILE', 'r') as f:
+with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
 data = {k: v for k, v in data.items() if v != '$session_id'}
 
-with open('$tmp_file', 'w') as f:
+with open(r'$tmp_file_py', 'w') as f:
     json.dump(data, f, indent=2)
 " && mv "$tmp_file" "$WO_MAP_FILE"
 }
@@ -265,9 +316,14 @@ _wezterm_create_session() {
   local pane_id
   local existing_window
 
+  # Normalize path for Windows: remove trailing slashes (wezterm bug)
+  # See: https://github.com/wezterm/wezterm/discussions/4703
+  cwd="${cwd%/}"
+  cwd="${cwd%\\}"
+
   # Find existing window in workspace
   existing_window=$(wezterm cli list --format json 2>/dev/null | \
-    python3 -c "
+    $TB_PYTHON -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -284,6 +340,13 @@ except:
   fi
 
   wezterm cli set-tab-title --pane-id "$pane_id" "$branch"
+
+  # Workaround for Windows Git Bash: --cwd may not work correctly
+  # Git Bash often starts in MSYS installation dir or %USERPROFILE%
+  # See: https://github.com/git-for-windows/git/issues/794
+  # Explicitly cd to the target directory after bash starts
+  sleep 0.3  # Wait for bash prompt to initialize
+  printf 'cd "%s" && clear\r' "$cwd" | wezterm cli send-text --pane-id "$pane_id" --no-paste
 
   local session_id
   session_id=$(_build_session_id "$workspace" "$branch" "0")
@@ -377,7 +440,7 @@ _wezterm_get_session_info() {
   fi
 
   local info
-  info=$(wezterm cli list --format json 2>/dev/null | python3 -c "
+  info=$(wezterm cli list --format json 2>/dev/null | $TB_PYTHON -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -399,10 +462,13 @@ _wezterm_poll_sessions() {
 
   _wezterm_init_map
 
-  python3 -c "
+  # Use Windows path for Python on MSYS/MinGW
+  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
+
+  $TB_PYTHON -c "
 import json
 
-with open('$WO_MAP_FILE', 'r') as f:
+with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
 for pane_id, session_id in data.items():
