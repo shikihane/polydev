@@ -69,15 +69,8 @@ if [ ! -f "$TASK_FILE" ]; then
     latest_backup=$(ls -t "$BACKUP_DIR"/task.toon.*.bak 2>/dev/null | head -1)
     if [ -n "$latest_backup" ]; then
       echo "📦 Found backup: $(basename "$latest_backup")"
-      echo -n "Restore from backup? [y/N] "
-      read -r response
-      if [[ "$response" =~ ^[Yy]$ ]]; then
-        cp "$latest_backup" "$TASK_FILE"
-        echo "✅ Restored task.toon from backup"
-      else
-        echo "❌ Cannot proceed without task.toon"
-        exit 1
-      fi
+      cp "$latest_backup" "$TASK_FILE"
+      echo "✅ Auto-restored task.toon from backup"
     else
       echo "❌ No backups found in $BACKUP_DIR"
       exit 1
@@ -114,86 +107,28 @@ fi
 # Step 4: Handle active session
 if [ "$SESSION_ALIVE" = "true" ]; then
   if [ "$FORCE_RESTART" = "true" ]; then
+    # --force: 直接执行，不询问
     echo ""
-    echo "⚠️  Forcing restart of active session (--force flag)"
-    echo ""
-    echo "This will:"
-    echo "  1. Kill the current session"
-    echo "  2. Create a new session"
-    echo "  3. Restart Claude"
-    echo ""
-    echo -n "Continue? [y/N] "
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-      echo "Cancelled."
-      exit 0
-    fi
-
-    # Kill existing session
-    echo ""
-    echo "🔪 Killing existing session..."
+    echo "🔪 Force killing active session..."
     tb_cleanup_session "$old_session_id"
     echo "   ✅ Session terminated"
   else
-    # Session is alive and no --force flag
+    # Session is alive and no --force flag → 报错退出
     echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Session is currently active"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "❌ ERROR: Session is still ACTIVE"
     echo ""
-    echo "What would you like to do?"
-    echo "  [1] Attach to existing session (focus-session.sh)"
-    echo "  [2] Kill and restart session"
-    echo "  [3] Cancel"
-    echo ""
-    echo -n "Choose [1-3]: "
-    read -r choice
-
-    case "$choice" in
-      1)
-        echo ""
-        echo "📍 Focusing session..."
-        tb_focus_session "$old_session_id"
-        echo "   ✅ Session focused"
-        echo ""
-        echo "Alternatively, run:"
-        echo "  ./scripts/focus-session.sh $WORKTREE_PATH"
-        exit 0
-        ;;
-      2)
-        echo ""
-        echo "🔪 Killing existing session..."
-        tb_cleanup_session "$old_session_id"
-        echo "   ✅ Session terminated"
-        # Continue to restart
-        ;;
-      *)
-        echo "Cancelled."
-        exit 0
-        ;;
-    esac
+    echo "Session ID: $old_session_id"
+    echo "Use --force to kill and restart: ./scripts/restore-session.sh $WORKTREE_PATH --force"
+    echo "Or focus the session: ./scripts/focus-session.sh $WORKTREE_PATH"
+    exit 2  # Exit code 2 = session still active
   fi
 fi
 
-# Step 5: Prompt user for restart action (session is dead or killed)
+# Step 5: Auto restart (session is dead or killed)
+# 自动选择选项 1：创建会话并启动 Claude
+choice=1
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Session restart options:"
-echo "  [1] Create new session and restart Claude (recommended)"
-echo "  [2] Just create session (manual Claude start)"
-echo "  [3] Cancel"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -n "Choose [1-3]: "
-read -r choice
-
-case "$choice" in
-  1|2)
-    ;;
-  *)
-    echo "Cancelled."
-    exit 0
-    ;;
-esac
+echo "🔄 Auto-restarting session with Claude..."
 
 # Step 6: Create new session
 echo ""

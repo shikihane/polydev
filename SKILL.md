@@ -7,11 +7,93 @@ description: Use when parallelizing development across multiple git worktrees wi
 
 Parallel development orchestration using Git worktrees and terminal sessions.
 
+---
+
+## 🚨🚨🚨 ABSOLUTE PROHIBITION 🚨🚨🚨
+
+**你必须使用 `./scripts/*.sh` 脚本。绝对禁止自己写终端命令。**
+
+```
+❌ BANNED FOREVER - 以下行为永久禁止：
+├── 自己调用 wezterm cli spawn / tmux new-session
+├── 自己调用 wezterm cli send-text / tmux send-keys
+├── 自己读取终端输出判断状态
+├── 自己写 git worktree add/remove 命令
+├── 自己删除 .worktrees 目录下的任何东西
+└── 任何"我觉得脚本太麻烦，自己写更快"的想法
+
+✅ MUST USE - 必须使用：
+├── ./scripts/spawn-session.sh    → 创建会话
+├── ./scripts/poll.sh             → 监控状态（循环调用）
+├── ./scripts/restore-session.sh  → 恢复会话
+├── ./scripts/focus-session.sh    → 聚焦会话
+└── ./scripts/cleanup-worktree.sh → 清理 worktree
+```
+
+**为什么这么严格？**
+1. 脚本处理了 Windows/Linux 兼容、路径转换、备份、状态同步等几十个边界情况
+2. 你自己写的命令会崩溃，然后整个并行流程卡死
+3. 不用脚本 = 脚本没人测试 = bug 永远发现不了 = 系统永远不稳定
+
+**如果你觉得脚本有问题，正确做法是：修复脚本，而不是绕过它。**
+
+---
+
 **Supported Backends:**
 - **tmux** (Linux/macOS) - uses isolated socket at `/tmp/worktree-orchestrator.sock`
 - **wezterm** (Windows) - uses workspace-based session management
 
 **Announce:** "I'm using the worktree-orchestrator skill to parallelize this work."
+
+## 🛠️ Scripts Quick Reference
+
+```bash
+# 创建会话（必须用这个，不要自己 spawn）
+./scripts/spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
+
+# 监控状态（必须在循环中调用）
+./scripts/poll.sh <worktrees-dir> <timeout-seconds>
+
+# 恢复崩溃的会话
+./scripts/restore-session.sh <worktree-path> [--force]
+
+# 聚焦到某个会话
+./scripts/focus-session.sh <worktree-path>
+
+# 清理 worktree（完成后使用）
+./scripts/cleanup-worktree.sh <worktree-path>
+```
+
+## ⚠️ Poll Loop - 启动后必须持续监控
+
+```bash
+# 启动所有会话后，立即进入监控循环 - 不能省略！
+while branches_remaining; do
+  result=$(./scripts/poll.sh .worktrees 10)  # ← 必须调用！
+
+  worktree=$(echo "$result" | cut -d',' -f1)
+  overall_status=$(echo "$result" | cut -d',' -f3)
+  agent_status=$(echo "$result" | cut -d',' -f4)
+
+  case "$agent_status" in
+    crashed) ./scripts/restore-session.sh "$worktree" --force ;;
+    idle)    # 检查是否需要重启
+  esac
+
+  case "$overall_status" in
+    completed) # 验收并合并
+    hil)       # 人工介入
+  esac
+done
+```
+
+**禁止：** 启动会话后就不管了，期望子 agent 自己完成。
+
+## 📊 状态来源：只信任 task.toon
+
+- ✅ 读取 `<worktree>/task.toon` 获取 `overall_status` 和 `agent_status`
+- ❌ 不要猜测子 agent 状态
+- ❌ 不要读取终端输出判断状态
 
 ## Core Flow
 
@@ -34,12 +116,12 @@ Phase 3: User Confirmation
     - 用户确认或调整
     ↓
 Phase 4: Parallel Execution
-    - 创建 N 个 worktrees
+    - 创建 N 个 worktrees (spawn-session.sh)
     - 启动 N 个 Claude 会话
-    - Poll 监控状态
+    - ⚠️ 【必须】循环调用 poll.sh 监控状态
     ↓
 Phase 5: Incremental Verify & Merge
-    - 完成一个处理一个
+    - poll.sh 返回时处理该分支
     - 按验收级别执行验证
     - 测试通过后合并
     ↓
