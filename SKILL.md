@@ -63,6 +63,7 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 ├── ./scripts/spawn-session.sh    → 创建会话
 ├── ./scripts/poll.sh             → 监控状态（循环调用）
 ├── ./scripts/restore-session.sh  → 恢复会话
+├── ./scripts/send-command.sh     → 向会话发送命令（带回车）
 ├── ./scripts/focus-session.sh    → 聚焦会话
 └── ./scripts/cleanup-worktree.sh → 清理 worktree
 ```
@@ -93,6 +94,10 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 
 # 恢复崩溃的会话
 ./scripts/restore-session.sh <worktree-path> [--force]
+
+# 向空闲会话发送命令（带回车执行）
+./scripts/send-command.sh <worktree-path> "<command>"
+./scripts/send-command.sh <worktree-path> "<text>" --no-enter  # 不按回车
 
 # 聚焦到某个会话
 ./scripts/focus-session.sh <worktree-path>
@@ -596,8 +601,9 @@ last_update: 2024-01-15T10:35:00Z
 | `scripts/spawn-session.sh` | 创建 worktree + 终端会话 + Claude |
 | `scripts/poll.sh` | 轮询状态，有变化时返回 |
 | `scripts/focus-session.sh` | 激活指定会话 |
-| `scripts/restore-session.sh` | 🆕 恢复崩溃的会话（从备份恢复 task.toon） |
-| `scripts/cleanup-worktree.sh` | 🆕 安全清理 worktree（带确认和备份） |
+| `scripts/send-command.sh` | 向会话发送命令（带回车执行） |
+| `scripts/restore-session.sh` | 恢复崩溃的会话（从备份恢复 task.toon） |
+| `scripts/cleanup-worktree.sh` | 安全清理 worktree（带确认和备份） |
 | `scripts/git-info.sh` | 只读 git 状态检查 |
 
 ---

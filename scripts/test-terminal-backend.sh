@@ -457,6 +457,84 @@ test_poll_sessions() {
 }
 
 # =============================================================================
+# Script Integration Tests
+# =============================================================================
+
+test_send_command_script() {
+  log_test "send-command.sh Script"
+
+  local test_branch="test-script-$$"
+  local test_cwd="$(pwd)"
+  local test_worktree="/tmp/test-send-cmd-$$"
+  local session_id
+
+  # Setup: create session and task.toon
+  mkdir -p "$test_worktree"
+  session_id=$(tb_create_worktree_session "$TEST_WORKSPACE" "$test_branch" "$test_worktree")
+  TEST_SESSIONS+=("$session_id")
+
+  if [ -z "$session_id" ]; then
+    fail "Cannot create session for script test"
+    rm -rf "$test_worktree"
+    return 1
+  fi
+
+  # Create task.toon
+  cat > "$test_worktree/task.toon" << EOF
+meta{worktree,branch,session_id,created}:
+  $test_worktree,$test_branch,$session_id,2024-01-01T00:00:00Z
+
+overall_status: in_progress
+agent_status: active
+EOF
+
+  sleep 1
+
+  # Test 1: Send command with Enter
+  if "$SCRIPT_DIR/send-command.sh" "$test_worktree" "echo test-with-enter" >/dev/null 2>&1; then
+    pass "send-command.sh: command with Enter"
+  else
+    fail "send-command.sh: command with Enter failed"
+  fi
+
+  # Test 2: Send command without Enter
+  if "$SCRIPT_DIR/send-command.sh" "$test_worktree" "echo test-no-enter" --no-enter >/dev/null 2>&1; then
+    pass "send-command.sh: command without Enter (--no-enter)"
+  else
+    fail "send-command.sh: --no-enter failed"
+  fi
+
+  # Test 3: Error handling - non-existent path
+  if ! "$SCRIPT_DIR/send-command.sh" "/nonexistent-path-$$" "test" >/dev/null 2>&1; then
+    pass "send-command.sh: correctly rejects non-existent path"
+  else
+    fail "send-command.sh: should reject non-existent path"
+  fi
+
+  # Test 4: Error handling - no task.toon
+  local no_toon_dir="/tmp/no-toon-$$"
+  mkdir -p "$no_toon_dir"
+  if ! "$SCRIPT_DIR/send-command.sh" "$no_toon_dir" "test" >/dev/null 2>&1; then
+    pass "send-command.sh: correctly rejects missing task.toon"
+  else
+    fail "send-command.sh: should reject missing task.toon"
+  fi
+  rm -rf "$no_toon_dir"
+
+  # Test 5: Error handling - dead session
+  tb_cleanup_session "$session_id"
+  sleep 0.5
+  if ! "$SCRIPT_DIR/send-command.sh" "$test_worktree" "test" >/dev/null 2>&1; then
+    pass "send-command.sh: correctly rejects dead session"
+  else
+    fail "send-command.sh: should reject dead session"
+  fi
+
+  # Cleanup
+  rm -rf "$test_worktree"
+}
+
+# =============================================================================
 # Main Test Runner
 # =============================================================================
 
@@ -483,6 +561,9 @@ run_all_tests() {
   test_send_multiline
   test_working_directory
   test_poll_sessions
+
+  # Script integration tests
+  test_send_command_script
 
   # Summary
   echo ""
