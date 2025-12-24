@@ -54,6 +54,8 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 ❌ BANNED FOREVER - 以下行为永久禁止：
 ├── 自己调用 wezterm cli spawn / tmux new-session
 ├── 自己调用 wezterm cli send-text / tmux send-keys
+├── 自己调用 wezterm cli list / tmux list-sessions
+├── 自己调用 wezterm cli kill-pane / tmux kill-session
 ├── 自己读取终端输出判断状态
 ├── 自己写 git worktree add/remove 命令
 ├── 自己删除 .worktrees 目录下的任何东西
@@ -65,6 +67,8 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 ├── ./scripts/restore-session.sh  → 恢复会话
 ├── ./scripts/send-command.sh     → 向会话发送命令（带回车）
 ├── ./scripts/focus-session.sh    → 聚焦会话
+├── ./scripts/list-sessions.sh    → 列出所有会话
+├── ./scripts/close-session.sh    → 关闭/终结会话
 └── ./scripts/cleanup-worktree.sh → 清理 worktree
 ```
 
@@ -101,6 +105,13 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 
 # 聚焦到某个会话
 ./scripts/focus-session.sh <worktree-path>
+
+# 列出所有活动会话
+./scripts/list-sessions.sh              # 列出全部
+./scripts/list-sessions.sh <workspace>  # 按 workspace 过滤
+
+# 关闭/终结会话
+./scripts/close-session.sh <session_id>
 
 # 清理 worktree（完成后使用）
 ./scripts/cleanup-worktree.sh <worktree-path>
@@ -602,6 +613,8 @@ last_update: 2024-01-15T10:35:00Z
 | `scripts/poll.sh` | 轮询状态，有变化时返回 |
 | `scripts/focus-session.sh` | 激活指定会话 |
 | `scripts/send-command.sh` | 向会话发送命令（带回车执行） |
+| `scripts/list-sessions.sh` | 列出所有活动会话（支持 workspace 过滤） |
+| `scripts/close-session.sh` | 关闭/终结指定会话 |
 | `scripts/restore-session.sh` | 恢复崩溃的会话（从备份恢复 task.toon） |
 | `scripts/cleanup-worktree.sh` | 安全清理 worktree（带确认和备份） |
 | `scripts/git-info.sh` | 只读 git 状态检查 |
