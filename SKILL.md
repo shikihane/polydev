@@ -9,6 +9,43 @@ Parallel development orchestration using Git worktrees and terminal sessions.
 
 ---
 
+## 💸💸💸 COST CONTROL - 省钱原则 💸💸💸
+
+**并行代理（子Agent）必须使用 `sonnet` 模型！否则你会让用户破产！**
+
+```
+❌ WILL BANKRUPT YOUR USER - 以下行为会让用户破产：
+├── 用 opus 模型 spawn 多个并行代理
+├── 不指定 model 参数（默认继承主 agent 的昂贵模型）
+├── 用 haiku 处理需要代码能力的任务（会反复失败浪费更多）
+└── "这个任务很重要，用 opus 更好" —— 错！sonnet 足够好！
+
+✅ CORRECT USAGE - 正确做法：
+├── Task 工具: 必须指定 model: "sonnet"
+├── 唯一例外: 用户主动声明 "用 opus/haiku"
+└── 默认永远是 sonnet，无论任务多重要
+```
+
+**成本对比（估算）：**
+| 模型 | 相对成本 | 并行5个任务成本 |
+|------|---------|----------------|
+| Opus | 15x | 💀💀💀 |
+| Sonnet | 1x | ✅ 合理 |
+| Haiku | 0.2x | ⚠️ 能力不足可能重试 |
+
+**代码示例：**
+```javascript
+// ❌ 错误 - 会继承主 agent 的 opus 模型
+Task({ prompt: "...", subagent_type: "general-purpose" })
+
+// ✅ 正确 - 明确指定 sonnet
+Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
+```
+
+**记住：用户用 opus 调用你，不代表子 agent 也要用 opus！**
+
+---
+
 ## 🚨🚨🚨 ABSOLUTE PROHIBITION 🚨🚨🚨
 
 **你必须使用 `./scripts/*.sh` 脚本。绝对禁止自己写终端命令。**
@@ -573,8 +610,9 @@ last_update: 2024-01-15T10:35:00Z
 4. **验收通过才能合并**
 5. **合并后再次验收**
 6. **人工确认才能清理**
-7. **会话崩溃时先恢复再继续** 🆕
-8. **不要手动删除 .task_backups/** 🆕
+7. **会话崩溃时先恢复再继续**
+8. **不要手动删除 .task_backups/**
+9. **💸 并行代理必须用 sonnet！除非用户主动声明其他模型！** 🆕
 
 ---
 
