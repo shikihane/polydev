@@ -3,6 +3,10 @@
 #
 # Usage: spawn-session.sh <workspace> <branch_name> <worktree_path> <plan_file> [verify_level] [verify_fallback] [verify_commands]
 #
+# Environment variables:
+#   CLAUDE_MODEL - Model to use for sub-agents (default: sonnet)
+#                  Options: sonnet, opus, haiku
+#
 # Verification info can be passed as arguments or extracted from plan file frontmatter
 # Supports both tmux (Linux/macOS) and wezterm (Windows) via terminal-backend.sh
 
@@ -62,6 +66,9 @@ VERIFY_LEVEL="${5:-L2}"
 VERIFY_FALLBACK="${6:-L1}"
 VERIFY_COMMANDS="${7:-}"
 
+# Model for sub-agents (default: sonnet for cost control)
+CLAUDE_MODEL="${CLAUDE_MODEL:-sonnet}"
+
 if [ -z "$WORKSPACE" ] || [ -z "$BRANCH_NAME" ] || [ -z "$WORKTREE_PATH" ] || [ -z "$PLAN_FILE" ]; then
   echo "❌ Error: Missing required arguments"
   echo ""
@@ -112,6 +119,7 @@ echo "Workspace:     $WORKSPACE"
 echo "Branch:        $BRANCH_NAME"
 echo "Worktree:      $WORKTREE_PATH"
 echo "Verification:  $VERIFY_LEVEL (fallback: $VERIFY_FALLBACK)"
+echo "Model:         $CLAUDE_MODEL"
 echo "Backend:       $(tb_get_backend)"
 echo ""
 
@@ -173,7 +181,7 @@ sed_inplace "s|PENDING_PANE_ID|$session_id|" "$WORKTREE_PATH/task.toon"
 echo ""
 echo "🤖 Starting Claude agent..."
 
-if ! tb_send_command "$session_id" "claude --dangerously-skip-permissions"; then
+if ! tb_send_command "$session_id" "claude --dangerously-skip-permissions --model $CLAUDE_MODEL"; then
   echo "❌ Failed to start Claude"
   echo "   Session ID: $session_id"
   echo "   Try manually: ./scripts/focus-session.sh $WORKTREE_PATH"

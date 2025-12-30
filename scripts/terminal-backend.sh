@@ -173,6 +173,8 @@ _tmux_send_multiline_text() {
   rm -f "$tmp_file"
 
   if [ "$execute" = "true" ]; then
+    # Wait for Claude Code to process the pasted text before sending Enter
+    sleep 2
     _tmux send-keys -t "$TARGET" C-m
   fi
 }
