@@ -68,3 +68,39 @@ Every status change MUST be **immediately** written to task.toon:
 - ALWAYS set blocking_reason - 主 agent 需要它来判断如何处理
 - The main agent monitors you **only** through task.toon
 - When blocked: STOP immediately, don't retry
+
+---
+
+## 规则反思（完成前检查）
+
+**触发条件**（全部满足才触发）：
+1. 遇到了 **环境/兼容性/参数用法** 问题
+2. 问题 **会在新 Agent 执行时重复出现**
+3. 你 **已解决** 并有明确方案
+
+**触发动作**：写文件到 `.agent-memory/proposed-rules/<问题简述>.md`
+
+**格式**：
+```markdown
+# <问题简述>
+
+## 问题
+<描述问题现象和触发条件>
+
+## 解决方案
+<具体的解决方法>
+
+## 示例
+```bash
+# 错误做法
+...
+
+# 正确做法
+...
+```
+```
+
+**不触发的情况**：
+- 业务逻辑问题
+- 一次性问题
+- 不确定是否通用

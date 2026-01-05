@@ -120,7 +120,95 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 
 # 清理 worktree（完成后使用）
 ./scripts/cleanup-worktree.sh <worktree-path>
+
+# ═══ 后台任务（无子 Claude）═══
+# 启动后台命令
+./scripts/run-background.sh <name> "<command>" [--cwd <dir>]
+# 分析输出状态
+./scripts/analyze-output.sh <session_id> --lines 20 [--json]
+# 等待模式匹配
+./scripts/wait-for-pattern.sh <session_id> --success "<pattern>" [--timeout 300]
+
+# ═══ Agent 调查（子 Claude，无 worktree）═══
+# 启动调查 Agent
+./scripts/spawn-agent.sh <name> --prompt "<任务>" --report <报告路径>
 ```
+
+---
+
+## 🔄 三种终端托管场景
+
+| 场景 | 脚本 | 子 Claude | 状态通信 |
+|------|------|-----------|----------|
+| **并行开发** | spawn-session.sh | ✅ | task.toon |
+| **后台命令** | run-background.sh | ❌ | 终端输出分析 |
+| **Agent 调查** | spawn-agent.sh | ✅ | 报告文件 + [AGENT_DONE] |
+
+### 何时用哪个？
+
+- **并行开发**: 多分支同时编码，需要隔离的 worktree
+- **后台命令**: npm build、测试、开发服务器等长时间命令
+- **Agent 调查**: 代码分析、问题调研、文档查询等只读任务
+
+### Session ID 格式
+
+```
+wo:workspace:branch.0    # 并行开发 (worktree)
+bg:workspace:name.0      # 后台命令 (background)
+ag:workspace:name.0      # Agent 调查 (agent)
+```
+
+---
+
+## 🖥️ 后台命令执行策略
+
+**优先使用终端托管，而非 Claude Code 内置后台机制。**
+
+### 为什么？
+
+| 特性 | Claude Code 内置后台 | 终端托管 |
+|------|---------------------|----------|
+| 稳定性 | 可能被中断 | 持久运行 |
+| 输出查看 | 只能等结束 | 随时查看 |
+| 恢复能力 | 进程丢失 | session 可恢复 |
+
+### 示例：运行构建
+
+```bash
+# 1. 启动后台构建
+session_id=$(./scripts/run-background.sh build "npm run build")
+
+# 2. 等待完成
+./scripts/wait-for-pattern.sh "$session_id" \
+  --success "Build completed" \
+  --fail "Error" \
+  --timeout 300
+
+# 3. 清理
+./scripts/close-session.sh "$session_id"
+```
+
+### 示例：启动调查 Agent
+
+```bash
+# 1. 启动调查
+session_id=$(./scripts/spawn-agent.sh auth-research \
+  --prompt "分析项目的认证机制" \
+  --report ./.agent-reports/auth.md)
+
+# 2. 等待完成
+./scripts/wait-for-pattern.sh "$session_id" \
+  --success "\[AGENT_DONE\]" \
+  --timeout 600
+
+# 3. 读取报告
+cat ./.agent-reports/auth.md
+
+# 4. 清理
+./scripts/close-session.sh "$session_id"
+```
+
+---
 
 ## ⚠️ Poll Loop - 启动后必须持续监控
 
@@ -489,6 +577,61 @@ cd <worktree>
 通过 → status: merged
 失败 → revert, status: rejected
 ```
+
+---
+
+## Phase 5.5: 规则审查
+
+**检查子 Agent 提议的规则，决定是否采纳。**
+
+### 5.5.1 检查提议规则
+
+```bash
+# 检查是否有提议的规则
+if [ -d ".agent-memory/proposed-rules" ] && [ "$(ls -A .agent-memory/proposed-rules 2>/dev/null)" ]; then
+  echo "📋 发现子 Agent 提议的规则："
+  ls -la .agent-memory/proposed-rules/
+fi
+```
+
+### 5.5.2 审查流程
+
+```
+检查 .agent-memory/proposed-rules/ 目录
+    ↓
+有提议规则？
+    ↓ 是
+展示每个规则的内容摘要
+    ↓
+对每个规则询问：
+    [1] 采纳 → 移动到 .claude/rules/
+    [2] 拒绝 → 删除
+    [3] 稍后 → 保留
+    ↓
+清理空目录
+```
+
+### 5.5.3 采纳规则
+
+```bash
+# 采纳规则到项目级别
+mkdir -p .claude/rules
+mv ".agent-memory/proposed-rules/<rule-name>.md" ".claude/rules/"
+
+# 清理空目录
+rmdir .agent-memory/proposed-rules 2>/dev/null || true
+```
+
+### 5.5.4 规则来源
+
+子 Agent（worktree-executor、agent-investigator）在执行任务时，如果遇到：
+1. **环境/兼容性问题**（如 Windows Git Bash 的 python3 问题）
+2. **参数用法问题**（如工具的特殊参数）
+3. **会在新 Agent 执行时重复出现的问题**
+
+且已解决，会自动将解决方案写入 `.agent-memory/proposed-rules/`。
+
+**注意**：只有环境/兼容性/参数用法类问题才会触发，业务逻辑问题不会。
 
 ---
 

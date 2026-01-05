@@ -402,16 +402,16 @@ _wezterm_send_multiline_text() {
 
   # For multiline text, send the entire text with newlines preserved
   # wezterm cli send-text handles this correctly
-  # IMPORTANT: Send text first, then send Enter separately
-  # Using \r at end of multiline text doesn't trigger execution properly
+  # IMPORTANT: Send text first, then send Enter separately after delay
+  # Claude Code needs time to process pasted text before receiving Enter
   printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id" --no-paste
 
   if [ "$execute" = "true" ]; then
-    # Send Enter key separately to ensure execution
-    # Use 'echo ""' without --no-paste as it works more reliably with Claude Code
-    # See: https://github.com/wezterm/wezterm/discussions/xxxx
-    sleep 0.3
-    echo "" | wezterm cli send-text --pane-id "$pane_id"
+    # Wait for Claude Code to process the pasted text
+    # 1 second delay is necessary for reliable execution
+    sleep 1
+    # Send Enter key separately using \r
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
   fi
 }
 
