@@ -217,7 +217,7 @@ To remove the worktree from git:
 .DS_Store
 
 # Terminal backend state
-/tmp/worktree-orchestrator-map.json
+/tmp/polydev-map.json
 ```
 
 **注意**:

@@ -2,7 +2,7 @@
 
 ## Overview
 
-为 worktree-orchestrator 添加 tmux 后端支持，通过抽象层实现双后端（tmux/wezterm）兼容。
+为 polydev 添加 tmux 后端支持，通过抽象层实现双后端（tmux/wezterm）兼容。
 
 ## Design Decisions
 
@@ -13,7 +13,7 @@
 | 环境检测 | 启动时一次性检测 |
 | 会话标识符 | 语义化格式 `wo:session:window.pane` |
 | 隔离方式 | Socket 隔离 |
-| Socket 路径 | `/tmp/worktree-orchestrator.sock` |
+| Socket 路径 | `/tmp/polydev.sock` |
 | 后端选择 | 严格按 OS（Windows→wezterm, Linux/macOS→tmux）|
 
 ## Architecture
@@ -35,7 +35,7 @@ wo:myproject-parallel:feature-auth.0
 │  │                  │            └─ pane index
 │  │                  └─ window name (branch)
 │  └─ session name (workspace)
-└─ 前缀标识 worktree-orchestrator
+└─ 前缀标识 polydev
 ```
 
 ## API Design
@@ -70,7 +70,7 @@ tb_cleanup_session(session_id)
 ### tmux Backend
 
 ```bash
-TB_SOCKET="/tmp/worktree-orchestrator.sock"
+TB_SOCKET="/tmp/polydev.sock"
 _tmux() { tmux -S "$TB_SOCKET" "$@"; }
 
 _parse_session_id() {
@@ -106,7 +106,7 @@ _tmux_is_alive() {
 ### wezterm Backend
 
 ```bash
-WO_MAP_FILE="/tmp/worktree-orchestrator-map.json"
+WO_MAP_FILE="/tmp/polydev-map.json"
 
 _wezterm_create_session() {
   local workspace="$1" branch="$2" cwd="$3"

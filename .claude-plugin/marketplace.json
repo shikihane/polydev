@@ -1,11 +1,11 @@
 {
-  "name": "worktree-orchestrator",
+  "name": "polydev-marketplace",
   "owner": {
     "name": "Heyang"
   },
   "plugins": [
     {
-      "name": "worktree-orchestrator",
+      "name": "polydev",
       "source": "./",
       "description": "Parallel development orchestration with terminal-hosted background tasks and agent investigations",
       "version": "1.0.0"

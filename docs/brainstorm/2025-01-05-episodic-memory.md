@@ -463,14 +463,14 @@ CLAUDE.md (项目级 AI 指导)
 ### 8.1 目录结构
 
 ```
-worktree-orchestrator/
+polydev/
 ├── scripts/
 │   ├── log-episode.sh          # 新增: 记录事件
 │   ├── query-episodes.sh       # 新增: 查询事件
 │   ├── summarize-episodes.sh   # 新增: 生成摘要
 │   └── ...
 ├── skills/
-│   ├── worktree-orchestrator/
+│   ├── polydev/
 │   │   └── SKILL.md            # 更新: 添加记忆查询指导
 │   ├── worktree-executor/
 │   │   └── SKILL.md            # 更新: 添加记录指导
@@ -509,7 +509,7 @@ worktree-orchestrator/
 
 ### Phase 3: 主 Agent 使用
 
-- [ ] 更新 worktree-orchestrator SKILL.md
+- [ ] 更新 polydev SKILL.md
 - [ ] 在 poll 循环中添加记忆检查
 - [ ] 实现知识注入（spawn 时）
 
