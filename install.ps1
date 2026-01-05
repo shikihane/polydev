@@ -12,7 +12,7 @@ function Print-Error { param([string]$Message) Write-Host "✗ $Message" -Foregr
 
 # 获取脚本目录
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$SkillName = "worktree-orchestrator"
+$SkillName = "polydev"
 
 Write-Host "==========================================="
 Write-Host "  Worktree Orchestrator 安装脚本 (Windows)"
@@ -168,14 +168,10 @@ Write-Host
 Write-Host "1. 确保已安装 Claude Code:"
 Write-Host "   npm install -g @anthropic-ai/claude-code"
 Write-Host
-Write-Host "2. 安装 superpowers 插件:"
-Write-Host "   在 Claude Code 中执行:"
-Write-Host "   /plugin marketplace add obra/superpowers-marketplace"
-Write-Host "   /plugin install superpowers@superpowers-marketplace"
 Write-Host
-Write-Host "3. 重启 Claude Code 使技能生效"
+Write-Host "2. 重启 Claude Code 使技能生效"
 Write-Host
-Write-Host "4. 使用方式:"
+Write-Host "3. 使用方式:"
 Write-Host "   在项目中启动 Claude，然后描述并行任务"
 Write-Host
 Write-Host "查看 README.md 了解更多信息:"

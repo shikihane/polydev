@@ -1,10 +1,10 @@
-# Worktree Orchestrator
+# Polydev
 
 使用 Git Worktrees 和终端会话实现并行开发编排的 Claude Code 技能。
 
 ## 项目简介
 
-Worktree Orchestrator 是一个 Claude Code 技能（Skill），允许你同时在多个 Git 分支上并行执行开发任务。它通过创建多个 Git worktrees 和终端会话，让多个 Claude 代理同时工作，大幅提升复杂任务的完成效率。
+Polydev 是一个 Claude Code 技能（Skill），允许你同时在多个 Git 分支上并行执行开发任务。它通过创建多个 Git worktrees 和终端会话，让多个 Claude 代理同时工作，大幅提升复杂任务的完成效率。
 
 ### 核心特性
 
@@ -25,7 +25,7 @@ Worktree Orchestrator 是一个 Claude Code 技能（Skill），允许你同时�
 | 依赖项 | 必需 | 说明 |
 |--------|------|------|
 | **Claude Code CLI** | 是 | 必须已安装并登录 |
-| **superpowers 插件** | 是 | 提供 `executing-plans` 等核心技能 |
+| **polydev 插件** | 是 | 本插件，提供所有必需技能 |
 
 ### 系统依赖
 
@@ -55,18 +55,8 @@ npm install -g @anthropic-ai/claude-code
 claude  # 首次运行需要登录
 ```
 
-### 第二步：安装 superpowers 插件
 
-在 Claude Code 中执行以下命令：
-
-```
-/plugin marketplace add obra/superpowers-marketplace
-/plugin install superpowers@superpowers-marketplace
-```
-
-安装后重启 Claude Code 使插件生效。
-
-### 第三步：安装系统依赖
+### 第二步：安装系统依赖
 
 #### Linux (Ubuntu/Debian)
 
@@ -101,18 +91,18 @@ brew install git tmux
    - 下载: [python.org](https://www.python.org/downloads/)
    - 安装时勾选 "Add Python to PATH"
 
-### 第四步：安装 worktree-orchestrator 技能
+### 第三步：安装 polydev 技能
 
 #### 方式 A：安装为个人技能（推荐，所有项目可用）
 
 ```bash
 # Linux/macOS
 mkdir -p ~/.claude/skills
-cp -r /path/to/worktree-orchestrator ~/.claude/skills/
+cp -r /path/to/polydev ~/.claude/skills/
 
 # Windows (Git Bash)
 mkdir -p "$USERPROFILE/.claude/skills"
-cp -r /path/to/worktree-orchestrator "$USERPROFILE/.claude/skills/"
+cp -r /path/to/polydev "$USERPROFILE/.claude/skills/"
 ```
 
 #### 方式 B：安装为项目技能（仅当前项目可用，可通过 git 共享）
@@ -120,21 +110,21 @@ cp -r /path/to/worktree-orchestrator "$USERPROFILE/.claude/skills/"
 ```bash
 # 在你的项目根目录
 mkdir -p .claude/skills
-cp -r /path/to/worktree-orchestrator .claude/skills/
+cp -r /path/to/polydev .claude/skills/
 ```
 
-### 第五步：设置脚本执行权限（Linux/macOS）
+### 第四步：设置脚本执行权限（Linux/macOS）
 
 ```bash
-chmod +x ~/.claude/skills/worktree-orchestrator/scripts/*.sh
-chmod +x ~/.claude/skills/worktree-orchestrator/hooks/*.sh
+chmod +x ~/.claude/skills/polydev/scripts/*.sh
+chmod +x ~/.claude/skills/polydev/hooks/*.sh
 ```
 
-### 第六步：验证安装
+### 第五步：验证安装
 
 ```bash
 # 测试终端后端
-cd ~/.claude/skills/worktree-orchestrator
+cd ~/.claude/skills/polydev
 source scripts/terminal-backend.sh
 echo "后端类型: $(tb_get_backend)"
 ```
@@ -157,10 +147,10 @@ echo "后端类型: $(tb_get_backend)"
 2. 用户资料管理
 3. 仪表盘页面
 
-请使用 worktree-orchestrator 技能并行开发这些功能。
+请使用 polydev 技能并行开发这些功能。
 ```
 
-Claude 会自动识别并使用 worktree-orchestrator 技能。
+Claude 会自动识别并使用 polydev 技能。
 
 ### 核心工作流程
 
@@ -245,7 +235,7 @@ git worktree remove .worktrees/auth
 ### 调试 tmux 会话（Linux/macOS）
 
 ```bash
-tmux -S /tmp/worktree-orchestrator.sock attach
+tmux -S /tmp/polydev.sock attach
 ```
 
 ---
@@ -301,7 +291,7 @@ tmux -S /tmp/worktree-orchestrator.sock attach
 ## 项目结构
 
 ```
-worktree-orchestrator/
+polydev/
 ├── SKILL.md                    # 主技能定义文件
 ├── README.md                   # 本文档
 ├── scripts/
@@ -322,7 +312,7 @@ worktree-orchestrator/
 │   ├── worktree-agent-prompt.md # 子代理提示词
 │   └── worktree.gitignore      # 🆕 Git 忽略规则模板
 ├── skills/
-│   └── worktree-executor/      # 子代理执行技能（依赖 superpowers:executing-plans）
+│   └── worktree-executor/      # 子代理执行技能
 │       └── SKILL.md
 └── docs/
     ├── plans/                  # 设计文档
@@ -333,22 +323,13 @@ worktree-orchestrator/
 
 ## 常见问题
 
-### Q: 提示找不到 executing-plans 技能？
-
-确保已安装 superpowers 插件：
-
-```
-/plugin install superpowers@superpowers-marketplace
-```
-
-然后重启 Claude Code。
 
 ### Q: tmux 会话找不到？
 
 使用正确的隔离 socket：
 
 ```bash
-tmux -S /tmp/worktree-orchestrator.sock list-sessions
+tmux -S /tmp/polydev.sock list-sessions
 ```
 
 ### Q: Windows 上 WezTerm CLI 不工作？

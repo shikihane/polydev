@@ -17,7 +17,7 @@
 
 | 场景 | Worktree | 子 Claude | 状态通信 | Skill |
 |------|----------|-----------|----------|-------|
-| **并行开发** | ✅ | ✅ | task.toon | worktree-orchestrator + worktree-executor |
+| **并行开发** | ✅ | ✅ | task.toon | polydev + worktree-executor |
 | **后台命令** | ❌ | ❌ | 终端输出分析 | terminal-task-runner (新) |
 | **Agent 调查** | ❌ | ✅ | 报告文件 + 完成标记 | agent-investigator (新) |
 | **交互命令** | ❌ | ❌ | 直接终端 | (手动/现有脚本) |
@@ -29,7 +29,7 @@
 ### 3.1 并行开发 (现有，保持)
 
 ```
-主 Agent (worktree-orchestrator)
+主 Agent (polydev)
     │
     ├── 分解任务、创建 worktrees
     ├── spawn-session.sh → 启动带 Claude 的会话
@@ -98,12 +98,12 @@
 ## 4. 插件目录结构
 
 ```
-worktree-orchestrator/
+polydev/
 ├── .claude-plugin/
 │   └── plugin.json                    # 插件 manifest
 │
 ├── skills/
-│   ├── worktree-orchestrator/         # 主编排 (现有 SKILL.md 移入)
+│   ├── polydev/         # 主编排 (现有 SKILL.md 移入)
 │   │   └── SKILL.md
 │   │
 │   ├── worktree-executor/             # worktree 内执行 (保持)
@@ -353,7 +353,7 @@ summary: <20字以内摘要>
 
 ```json
 {
-  "name": "worktree-orchestrator",
+  "name": "polydev",
   "description": "Parallel development orchestration with terminal-hosted background tasks and agent investigations",
   "version": "1.0.0",
   "author": {
@@ -388,7 +388,7 @@ summary: <20字以内摘要>
 ### Phase 1: 插件化基础 (P0)
 
 - [ ] 创建 `.claude-plugin/plugin.json`
-- [ ] 移动 `SKILL.md` → `skills/worktree-orchestrator/SKILL.md`
+- [ ] 移动 `SKILL.md` → `skills/polydev/SKILL.md`
 - [ ] 验证插件加载
 
 ### Phase 2: 后台命令支持 (P1)

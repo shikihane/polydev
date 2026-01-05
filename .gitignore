@@ -24,7 +24,7 @@ desktop.ini
 *~
 
 # tmux socket
-/tmp/worktree-orchestrator.sock
+/tmp/polydev.sock
 
 # Python cache (if using Python scripts in the future)
 __pycache__/

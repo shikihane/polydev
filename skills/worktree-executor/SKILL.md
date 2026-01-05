@@ -5,7 +5,11 @@ description: Use when executing tasks in an isolated worktree with mandatory tas
 
 # Worktree Executor
 
-Wraps executing-plans skill with mandatory task.toon status sync.
+Execute implementation plans in isolated worktrees with mandatory status synchronization.
+
+**Announce at start:** "I'm executing the plan in this worktree."
+
+---
 
 ## Iron Law - Violation = Failure
 
@@ -19,88 +23,149 @@ Every status change MUST be **immediately** written to task.toon:
 | Batch done, waiting for review | overall_status: hil, blocking_reason: 等待代码审查 |
 | All tasks complete | overall_status: completed |
 
-## blocked vs hil - Critical Distinction
-
-**ASK:** "Can the main agent or other agents possibly solve this?"
-
-| Status | Who solves | Examples |
-|--------|-----------|----------|
-| **blocked** | 主 agent / 其他 agent | 依赖另一个分支、体系 bug、环境问题、协调问题 |
-| **hil** | 必须人类 | 设计决策、凭据/权限、安全问题、需求歧义 |
-
-### blocked 流程
-1. 遇到问题，判断主 agent 可能能解决
-2. 更新 task.toon:
-   ```
-   overall_status: blocked
-   blocking_reason: 需要 feature/auth 分支的 UserService，该分支尚未完成
-   ```
-3. **STOP** - 不要继续尝试，等待主 agent 处理
-4. 主 agent 解决后会重启你
-
-### hil 流程
-1. 遇到问题，判断必须人类介入
-2. 更新 task.toon:
-   ```
-   overall_status: hil
-   blocking_reason: 不确定用户想要 OAuth 还是 JWT
-   ```
-3. **STOP** - 等待人类决策
-4. 人类解决后会重启你
+---
 
 ## Execution Flow
 
-1. Update task.toon → in_progress, blocking_reason: (clear it)
-2. Read PLAN.md
-3. Execute batch (follow executing-plans skill)
-4. When blocked or need feedback:
-   - **FIRST** update task.toon (blocked or hil + blocking_reason)
-   - **THEN** STOP and wait
-5. After restart:
-   - Update task.toon → in_progress, blocking_reason: (clear it)
-   - Continue execution
-6. When all done:
-   - Update task.toon → completed
+### Step 1: Initialize
 
-## Critical Reminder
+1. Update task.toon -> `overall_status: in_progress`, clear `blocking_reason`
+2. Read `PLAN.md` from worktree root
+3. Review critically - identify any questions or concerns
+4. If concerns: Update task.toon -> `hil`, set `blocking_reason`, STOP
+5. If no concerns: Create TodoWrite and proceed
 
-- If you pause but don't update task.toon, the workflow deadlocks!
-- ALWAYS set blocking_reason - 主 agent 需要它来判断如何处理
-- The main agent monitors you **only** through task.toon
-- When blocked: STOP immediately, don't retry
+### Step 2: Execute Batch
+
+**Default batch size: 3 tasks**
+
+For each task in batch:
+
+1. Mark task as `in_progress` in TodoWrite
+2. Follow each step exactly as written in plan
+3. Run verification commands as specified
+4. If step fails:
+   - Analyze the failure
+   - If fixable: fix and retry
+   - If blocked: go to Step 4
+5. Mark task as `completed` in TodoWrite
+6. Commit changes (if plan specifies)
+
+### Step 3: Report & Checkpoint
+
+When batch complete:
+
+```
+Batch [N] complete:
+- Task 1: [description] done
+- Task 2: [description] done
+- Task 3: [description] done
+
+Verification output:
+[test/build output]
+
+Update task.toon -> hil, blocking_reason: 等待代码审查
+```
+
+**STOP and wait for feedback.**
+
+### Step 4: Handle Blockers
+
+**blocked vs hil - Critical Distinction:**
+
+| Status | Who solves | Examples |
+|--------|-----------|----------|
+| **blocked** | main agent / other agents | depends on another branch, system bug, env issue |
+| **hil** | human only | design decisions, credentials, security, ambiguous requirements |
+
+**blocked flow:**
+1. Determine main agent might be able to solve
+2. Update task.toon:
+   ```
+   overall_status: blocked
+   blocking_reason: Needs UserService from feature/auth branch, not yet complete
+   ```
+3. **STOP** - do not retry, wait for main agent
+
+**hil flow:**
+1. Determine human intervention required
+2. Update task.toon:
+   ```
+   overall_status: hil
+   blocking_reason: Unclear if user wants OAuth or JWT
+   ```
+3. **STOP** - wait for human decision
+
+### Step 5: Continue After Feedback
+
+Based on feedback:
+1. Update task.toon -> `in_progress`, clear `blocking_reason`
+2. Apply requested changes if any
+3. Execute next batch
+4. Repeat until complete
+
+### Step 6: Complete
+
+When all tasks done:
+1. Run final verification (all tests, build, lint)
+2. Update task.toon -> `overall_status: completed`
+3. Output completion summary
 
 ---
 
-## 规则反思（完成前检查）
+## When to Stop and Ask for Help
 
-**触发条件**（全部满足才触发）：
-1. 遇到了 **环境/兼容性/参数用法** 问题
-2. 问题 **会在新 Agent 执行时重复出现**
-3. 你 **已解决** 并有明确方案
+**STOP executing immediately when:**
+- Hit a blocker mid-batch (missing dependency, test fails repeatedly)
+- Plan has critical gaps preventing progress
+- You don't understand an instruction
+- Verification fails and you can't fix it
 
-**触发动作**：写文件到 `.agent-memory/proposed-rules/<问题简述>.md`
+**Ask for clarification rather than guessing.**
 
-**格式**：
+---
+
+## Critical Reminders
+
+- If you pause but don't update task.toon, the workflow **deadlocks**!
+- ALWAYS set `blocking_reason` - main agent needs it to decide how to handle
+- The main agent monitors you **only** through task.toon
+- When blocked: STOP immediately, don't retry endlessly
+- Follow plan steps **exactly** - don't improvise
+- Don't skip verifications
+
+---
+
+## Rule Reflection (Check Before Completion)
+
+**Trigger conditions** (all must be met):
+1. Encountered **environment/compatibility/parameter usage** issue
+2. Issue **will recur when new Agent executes**
+3. You **have solved it** with a clear solution
+
+**Action:** Write file to `.agent-memory/proposed-rules/<issue-summary>.md`
+
+**Format:**
 ```markdown
-# <问题简述>
+# <Issue Summary>
 
-## 问题
-<描述问题现象和触发条件>
+## Problem
+<Describe the issue and trigger conditions>
 
-## 解决方案
-<具体的解决方法>
+## Solution
+<Specific solution>
 
-## 示例
-```bash
-# 错误做法
+## Example
+\`\`\`bash
+# Wrong approach
 ...
 
-# 正确做法
+# Correct approach
 ...
-```
+\`\`\`
 ```
 
-**不触发的情况**：
-- 业务逻辑问题
-- 一次性问题
-- 不确定是否通用
+**Do NOT trigger for:**
+- Business logic issues
+- One-time issues
+- Uncertain if generalizable

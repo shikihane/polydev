@@ -17,7 +17,7 @@ set -e
 # Configuration
 # =============================================================================
 
-TB_SOCKET="/tmp/worktree-orchestrator.sock"
+TB_SOCKET="/tmp/polydev.sock"
 TB_BACKEND=""
 TB_PYTHON=""
 

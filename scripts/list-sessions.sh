@@ -1,5 +1,5 @@
 #!/bin/bash
-# list-sessions.sh - List all worktree-orchestrator sessions
+# list-sessions.sh - List all polydev sessions
 #
 # Usage: list-sessions.sh [workspace]
 #

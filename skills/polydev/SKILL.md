@@ -1,9 +1,9 @@
 ---
-name: worktree-orchestrator
+name: polydev
 description: Use when parallelizing development across multiple git worktrees with terminal sessions (tmux on Linux/macOS, wezterm on Windows)
 ---
 
-# Worktree Orchestrator
+# Polydev
 
 Parallel development orchestration using Git worktrees and terminal sessions.
 
@@ -242,10 +242,29 @@ done
 - ❌ 不要猜测子 agent 状态
 - ❌ 不要读取终端输出判断状态
 
+## Related Skills
+
+**Polydev includes these skills:**
+
+| Skill | Purpose | When to Use |
+|-------|---------|-------------|
+| `polydev:brainstorming` | Explore requirements, decompose tasks | Before complex parallel work |
+| `polydev:writing-plans` | Create detailed implementation plans | For each parallel task |
+| `polydev:worktree-executor` | Execute plans in worktrees | Automatically by sub-agents |
+| `polydev:agent-investigator` | Run investigation tasks | For read-only research |
+| `polydev:terminal-task-runner` | Run background commands | For builds, tests, servers |
+
+---
+
 ## Core Flow
 
 ```
 User request
+    ↓
+Phase 0: Brainstorming (Optional)
+    - Use polydev:brainstorming for complex/unclear requests
+    - Explore requirements through dialogue
+    - Output: task list with dependencies
     ↓
 Phase 1: Verification Strategy Research
     - 分析项目类型
