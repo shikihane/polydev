@@ -1,10 +1,11 @@
 #!/bin/bash
-# prune-dead-sessions.sh - Remove dead session mappings from wezterm map file
+# prune-dead-sessions.sh - Check and display all polydev sessions status
 #
 # Usage: prune-dead-sessions.sh
 #
-# This script checks all sessions in the map file and removes any that no longer exist.
-# Useful for cleaning up after wezterm windows are closed directly (not via close-session.sh).
+# This script lists all wezterm sessions and their status.
+# Since map files are no longer used, this script now only displays status.
+# Use close-session.sh to manually close dead/stale sessions.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/terminal-backend.sh"
@@ -15,47 +16,62 @@ if [ "$TB_BACKEND" != "wezterm" ]; then
   exit 0
 fi
 
-echo "Checking for dead sessions in map file..."
+echo "Checking polydev sessions..."
 echo ""
 
-# Read all session IDs from map
-_wezterm_init_map
-map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
+# Get all panes from wezterm
+panes_json=$(wezterm cli list --format json 2>/dev/null) || panes_json="[]"
 
-dead_count=0
-alive_count=0
-
-# Get all session IDs using environment variable to avoid escaping issues
-session_ids=$(MAP_FILE_PATH="$map_file_py" $TB_PYTHON -c "
+# Process and display
+PANES_JSON="$panes_json" $TB_PYTHON -c "
 import json
 import os
 
-map_file = os.environ.get('MAP_FILE_PATH', '')
-with open(map_file, 'r') as f:
-    data = json.load(f)
-for sid in data.values():
-    print(sid)
-" 2>/dev/null)
+panes_json = os.environ.get('PANES_JSON', '[]')
 
-if [ -z "$session_ids" ]; then
-  echo "No sessions in map file."
-  exit 0
-fi
+try:
+    panes = json.loads(panes_json)
+except:
+    panes = []
 
-# Check each session
-while IFS= read -r session_id; do
-  [ -z "$session_id" ] && continue
+alive_count = 0
+polydev_count = 0
 
-  if tb_is_session_alive "$session_id"; then
-    echo "  ✅ ALIVE: $session_id"
-    ((alive_count++))
-  else
-    echo "  💀 DEAD:  $session_id (removed from map)"
-    ((dead_count++))
-  fi
-done <<< "$session_ids"
+for p in panes:
+    workspace = p.get('workspace', '')
+    tab_title = p.get('tab_title', '')
+    pane_id = p.get('pane_id', '')
+    cwd = p.get('cwd', '')
 
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Summary: $alive_count alive, $dead_count dead (cleaned up)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    # Skip if not a polydev session (no workspace or tab_title)
+    if not workspace:
+        continue
+
+    # Determine prefix based on workspace pattern
+    if workspace.startswith('ag-'):
+        prefix = 'ag'
+    elif workspace.startswith('bg-'):
+        prefix = 'bg'
+    elif '-parallel' in workspace or workspace.startswith('wo-'):
+        prefix = 'wo'
+    else:
+        # Not a polydev session
+        continue
+
+    polydev_count += 1
+    session_id = f'{prefix}:{workspace}:{tab_title}.0'
+    print(f'  ✅ ALIVE: {session_id}')
+    print(f'           pane_id={pane_id} cwd={cwd}')
+    alive_count += 1
+
+if polydev_count == 0:
+    print('(No polydev sessions found)')
+else:
+    print('')
+    print('━' * 50)
+    print(f'Summary: {alive_count} alive polydev sessions')
+    print('━' * 50)
+    print('')
+    print('To close a session:')
+    print('  close-session.sh <session_id>')
+"

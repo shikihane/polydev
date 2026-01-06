@@ -66,21 +66,6 @@ cleanup() {
   for session_id in "${TEST_SESSIONS[@]}"; do
     tb_cleanup_session "$session_id" 2>/dev/null || true
   done
-
-  # Clean up wezterm map file entries for test workspace
-  if [ -f "$WO_MAP_FILE" ]; then
-    $TB_PYTHON -c "
-import json
-try:
-    with open('$WO_MAP_FILE', 'r') as f:
-        data = json.load(f)
-    data = {k: v for k, v in data.items() if not v.startswith('wo:$TEST_WORKSPACE:')}
-    with open('$WO_MAP_FILE', 'w') as f:
-        json.dump(data, f, indent=2)
-except:
-    pass
-" 2>/dev/null || true
-  fi
   echo "  Cleanup completed"
 }
 
