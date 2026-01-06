@@ -21,18 +21,9 @@ TB_SOCKET="/tmp/polydev.sock"
 TB_BACKEND=""
 TB_PYTHON=""
 
-# Map file paths - need both Unix (for bash) and Windows (for Python) formats
-# On MSYS/MinGW, /tmp is virtual but Python sees different path
-WO_MAP_FILE="/tmp/worktree-orchestrator-map.json"
-
-# Convert to Windows-compatible path for Python using cygpath
-# cygpath -m gives mixed format (forward slashes) which Python handles well
-if command -v cygpath &>/dev/null; then
-  WO_MAP_FILE_WIN="$(cygpath -m /tmp)/worktree-orchestrator-map.json"
-else
-  # Fallback for non-MSYS environments
-  WO_MAP_FILE_WIN="$WO_MAP_FILE"
-fi
+# No external map file needed
+# - tmux: native session:window.pane naming
+# - wezterm: lookup via workspace + tab_title
 
 # Detect Python command (python3 or python)
 _tb_detect_python() {
@@ -91,13 +82,17 @@ _tb_init
 
 # Parse session_id into components
 # Usage: _parse_session_id "wo:workspace:window.0"
+# Supports prefixes: wo:, bg:, ag: (all treated the same internally)
 # Sets: SESSION, WINDOW, PANE, TARGET
 _parse_session_id() {
   local id="$1"
-  id="${id#wo:}"                    # Remove prefix
-  SESSION="${id%%:*}"               # Extract session name
+  # Remove any known prefix (wo:, bg:, ag:)
+  id="${id#wo:}"
+  id="${id#bg:}"
+  id="${id#ag:}"
+  SESSION="${id%%:*}"               # Extract session name (workspace)
   local rest="${id#*:}"
-  WINDOW="${rest%.*}"               # Extract window name
+  WINDOW="${rest%.*}"               # Extract window name (tab_title)
   PANE="${rest##*.}"                # Extract pane index
   TARGET="$SESSION:$WINDOW.$PANE"   # tmux target format
 }
@@ -236,87 +231,52 @@ _tmux_poll_sessions() {
 # wezterm Backend Implementation
 # =============================================================================
 
-_wezterm_init_map() {
-  if [ ! -f "$WO_MAP_FILE" ]; then
-    echo "{}" > "$WO_MAP_FILE"
-  fi
-}
-
-_wezterm_save_mapping() {
-  local pane_id="$1"
-  local session_id="$2"
-
-  _wezterm_init_map
-
-  # Use Windows path for Python on MSYS/MinGW
-  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
-  local tmp_file="${WO_MAP_FILE}.tmp.$$"
-  local tmp_file_py="${map_file_py}.tmp.$$"
-
-  $TB_PYTHON -c "
-import json
-import sys
-
-with open(r'$map_file_py', 'r') as f:
-    data = json.load(f)
-
-data['$pane_id'] = '$session_id'
-
-with open(r'$tmp_file_py', 'w') as f:
-    json.dump(data, f, indent=2)
-" && mv "$tmp_file" "$WO_MAP_FILE"
-}
-
+# Get pane_id by looking up workspace + tab_title from wezterm cli list
+# No external map file needed - uses wezterm's native metadata
 _wezterm_get_pane_id() {
   local session_id="$1"
 
-  _wezterm_init_map
+  # Parse session_id to get workspace and tab_title
+  _parse_session_id "$session_id"
+  local target_ws="$SESSION"
+  local target_title="$WINDOW"
 
-  # Use Windows path for Python on MSYS/MinGW
-  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
+  # Query wezterm and find matching pane
+  local tmpfile
+  tmpfile="$(mktemp)"
 
-  # Pass session_id via environment variable to avoid shell escaping issues
-  SESSION_ID_TO_FIND="$session_id" $TB_PYTHON -c "
-import json
-import os
+  if ! wezterm cli list --format json > "$tmpfile" 2>/dev/null; then
+    rm -f "$tmpfile"
+    return 1
+  fi
 
-session_id = os.environ.get('SESSION_ID_TO_FIND', '')
+  local result
+  result=$(TARGET_WS="$target_ws" TARGET_TITLE="$target_title" TMPFILE="$tmpfile" $TB_PYTHON -c "
+import json, os, sys
 
-with open(r'$map_file_py', 'r') as f:
+target_ws = os.environ.get('TARGET_WS', '')
+target_title = os.environ.get('TARGET_TITLE', '')
+tmpfile = os.environ.get('TMPFILE', '')
+
+with open(tmpfile, 'r') as f:
     data = json.load(f)
 
-for pane_id, sid in data.items():
-    if sid == session_id:
-        print(pane_id)
-        break
-"
-}
+for p in data:
+    if p.get('workspace') == target_ws and p.get('tab_title') == target_title:
+        print(p['pane_id'])
+        sys.exit(0)
 
-_wezterm_remove_mapping() {
-  local session_id="$1"
+sys.exit(1)
+" 2>/dev/null)
 
-  _wezterm_init_map
+  local exit_code=$?
+  rm -f "$tmpfile"
 
-  # Use Windows path for Python on MSYS/MinGW
-  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
-  local tmp_file="${WO_MAP_FILE}.tmp.$$"
-  local tmp_file_py="${map_file_py}.tmp.$$"
-
-  # Pass session_id via environment variable to avoid shell escaping issues
-  SESSION_ID_TO_REMOVE="$session_id" $TB_PYTHON -c "
-import json
-import os
-
-session_id = os.environ.get('SESSION_ID_TO_REMOVE', '')
-
-with open(r'$map_file_py', 'r') as f:
-    data = json.load(f)
-
-data = {k: v for k, v in data.items() if v != session_id}
-
-with open(r'$tmp_file_py', 'w') as f:
-    json.dump(data, f, indent=2)
-" && mv "$tmp_file" "$WO_MAP_FILE"
+  if [ $exit_code -eq 0 ] && [ -n "$result" ]; then
+    echo "$result"
+    return 0
+  fi
+  return 1
 }
 
 _wezterm_create_session() {
@@ -331,17 +291,24 @@ _wezterm_create_session() {
   cwd="${cwd%/}"
   cwd="${cwd%\\}"
 
-  # Find existing window in workspace
-  existing_window=$(wezterm cli list --format json 2>/dev/null | \
-    $TB_PYTHON -c "
-import sys, json
+  # Find existing window in workspace (use temp file to avoid pipe issues)
+  local tmpfile
+  tmpfile="$(mktemp)"
+  wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
+
+  existing_window=$(WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c "
+import sys, json, os
 try:
-    d = json.load(sys.stdin)
-    w = [x['window_id'] for x in d if x.get('workspace') == '$workspace']
+    workspace = os.environ.get('WORKSPACE', '')
+    tmpfile = os.environ.get('TMPFILE', '')
+    with open(tmpfile, 'r') as f:
+        d = json.load(f)
+    w = [x['window_id'] for x in d if x.get('workspace') == workspace]
     print(w[0] if w else '')
 except:
     print('')
 " 2>/dev/null) || existing_window=""
+  rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
     pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" -- bash)
@@ -349,6 +316,7 @@ except:
     pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" -- bash)
   fi
 
+  # Set tab_title - this is how we identify the session later (no map file needed)
   wezterm cli set-tab-title --pane-id "$pane_id" "$branch"
 
   # Workaround for Windows Git Bash: --cwd may not work correctly
@@ -360,27 +328,22 @@ except:
 
   local session_id
   session_id=$(_build_session_id "$workspace" "$branch" "0")
-  _wezterm_save_mapping "$pane_id" "$session_id"
 
   echo "$session_id"
 }
 
 _wezterm_is_alive() {
   local session_id="$1"
+
+  # Simply try to get pane_id - if found, session is alive
+  # _wezterm_get_pane_id does the workspace+tab_title lookup
   local pane_id
   pane_id=$(_wezterm_get_pane_id "$session_id")
 
-  if [ -z "$pane_id" ]; then
-    return 1
-  fi
-
-  if wezterm cli list --format json 2>/dev/null | grep -q "\"pane_id\": *$pane_id"; then
+  if [ -n "$pane_id" ]; then
     return 0
-  else
-    # Auto-cleanup dead session from map
-    _wezterm_remove_mapping "$session_id" 2>/dev/null || true
-    return 1
   fi
+  return 1
 }
 
 _wezterm_send_command() {
@@ -447,8 +410,7 @@ _wezterm_cleanup_session() {
   if [ -n "$pane_id" ]; then
     wezterm cli kill-pane --pane-id "$pane_id" 2>/dev/null || true
   fi
-
-  _wezterm_remove_mapping "$session_id"
+  # No map file to clean up - wezterm metadata is managed by wezterm itself
 }
 
 _wezterm_get_session_info() {
@@ -482,21 +444,29 @@ except:
 _wezterm_poll_sessions() {
   local workspace="$1"
 
-  _wezterm_init_map
+  # Query wezterm directly - no map file needed
+  local tmpfile
+  tmpfile="$(mktemp)"
+  wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
 
-  # Use Windows path for Python on MSYS/MinGW
-  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
+  WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c "
+import json, os
 
-  $TB_PYTHON -c "
-import json
+workspace = os.environ.get('WORKSPACE', '')
+tmpfile = os.environ.get('TMPFILE', '')
 
-with open(r'$map_file_py', 'r') as f:
+with open(tmpfile, 'r') as f:
     data = json.load(f)
 
-for pane_id, session_id in data.items():
-    if session_id.startswith('wo:$workspace:'):
+for p in data:
+    ws = p.get('workspace', '')
+    tab_title = p.get('tab_title', '')
+    if ws == workspace and tab_title:
+        session_id = f'wo:{ws}:{tab_title}.0'
         print(f'{session_id}|active')
-"
+" 2>/dev/null
+
+  rm -f "$tmpfile"
 }
 
 # =============================================================================
