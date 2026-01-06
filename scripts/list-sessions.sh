@@ -54,67 +54,51 @@ _list_tmux_sessions() {
 
 _list_wezterm_sessions() {
   local filter="$1"
-  local found=0
 
-  _wezterm_init_map
-
-  # Use Windows path for Python on MSYS/MinGW
-  local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
-
-  # Get all panes from wezterm
+  # Get all panes from wezterm directly (no map file needed)
   local panes_json
   panes_json=$(wezterm cli list --format json 2>/dev/null) || panes_json="[]"
 
-  # Process map file and check against live panes
-  $TB_PYTHON -c "
+  # Process live panes and build session list
+  FILTER="$filter" PANES_JSON="$panes_json" $TB_PYTHON -c "
 import json
-import sys
+import os
 
-# Load mapping
-try:
-    with open(r'$map_file_py', 'r') as f:
-        mapping = json.load(f)
-except:
-    mapping = {}
+filter_ws = os.environ.get('FILTER', '')
+panes_json = os.environ.get('PANES_JSON', '[]')
 
-# Load live panes
 try:
-    panes = json.loads('''$panes_json''')
+    panes = json.loads(panes_json)
 except:
     panes = []
 
-# Build pane lookup
-live_panes = {p['pane_id']: p for p in panes}
-
-# Filter by workspace if specified
-filter_ws = '$filter'
-
 found = False
-for pane_id_str, session_id in mapping.items():
-    pane_id = int(pane_id_str)
+for p in panes:
+    workspace = p.get('workspace', '')
+    tab_title = p.get('tab_title', '')
+    cwd = p.get('cwd', '')
+    pane_id = p.get('pane_id', '')
 
-    # Extract workspace from session_id (wo:workspace:window.pane)
-    parts = session_id.split(':')
-    if len(parts) >= 2:
-        workspace = parts[1]
+    # Skip if no workspace or tab_title
+    if not workspace or not tab_title:
+        continue
+
+    # Determine prefix based on workspace pattern
+    if workspace.startswith('ag-'):
+        prefix = 'ag'
+    elif workspace.startswith('bg-'):
+        prefix = 'bg'
     else:
-        workspace = ''
+        prefix = 'wo'
 
-    # Apply filter
+    # Apply workspace filter
     if filter_ws and workspace != filter_ws:
         continue
 
-    # Check if alive
-    if pane_id in live_panes:
-        p = live_panes[pane_id]
-        status = 'alive'
-        cwd = p.get('cwd', '')
-        title = p.get('title', '')
-        print(f'{session_id:<45}  {status:<10}  {cwd}')
-        found = True
-    else:
-        print(f'{session_id:<45}  dead')
-        found = True
+    session_id = f'{prefix}:{workspace}:{tab_title}.0'
+    status = 'alive'
+    print(f'{session_id:<45}  {status:<10}  {cwd}')
+    found = True
 
 if not found:
     print('(No sessions found)')

@@ -232,48 +232,17 @@ _tmux_poll_sessions() {
 # =============================================================================
 
 # Get pane_id by looking up workspace + tab_title from wezterm cli list
-# No external map file needed - uses wezterm's native metadata
+# Uses get-pane-id.sh for robust lookup (handles tab_title changes)
 _wezterm_get_pane_id() {
   local session_id="$1"
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-  # Parse session_id to get workspace and tab_title
-  _parse_session_id "$session_id"
-  local target_ws="$SESSION"
-  local target_title="$WINDOW"
+  local pane_id
+  pane_id=$("$script_dir/get-pane-id.sh" "$session_id" 2>/dev/null)
 
-  # Query wezterm and find matching pane
-  local tmpfile
-  tmpfile="$(mktemp)"
-
-  if ! wezterm cli list --format json > "$tmpfile" 2>/dev/null; then
-    rm -f "$tmpfile"
-    return 1
-  fi
-
-  local result
-  result=$(TARGET_WS="$target_ws" TARGET_TITLE="$target_title" TMPFILE="$tmpfile" $TB_PYTHON -c "
-import json, os, sys
-
-target_ws = os.environ.get('TARGET_WS', '')
-target_title = os.environ.get('TARGET_TITLE', '')
-tmpfile = os.environ.get('TMPFILE', '')
-
-with open(tmpfile, 'r') as f:
-    data = json.load(f)
-
-for p in data:
-    if p.get('workspace') == target_ws and p.get('tab_title') == target_title:
-        print(p['pane_id'])
-        sys.exit(0)
-
-sys.exit(1)
-" 2>/dev/null)
-
-  local exit_code=$?
-  rm -f "$tmpfile"
-
-  if [ $exit_code -eq 0 ] && [ -n "$result" ]; then
-    echo "$result"
+  if [ -n "$pane_id" ]; then
+    echo "$pane_id"
     return 0
   fi
   return 1
