@@ -11,17 +11,17 @@ Execute implementation plans in isolated worktrees with mandatory status synchro
 
 ---
 
-## 重要：你是子 Agent
+## Important: You Are a Sub-Agent
 
-你是由主 Agent 通过 `spawn-session.sh` 启动的子 Agent，运行在隔离的 worktree 中。
+You are a sub-agent started by the main agent via `spawn-session.sh`, running in an isolated worktree.
 
-**你不需要调用任何 polydev 脚本。** 你的职责是：
-1. 读取 `PLAN.md`
-2. 按步骤执行任务
-3. 更新 `task.toon` 状态
-4. 提交代码变更
+**You do NOT need to call any polydev scripts.** Your responsibilities are:
+1. Read `PLAN.md`
+2. Execute tasks step by step
+3. Update `task.toon` status
+4. Commit code changes
 
-主 Agent 会通过 `poll.sh` 监控你的 `task.toon` 状态。
+The main agent monitors your `task.toon` status via `poll.sh`.
 
 ---
 
@@ -34,7 +34,7 @@ Every status change MUST be **immediately** written to task.toon:
 | Start executing | overall_status: in_progress |
 | Need orchestration help | overall_status: blocked, blocking_reason: <why> |
 | Must have human decision | overall_status: hil, blocking_reason: <why> |
-| Batch done, waiting for review | overall_status: hil, blocking_reason: 等待代码审查 |
+| Batch done, waiting for review | overall_status: hil, blocking_reason: Awaiting code review |
 | All tasks complete | overall_status: completed |
 
 ---
@@ -78,7 +78,7 @@ Batch [N] complete:
 Verification output:
 [test/build output]
 
-Update task.toon -> hil, blocking_reason: 等待代码审查
+Update task.toon -> hil, blocking_reason: Awaiting code review
 ```
 
 **STOP and wait for feedback.**

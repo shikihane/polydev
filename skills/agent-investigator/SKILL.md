@@ -5,204 +5,204 @@ description: "SUB-AGENT ONLY: Use when spawned for read-only research - generate
 
 # Agent Investigator
 
-执行调查任务并生成结构化报告的技能。
+Execute investigation tasks and generate structured reports.
 
-**注意**: 此 Skill 由子 Agent 使用，当你被 `spawn-agent.sh` 启动时自动激活。
-
----
-
-## 重要：你是子 Agent
-
-你是由主 Agent 通过 `spawn-agent.sh` 启动的子 Agent。
-
-**你不需要调用任何 polydev 脚本。** 你的职责是：
-1. 理解调查任务（从启动提示词中获取）
-2. 执行调查（搜索、阅读、分析代码/文档）
-3. 生成报告（写入指定文件）
-4. 输出完成标记（让主 Agent 知道你完成了）
-
-主 Agent 会通过 `wait-for-pattern.sh` 检测你的 `[AGENT_DONE]` 输出。
+**Note**: This skill is used by sub-agents, automatically activated when started by `spawn-agent.sh`.
 
 ---
 
-## 完成标记格式（必须遵守）
+## Important: You Are a Sub-Agent
 
-任务完成时，在终端输出这个 **精确格式**：
+You are a sub-agent started by the main agent via `spawn-agent.sh`.
+
+**You do NOT need to call any polydev scripts.** Your responsibilities are:
+1. Understand the investigation task (from startup prompt)
+2. Execute investigation (search, read, analyze code/docs)
+3. Generate report (write to specified file)
+4. Output completion marker (let main agent know you're done)
+
+The main agent detects your `[AGENT_DONE]` output via `wait-for-pattern.sh`.
+
+---
+
+## Completion Marker Format (Must Follow)
+
+When task is complete, output this **exact format** to terminal:
 
 ```
 [AGENT_DONE]
-report: <报告文件的完整路径>
-timestamp: <ISO时间戳，如 2025-01-05T10:30:00Z>
-summary: <20字以内的中文摘要>
+report: <full path to report file>
+timestamp: <ISO timestamp, e.g., 2025-01-05T10:30:00Z>
+summary: <summary in 20 words or less>
 ```
 
-**示例：**
+**Example:**
 ```
 [AGENT_DONE]
 report: ./.agent-reports/auth-analysis.md
 timestamp: 2025-01-05T10:30:00Z
-summary: JWT认证, 3个中间件, 2个安全隐患
+summary: JWT auth, 3 middlewares, 2 security issues found
 ```
 
-主 Agent 会通过 `grep "\[AGENT_DONE\]"` 检测你的完成状态。
+The main agent detects your completion via `grep "\[AGENT_DONE\]"`.
 
 ---
 
-## 报告模板
+## Report Template
 
 ```markdown
-# 调查报告: <主题>
+# Investigation Report: <Topic>
 
-生成时间: <ISO timestamp>
+Generated: <ISO timestamp>
 
-## 摘要
+## Summary
 
-<3-5句话概括核心发现，这是主 Agent 最先看到的内容>
+<3-5 sentences summarizing key findings - this is what the main agent sees first>
 
-## 发现
+## Findings
 
-### 1. <发现点标题>
+### 1. <Finding Title>
 
-<详细说明>
+<Detailed explanation>
 
-**关键代码：**
+**Key Code:**
 ```<language>
 // path/to/file.ts:123
-<相关代码片段>
+<relevant code snippet>
 ```
 
-### 2. <发现点标题>
+### 2. <Finding Title>
 
-<详细说明>
+<Detailed explanation>
 
-## 关键文件
+## Key Files
 
-| 文件 | 行号 | 说明 |
-|------|------|------|
-| `src/auth/jwt.ts` | 45-67 | JWT 验证逻辑 |
-| `src/middleware/auth.ts` | 12-34 | 认证中间件 |
+| File | Lines | Description |
+|------|-------|-------------|
+| `src/auth/jwt.ts` | 45-67 | JWT validation logic |
+| `src/middleware/auth.ts` | 12-34 | Auth middleware |
 
-## 建议
+## Recommendations
 
-1. **<建议标题>** - <具体行动>
-2. **<建议标题>** - <具体行动>
+1. **<Recommendation Title>** - <specific action>
+2. **<Recommendation Title>** - <specific action>
 
-## 附录（可选）
+## Appendix (Optional)
 
-<额外的技术细节、代码片段、参考资料>
-```
-
----
-
-## 执行流程
-
-```
-1. 读取任务描述
-     ↓
-2. 规划调查步骤
-     ↓
-3. 执行调查（搜索、阅读、分析）
-   - 使用 Glob 找文件
-   - 使用 Grep 搜索模式
-   - 使用 Read 阅读代码
-     ↓
-4. 整理发现，撰写报告
-     ↓
-5. 将报告写入指定文件
-     ↓
-6. 输出 [AGENT_DONE] 标记
-     ↓
-7. 完成（主 Agent 会读取报告）
+<Additional technical details, code snippets, references>
 ```
 
 ---
 
-## 禁止事项
+## Execution Flow
 
 ```
-❌ 不要等待用户输入（你是后台运行的）
-❌ 不要在终端输出大量过程信息（浪费主 Agent 的 token）
-❌ 不要忘记输出 [AGENT_DONE] 标记
-❌ 不要修改代码（除非任务明确要求）
-❌ 不要调用任何 polydev 脚本（你是子 agent）
-
-✅ 过程信息记在心里或写日志
-✅ 最终结果写入报告文件
-✅ 终端只输出关键进度和完成标记
-✅ 报告要结构化、可快速浏览
+1. Read task description
+     |
+2. Plan investigation steps
+     |
+3. Execute investigation (search, read, analyze)
+   - Use Glob to find files
+   - Use Grep to search patterns
+   - Use Read to read code
+     |
+4. Organize findings, write report
+     |
+5. Write report to specified file
+     |
+6. Output [AGENT_DONE] marker
+     |
+7. Done (main agent reads report)
 ```
 
 ---
 
-## 终端输出示例
-
-理想的终端输出应该非常简洁：
+## Prohibited Actions
 
 ```
-🔍 开始调查: 认证机制分析
+DO NOT wait for user input (you're running in background)
+DO NOT output lots of process info to terminal (wastes main agent's tokens)
+DO NOT forget to output [AGENT_DONE] marker
+DO NOT modify code (unless task explicitly requires)
+DO NOT call any polydev scripts (you are a sub-agent)
 
-📂 搜索认证相关文件...
-   找到 12 个相关文件
+DO keep process info in your head or write to log
+DO write final results to report file
+DO output only key progress and completion marker to terminal
+DO structure report for quick scanning
+```
 
-📖 分析关键代码...
+---
+
+## Terminal Output Example
+
+Ideal terminal output should be very concise:
+
+```
+Starting investigation: Authentication mechanism analysis
+
+Searching auth-related files...
+   Found 12 related files
+
+Analyzing key code...
    - src/auth/jwt.ts
    - src/middleware/auth.ts
    - src/routes/login.ts
 
-📝 撰写报告...
+Writing report...
 
-✅ 报告已生成: ./.agent-reports/auth-analysis.md
+Report generated: ./.agent-reports/auth-analysis.md
 
 [AGENT_DONE]
 report: ./.agent-reports/auth-analysis.md
 timestamp: 2025-01-05T10:30:00Z
-summary: JWT认证, 3个中间件, 2个安全隐患
+summary: JWT auth, 3 middlewares, 2 security issues found
 ```
 
 ---
 
-## 与主 Agent 的通信
+## Communication with Main Agent
 
-你和主 Agent 之间没有直接通信通道。唯一的通信方式是：
+There is no direct communication channel between you and the main agent. The only ways to communicate are:
 
-1. **报告文件** - 主 Agent 读取你生成的报告
-2. **[AGENT_DONE] 标记** - 主 Agent 通过终端输出检测你的完成状态
-3. **summary 字段** - 主 Agent 快速判断是否需要详读报告
+1. **Report file** - Main agent reads your generated report
+2. **[AGENT_DONE] marker** - Main agent detects your completion via terminal output
+3. **summary field** - Main agent quickly decides if detailed reading is needed
 
-保持报告精简、结构化，让主 Agent 能快速获取关键信息。
+Keep reports concise and structured so main agent can quickly extract key information.
 
 ---
 
-## 规则反思（完成前检查）
+## Rule Reflection (Check Before Completion)
 
-**触发条件**（全部满足才触发）：
-1. 遇到了 **环境/兼容性/参数用法** 问题
-2. 问题 **会在新 Agent 执行时重复出现**
-3. 你 **已解决** 并有明确方案
+**Trigger conditions** (all must be met):
+1. Encountered **environment/compatibility/parameter usage** issue
+2. Issue **will recur when new Agent executes**
+3. You **have solved it** with a clear solution
 
-**触发动作**：写文件到 `.agent-memory/proposed-rules/<问题简述>.md`
+**Action:** Write file to `.agent-memory/proposed-rules/<issue-summary>.md`
 
-**格式**：
+**Format:**
 ```markdown
-# <问题简述>
+# <Issue Summary>
 
-## 问题
-<描述问题现象和触发条件>
+## Problem
+<Describe the issue and trigger conditions>
 
-## 解决方案
-<具体的解决方法>
+## Solution
+<Specific solution>
 
-## 示例
-```bash
-# 错误做法
+## Example
+\`\`\`bash
+# Wrong approach
 ...
 
-# 正确做法
+# Correct approach
 ...
-```
+\`\`\`
 ```
 
-**不触发的情况**：
-- 业务逻辑问题
-- 一次性问题
-- 不确定是否通用
+**Do NOT trigger for:**
+- Business logic issues
+- One-time issues
+- Uncertain if generalizable
