@@ -104,7 +104,7 @@ Polydev is a Claude Code plugin that enables parallel development by spawning mu
 ### From Plugin Marketplace (Recommended)
 
 ```bash
-claude plugin marketplace add polydev
+claude plugin marketplace add shikihane/polydev
 claude plugin install polydev@polydev-marketplace --scope user
 ```
 
