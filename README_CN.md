@@ -104,8 +104,9 @@ Polydev 是一个 Claude Code 插件，通过在多个独立 Git 分支上同时
 ### 从插件市场安装（推荐）
 
 ```bash
-claude plugin marketplace add polydev
-claude plugin install polydev@polydev-marketplace --scope user
+# 使用 HTTPS URL（SSH 可能因认证问题失败）
+claude plugin marketplace add https://github.com/shikihane/polydev
+claude plugin install polydev
 ```
 
 ### 手动安装
