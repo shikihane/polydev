@@ -1,6 +1,6 @@
 ---
 name: worktree-executor
-description: Use when executing tasks in an isolated worktree with mandatory task.toon synchronization
+description: "SUB-AGENT ONLY: Use when spawned in isolated worktree - executes PLAN.md and syncs status to task.toon"
 ---
 
 # Worktree Executor
@@ -8,6 +8,20 @@ description: Use when executing tasks in an isolated worktree with mandatory tas
 Execute implementation plans in isolated worktrees with mandatory status synchronization.
 
 **Announce at start:** "I'm executing the plan in this worktree."
+
+---
+
+## 重要：你是子 Agent
+
+你是由主 Agent 通过 `spawn-session.sh` 启动的子 Agent，运行在隔离的 worktree 中。
+
+**你不需要调用任何 polydev 脚本。** 你的职责是：
+1. 读取 `PLAN.md`
+2. 按步骤执行任务
+3. 更新 `task.toon` 状态
+4. 提交代码变更
+
+主 Agent 会通过 `poll.sh` 监控你的 `task.toon` 状态。
 
 ---
 

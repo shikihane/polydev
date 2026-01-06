@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when you have requirements for a task and need to create a detailed implementation plan before coding
+description: "Use when creating detailed implementation plans for polydev parallel tasks - generates step-by-step PLAN.md files"
 ---
 
 # Writing Implementation Plans
@@ -153,7 +153,7 @@ When used with polydev parallel execution:
 1. Plan is copied to worktree as `PLAN.md`
 2. worktree-executor reads and executes the plan
 3. Status updates written to `task.toon`
-4. Main agent monitors via `poll.sh`
+4. Main agent monitors via poll.sh (using `$POLYDEV_SCRIPTS/poll.sh`)
 
 **Plan location in worktree:**
 ```
@@ -162,3 +162,17 @@ When used with polydev parallel execution:
 ├── task.toon        # Execution status
 └── src/             # Working code
 ```
+
+## Execution via Polydev
+
+**Main agent spawns worktree with:**
+```bash
+POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+```
+
+**Sub-agent (worktree-executor) then:**
+1. Reads PLAN.md
+2. Executes tasks step-by-step
+3. Updates task.toon with status
+4. Commits changes as specified in plan

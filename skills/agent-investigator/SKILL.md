@@ -1,6 +1,6 @@
 ---
 name: agent-investigator
-description: Use when you are spawned as an investigation agent. Generates a structured report file and outputs completion marker.
+description: "SUB-AGENT ONLY: Use when spawned for read-only research - generates report file and outputs [AGENT_DONE] marker"
 ---
 
 # Agent Investigator
@@ -11,12 +11,17 @@ description: Use when you are spawned as an investigation agent. Generates a str
 
 ---
 
-## 核心职责
+## 重要：你是子 Agent
 
-1. **理解调查任务** - 从启动提示词中获取
-2. **执行调查** - 搜索、阅读、分析相关代码/文档
-3. **生成报告** - 写入指定文件
-4. **输出完成标记** - 让主 Agent 知道你完成了
+你是由主 Agent 通过 `spawn-agent.sh` 启动的子 Agent。
+
+**你不需要调用任何 polydev 脚本。** 你的职责是：
+1. 理解调查任务（从启动提示词中获取）
+2. 执行调查（搜索、阅读、分析代码/文档）
+3. 生成报告（写入指定文件）
+4. 输出完成标记（让主 Agent 知道你完成了）
+
+主 Agent 会通过 `wait-for-pattern.sh` 检测你的 `[AGENT_DONE]` 输出。
 
 ---
 
@@ -119,6 +124,7 @@ summary: JWT认证, 3个中间件, 2个安全隐患
 ❌ 不要在终端输出大量过程信息（浪费主 Agent 的 token）
 ❌ 不要忘记输出 [AGENT_DONE] 标记
 ❌ 不要修改代码（除非任务明确要求）
+❌ 不要调用任何 polydev 脚本（你是子 agent）
 
 ✅ 过程信息记在心里或写日志
 ✅ 最终结果写入报告文件
