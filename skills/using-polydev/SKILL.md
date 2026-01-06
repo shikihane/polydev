@@ -1,25 +1,25 @@
 ---
 name: using-polydev
-description: "Use at conversation start when user mentions: parallel, 同时, multiple tasks/features, worktrees, or lists 2+ independent work items - determines which polydev skill to use"
+description: "Use at conversation start when user mentions: parallel, multiple tasks/features, worktrees, or lists 2+ independent work items - determines which polydev skill to use"
 ---
 
 <CRITICAL>
 If the user mentions ANY of these, you MUST check polydev skills:
 
-- "并行" / "parallel" / "同时做" / "一起做"
-- "多个功能" / "多个任务" / "multiple features/tasks"
+- "parallel" / "simultaneously" / "at the same time"
+- "multiple features" / "multiple tasks"
 - Lists 2+ independent work items
-- "worktree" / "分支" / "branch" (in context of parallel work)
-- "后台运行" / "background" / "长时间命令"
+- "worktree" / "branch" (in context of parallel work)
+- "background" / "long-running command"
 
 This is NOT optional. If there's even a 10% chance polydev applies, CHECK IT.
 </CRITICAL>
 
 # Using Polydev Skills
 
-## 脚本路径（主 Agent 必须遵守）
+## Script Path (Main Agent Must Follow)
 
-**所有脚本必须通过 `$POLYDEV_SCRIPTS` 变量调用，禁止 `./scripts/`**
+**All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/scripts"
@@ -32,16 +32,16 @@ POLYDEV_SCRIPTS="/path/to/polydev/scripts"
 
 ```
 User message received
-    ↓
-Contains parallel/multiple/同时 keywords?
-    ↓ YES
-Is it complex/unclear? ──YES──→ Run /polydev-brainstorm
-    ↓ NO
-Ready to execute? ──YES──→ Use polydev:polydev skill
-    ↓
-Need detailed plans? ──YES──→ Use polydev:writing-plans skill
-    ↓
-Running background command? ──YES──→ Use polydev:terminal-task-runner skill
+    |
+Contains parallel/multiple keywords?
+    | YES
+Is it complex/unclear? --YES--> Run /polydev-brainstorm
+    | NO
+Ready to execute? --YES--> Use polydev:polydev skill
+    |
+Need detailed plans? --YES--> Use polydev:writing-plans skill
+    |
+Running background command? --YES--> Use polydev:terminal-task-runner skill
 ```
 
 ## Available Skills
@@ -57,22 +57,22 @@ Running background command? ──YES──→ Use polydev:terminal-task-runner 
 
 ---
 
-## 脚本场景速查（主 Agent 用）
+## Script Quick Reference (For Main Agent)
 
-| 场景 | 脚本 | 参数 |
-|------|------|------|
-| 创建 worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
-| 监控状态 | `poll.sh` | `<worktrees-dir> <timeout>` |
-| 恢复崩溃会话 | `restore-session.sh` | `<worktree-path> [--force]` |
-| 向 worktree 发命令 | `send-command.sh` | `<worktree-path> "<cmd>"` |
-| 向任意 session 发命令 | `send-to-session.sh` | `<session_id> "<cmd>"` |
-| 读取屏幕输出 | `capture-screen.sh` | `--session <wo:id> --lines N` |
-| 列出会话 | `list-sessions.sh` | `[workspace]` |
-| 关闭会话 | `close-session.sh` | `<session_id>` |
-| 启动后台命令 | `run-background.sh` | `<name> "<cmd>"` |
-| 分析输出 | `analyze-output.sh` | `<session_id> --lines N` |
-| 等待模式匹配 | `wait-for-pattern.sh` | `<session_id> --success "<pattern>"` |
-| 启动调查 Agent | `spawn-agent.sh` | `<name> --prompt "<任务>" --report <path>` |
+| Scenario | Script | Parameters |
+|----------|--------|------------|
+| Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
+| Monitor status | `poll.sh` | `<worktrees-dir> <timeout>` |
+| Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
+| Send to worktree | `send-command.sh` | `<worktree-path> "<cmd>"` |
+| Send to any session | `send-to-session.sh` | `<session_id> "<cmd>"` |
+| Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
+| List sessions | `list-sessions.sh` | `[workspace]` |
+| Close session | `close-session.sh` | `<session_id>` |
+| Start background command | `run-background.sh` | `<name> "<cmd>"` |
+| Analyze output | `analyze-output.sh` | `<session_id> --lines N` |
+| Wait for pattern | `wait-for-pattern.sh` | `<session_id> --success "<pattern>"` |
+| Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
 
 ---
 
@@ -93,13 +93,13 @@ If you catch yourself thinking:
 ## Quick Decision Guide
 
 **User says "implement X, Y, and Z":**
-1. Are X, Y, Z independent? → polydev:polydev
-2. Need clarification? → /polydev-brainstorm
-3. Need detailed plans? → polydev:writing-plans first
+1. Are X, Y, Z independent? -> polydev:polydev
+2. Need clarification? -> /polydev-brainstorm
+3. Need detailed plans? -> polydev:writing-plans first
 
 **User says "run this build/test":**
-1. Will it take > 30 seconds? → polydev:terminal-task-runner
-2. Need to monitor output? → polydev:terminal-task-runner
+1. Will it take > 30 seconds? -> polydev:terminal-task-runner
+2. Need to monitor output? -> polydev:terminal-task-runner
 
 **User says "SSH to server and run commands":**
 1. Use polydev:terminal-task-runner
@@ -108,18 +108,18 @@ If you catch yourself thinking:
 4. Use `capture-screen.sh` to read output
 
 **User says "research X":**
-1. Read-only analysis? → polydev:agent-investigator (via spawn-agent.sh)
-2. Need parallel research? → Multiple agent-investigators
+1. Read-only analysis? -> polydev:agent-investigator (via spawn-agent.sh)
+2. Need parallel research? -> Multiple agent-investigators
 
 ## Cost Control Reminder
 
 **Sub-agents MUST use `model: "sonnet"`** unless user explicitly requests otherwise.
 
 ```javascript
-// ✅ Correct
+// Correct
 Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 
-// ❌ Wrong - will bankrupt user
+// Wrong - will bankrupt user
 Task({ prompt: "...", subagent_type: "general-purpose" })
 ```
 
@@ -129,12 +129,12 @@ This skill is the entry point. After determining which skill to use:
 
 ```
 using-polydev (this skill)
-    ↓
+    |
 /polydev-brainstorm (if complex)
-    ↓
+    |
 polydev:writing-plans (if need plans)
-    ↓
+    |
 polydev:polydev (execution)
-    ↓
+    |
 polydev:worktree-executor (per-branch, sub-agent)
 ```

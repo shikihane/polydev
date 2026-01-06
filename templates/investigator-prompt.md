@@ -16,33 +16,33 @@ You are an investigation agent running in a terminal session.
 Write this to `{{REPORT_PATH}}`:
 
 ```markdown
-# 调查报告: <主题>
+# Investigation Report: <Topic>
 
-生成时间: <ISO timestamp>
+Generated: <ISO timestamp>
 
-## 摘要
+## Summary
 
-<3-5句话概括核心发现>
+<3-5 sentences summarizing key findings>
 
-## 发现
+## Findings
 
-### 1. <发现点1>
+### 1. <Finding 1>
 
-<详细说明，包含代码位置和关键代码片段>
+<Detailed explanation with code locations and key snippets>
 
-### 2. <发现点2>
+### 2. <Finding 2>
 
-<详细说明>
+<Detailed explanation>
 
-## 关键文件
+## Key Files
 
-- `path/to/file1.ts:123` - <说明>
-- `path/to/file2.ts:456` - <说明>
+- `path/to/file1.ts:123` - <description>
+- `path/to/file2.ts:456` - <description>
 
-## 建议
+## Recommendations
 
-1. <建议1>
-2. <建议2>
+1. <Recommendation 1>
+2. <Recommendation 2>
 ```
 
 ## Completion Marker
@@ -53,7 +53,7 @@ After writing the report, output this EXACT format in the terminal:
 [AGENT_DONE]
 report: {{REPORT_PATH}}
 timestamp: <ISO timestamp, e.g., 2025-01-05T10:30:00Z>
-summary: <20字以内的中文摘要>
+summary: <Brief summary in 20 words or less>
 ```
 
 ## Rules

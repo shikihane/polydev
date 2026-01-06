@@ -20,29 +20,29 @@ All your status MUST be synced to task.toon:
 
 **ASK YOURSELF:** "Can the main agent or other agents possibly solve this?"
 
-### blocked (主 agent 可能能解决)
-- 依赖另一个分支的代码还没完成
-- 体系脚本报错，可能是 bug
-- 环境/配置问题，主 agent 可能能修复
-- 需要协调多个分支的工作顺序
+### blocked (Main agent might solve)
+- Depends on code from another branch not yet complete
+- System script error, might be a bug
+- Environment/config issue, main agent might fix
+- Need to coordinate work order across branches
 
-**设置方法：**
+**How to set:**
 ```
 overall_status: blocked
-blocking_reason: 需要 feature/auth 分支的 UserService，该分支尚未完成
+blocking_reason: Needs UserService from feature/auth branch, not yet complete
 ```
 
-### hil (必须人类介入)
-- 需要用户确认设计方案
-- 需要用户提供凭据/密码
-- 发现安全/敏感问题需要用户决策
-- 任务理解有歧义，需要澄清
-- blocked 后主 agent 也无法解决
+### hil (Human must intervene)
+- Need user to confirm design approach
+- Need user to provide credentials/passwords
+- Found security/sensitive issue requiring user decision
+- Task understanding is ambiguous, need clarification
+- Main agent also cannot solve after blocked
 
-**设置方法：**
+**How to set:**
 ```
 overall_status: hil
-blocking_reason: 不确定用户想要 OAuth 还是 JWT 认证方式
+blocking_reason: Unclear if user wants OAuth or JWT authentication
 ```
 
 ## Rules

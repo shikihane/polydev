@@ -36,7 +36,8 @@ polydev/
 │   ├── wait-for-pattern.sh    # Wait for pattern match in output
 │   ├── spawn-agent.sh         # Investigation agents
 │   ├── list-sessions.sh       # List active sessions
-│   └── close-session.sh       # Terminate sessions
+│   ├── close-session.sh       # Terminate sessions
+│   └── prune-dead-sessions.sh # Clean up dead sessions
 ├── hooks/                     # Claude Code hooks
 └── templates/                 # Task templates
 ```
@@ -141,3 +142,18 @@ echo "Backend: $(tb_get_backend)"
 - Use `python` not `python3` (detection handled by `terminal-backend.sh`)
 - Always quote paths with spaces
 - Scripts handle path conversion automatically
+
+## Shell Inline Python Escaping
+
+When passing shell variables to inline Python, use environment variables instead of string interpolation to avoid escaping issues with special characters (`/`, `'`, `"`):
+
+```bash
+# ✅ Correct - use environment variable
+SESSION_ID="$session_id" $PYTHON -c "
+import os
+sid = os.environ.get('SESSION_ID', '')
+"
+
+# ❌ Wrong - string interpolation breaks on special chars
+$PYTHON -c "if sid == '$session_id': ..."
+```
