@@ -275,14 +275,18 @@ _wezterm_get_pane_id() {
   # Use Windows path for Python on MSYS/MinGW
   local map_file_py="${WO_MAP_FILE_WIN:-$WO_MAP_FILE}"
 
-  $TB_PYTHON -c "
+  # Pass session_id via environment variable to avoid shell escaping issues
+  SESSION_ID_TO_FIND="$session_id" $TB_PYTHON -c "
 import json
+import os
+
+session_id = os.environ.get('SESSION_ID_TO_FIND', '')
 
 with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
 for pane_id, sid in data.items():
-    if sid == '$session_id':
+    if sid == session_id:
         print(pane_id)
         break
 "
@@ -298,13 +302,17 @@ _wezterm_remove_mapping() {
   local tmp_file="${WO_MAP_FILE}.tmp.$$"
   local tmp_file_py="${map_file_py}.tmp.$$"
 
-  $TB_PYTHON -c "
+  # Pass session_id via environment variable to avoid shell escaping issues
+  SESSION_ID_TO_REMOVE="$session_id" $TB_PYTHON -c "
 import json
+import os
+
+session_id = os.environ.get('SESSION_ID_TO_REMOVE', '')
 
 with open(r'$map_file_py', 'r') as f:
     data = json.load(f)
 
-data = {k: v for k, v in data.items() if v != '$session_id'}
+data = {k: v for k, v in data.items() if v != session_id}
 
 with open(r'$tmp_file_py', 'w') as f:
     json.dump(data, f, indent=2)
@@ -366,7 +374,13 @@ _wezterm_is_alive() {
     return 1
   fi
 
-  wezterm cli list --format json 2>/dev/null | grep -q "\"pane_id\": *$pane_id"
+  if wezterm cli list --format json 2>/dev/null | grep -q "\"pane_id\": *$pane_id"; then
+    return 0
+  else
+    # Auto-cleanup dead session from map
+    _wezterm_remove_mapping "$session_id" 2>/dev/null || true
+    return 1
+  fi
 }
 
 _wezterm_send_command() {
