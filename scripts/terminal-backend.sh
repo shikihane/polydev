@@ -232,17 +232,59 @@ _tmux_poll_sessions() {
 # =============================================================================
 
 # Get pane_id by looking up workspace + tab_title from wezterm cli list
-# Uses get-pane-id.sh for robust lookup (handles tab_title changes)
 _wezterm_get_pane_id() {
   local session_id="$1"
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-  local pane_id
-  pane_id=$("$script_dir/get-pane-id.sh" "$session_id" 2>/dev/null)
+  # Parse session_id to get workspace and tab_title
+  _parse_session_id "$session_id"
+  local target_ws="$SESSION"
+  local target_title="$WINDOW"
 
-  if [ -n "$pane_id" ]; then
-    echo "$pane_id"
+  # Query wezterm and find matching pane
+  local panes_json
+  panes_json=$(wezterm cli list --format json 2>/dev/null) || return 1
+
+  local result
+  result=$(TARGET_WS="$target_ws" TARGET_TITLE="$target_title" PANES_JSON="$panes_json" $TB_PYTHON -c "
+import json, os, sys
+
+target_ws = os.environ.get('TARGET_WS', '')
+target_title = os.environ.get('TARGET_TITLE', '')
+panes_json = os.environ.get('PANES_JSON', '[]')
+
+try:
+    data = json.loads(panes_json)
+except:
+    sys.exit(1)
+
+# Filter by workspace
+ws_panes = [p for p in data if p.get('workspace') == target_ws]
+if not ws_panes:
+    sys.exit(1)
+
+# Strategy 1: exact match on tab_title
+for p in ws_panes:
+    if p.get('tab_title') == target_title:
+        print(p['pane_id'])
+        sys.exit(0)
+
+# Strategy 2: single pane in workspace (handles tab_title changes)
+if len(ws_panes) == 1:
+    print(ws_panes[0]['pane_id'])
+    sys.exit(0)
+
+# Strategy 3: partial match
+for p in ws_panes:
+    t = p.get('tab_title', '')
+    if target_title in t or t in target_title:
+        print(p['pane_id'])
+        sys.exit(0)
+
+sys.exit(1)
+" 2>/dev/null)
+
+  if [ -n "$result" ]; then
+    echo "$result"
     return 0
   fi
   return 1
@@ -327,10 +369,13 @@ _wezterm_send_command() {
     return 1
   fi
 
+  # Send text first
+  printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+
   if [ "$execute" = "true" ]; then
-    printf '%s\r' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
-  else
-    printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+    # Send Enter separately (wezterm may drop \r if sent with text)
+    sleep 0.3
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
   fi
 }
 
@@ -354,8 +399,7 @@ _wezterm_send_multiline_text() {
 
   if [ "$execute" = "true" ]; then
     # Wait for Claude Code to process the pasted text
-    # 1 second delay is necessary for reliable execution
-    sleep 1
+    sleep 0.5
     # Send Enter key separately using \r
     printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
   fi
@@ -577,6 +621,7 @@ tb_send_multiline_text() {
 # Wait for Claude Code to start and be ready for input
 # Usage: tb_wait_for_claude <session_id> [timeout_seconds=30]
 # Returns: 0 if ready, 1 if timeout
+# Note: For freshly created sessions, consider using simple sleep instead
 tb_wait_for_claude() {
   local session_id="$1"
   local timeout="${2:-30}"
@@ -586,8 +631,6 @@ tb_wait_for_claude() {
   echo "⏳ Waiting for Claude to start (timeout: ${timeout}s)..."
 
   while [ $elapsed -lt $timeout ]; do
-    # Simple heuristic: wait for session to be responsive
-    # Check if session is still alive
     if ! tb_is_session_alive "$session_id"; then
       echo "❌ Session died during startup"
       return 1
@@ -595,8 +638,6 @@ tb_wait_for_claude() {
 
     sleep $interval
     elapsed=$((elapsed + interval))
-
-    # Print progress
     echo -n "."
   done
 

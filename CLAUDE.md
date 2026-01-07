@@ -24,20 +24,35 @@ polydev/
 │   ├── terminal-task-runner/  # Background command hosting
 │   └── agent-investigator/    # Read-only investigation agents
 ├── scripts/                   # Shell scripts (MUST use via $POLYDEV_SCRIPTS)
-│   ├── terminal-backend.sh    # Backend abstraction (tmux/wezterm)
+│   │
+│   │ # Core (required for parallel dev)
 │   ├── spawn-session.sh       # Create worktree + terminal + Claude
 │   ├── poll.sh                # Status monitoring loop
 │   ├── restore-session.sh     # Session recovery
-│   ├── wo-send-command.sh     # Send commands to worktree sessions (wo: only)
-│   ├── send-to-session.sh     # Send commands to any session (SSH, REPL, etc.)
+│   ├── terminal-backend.sh    # Backend abstraction (internal)
+│   │
+│   │ # Session management
+│   ├── wo-send-command.sh     # Send commands to worktree sessions
+│   ├── send-to-session.sh     # Send commands to any session
 │   ├── capture-screen.sh      # Read terminal output
-│   ├── run-background.sh      # Background commands (no sub-Claude)
-│   ├── analyze-output.sh      # Analyze background task output
-│   ├── wait-for-pattern.sh    # Wait for pattern match in output
-│   ├── spawn-agent.sh         # Investigation agents
 │   ├── list-sessions.sh       # List active sessions
 │   ├── close-session.sh       # Terminate sessions
-│   └── prune-dead-sessions.sh # Clean up dead sessions
+│   ├── focus-session.sh       # Focus/activate session
+│   │
+│   │ # Background tasks
+│   ├── run-background.sh      # Background commands (no sub-Claude)
+│   ├── analyze-output.sh      # Analyze background task output
+│   ├── wait-for-pattern.sh    # Wait for pattern match
+│   ├── spawn-agent.sh         # Investigation agents
+│   │
+│   │ # Cleanup
+│   ├── cleanup-worktree.sh    # Clean up worktree + session
+│   │
+│   │ # Utilities (optional, for debugging)
+│   ├── get-pane-id.sh         # Get pane ID (standalone tool)
+│   ├── git-info.sh            # Git status queries
+│   ├── prune-dead-sessions.sh # Show session status (diagnostic)
+│   └── test-terminal-backend.sh # Backend tests (dev only)
 ├── hooks/                     # Claude Code hooks
 └── templates/                 # Task templates
 ```
@@ -61,20 +76,42 @@ POLYDEV_SCRIPTS="/path/to/polydev/scripts"
 
 ### Script Usage by Scenario
 
+**Core workflow:**
 | Scenario | Script | Parameters |
 |----------|--------|------------|
 | Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status (loop) | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
+
+**Session management:**
+| Scenario | Script | Parameters |
+|----------|--------|------------|
 | Send to worktree (has task.toon) | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
 | Send to any session (SSH, REPL) | `send-to-session.sh` | `<session_id> "<cmd>"` |
 | Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
 | Close session | `close-session.sh` | `<session_id>` |
+| Focus/activate session | `focus-session.sh` | `<worktree-path>` |
+
+**Background tasks:**
+| Scenario | Script | Parameters |
+|----------|--------|------------|
 | Start background command | `run-background.sh` | `<name> "<cmd>"` |
 | Analyze output | `analyze-output.sh` | `<session_id> --lines N` |
 | Wait for pattern | `wait-for-pattern.sh` | `<session_id> --success "<pattern>"` |
 | Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
+
+**Cleanup:**
+| Scenario | Script | Parameters |
+|----------|--------|------------|
+| Clean up worktree | `cleanup-worktree.sh` | `<worktree-path>` |
+
+**Utilities (optional):**
+| Scenario | Script | Parameters |
+|----------|--------|------------|
+| Get pane ID | `get-pane-id.sh` | `<session_id>` |
+| Git info | `git-info.sh` | `<diff\|conflicts\|status> <worktree-path>` |
+| Show all sessions | `prune-dead-sessions.sh` | (no params) |
 
 ### Cost Control
 

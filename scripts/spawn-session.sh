@@ -94,6 +94,34 @@ if [ ! -f "$PLAN_FILE" ]; then
   exit 1
 fi
 
+# Validate worktree path is not an existing file
+if [ -f "$WORKTREE_PATH" ]; then
+  echo "❌ Error: WORKTREE_PATH is an existing file, not a directory: $WORKTREE_PATH"
+  echo ""
+  echo "Arguments received:"
+  echo "  \$1 (workspace):     $WORKSPACE"
+  echo "  \$2 (branch):        $BRANCH_NAME"
+  echo "  \$3 (worktree_path): $WORKTREE_PATH"
+  echo "  \$4 (plan_file):     $PLAN_FILE"
+  echo ""
+  echo "Hint: Check if arguments were passed in the correct order."
+  exit 1
+fi
+
+# Validate worktree path starts with .worktrees/
+case "$WORKTREE_PATH" in
+  .worktrees/*|*/.worktrees/*)
+    # Valid path
+    ;;
+  *)
+    echo "⚠️  Warning: WORKTREE_PATH should be under .worktrees/ directory"
+    echo "   Expected: .worktrees/<branch-name>"
+    echo "   Got:      $WORKTREE_PATH"
+    echo ""
+    echo "   Continuing anyway, but this may cause issues with poll.sh"
+    ;;
+esac
+
 # Track if worktree already existed
 WORKTREE_EXISTS=false
 [ -d "$WORKTREE_PATH" ] && WORKTREE_EXISTS=true
@@ -194,7 +222,10 @@ if ! tb_send_command "$session_id" "claude --dangerously-skip-permissions --mode
 fi
 
 # Wait for Claude to start
-tb_wait_for_claude "$session_id" 15
+# Note: Simple sleep is faster than tb_wait_for_claude's loop for freshly created sessions
+echo "⏳ Waiting for Claude to initialize..."
+sleep 2
+echo "   ✅ Ready"
 
 # Send the agent prompt
 if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then

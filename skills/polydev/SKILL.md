@@ -116,8 +116,19 @@ BANNED FOREVER - The following are permanently prohibited:
 **Parameters**: `<workspace> <branch> <worktree-path> <plan-file>`
 **Returns**: session_id (format: `wo:<workspace>:<branch>.0`)
 
+**⚠️ WORKTREE PATH RULE - MUST FOLLOW:**
+```
+worktree-path MUST be: .worktrees/<branch-name>
+
+✅ CORRECT: .worktrees/feature-auth
+✅ CORRECT: .worktrees/fix-login-bug
+❌ WRONG:   /some/other/path
+❌ WRONG:   ./src/components
+❌ WRONG:   feature-auth (missing .worktrees/ prefix)
+```
+
 ```bash
-"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/auth PLAN.md
+"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
 ```
 
 ### Scenario B: Monitor All Worktree Status (Must Call in Loop)
