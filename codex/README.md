@@ -25,10 +25,12 @@ git clone https://github.com/shikihane/polydev.git && ./polydev/codex/install.sh
 
 ```bash
 # Install all polydev skills from GitHub
+$skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/using-polydev
 $skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/polydev
 $skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/polydev-plans
 $skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/polydev-runner
 $skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/polydev-executor
+$skill-installer --url https://github.com/shikihane/polydev/tree/master/codex/skills/polydev-agent
 ```
 
 **Method C: Manual Copy**
@@ -42,16 +44,18 @@ cd polydev
 cp -r codex/skills/* ~/.codex/skills/
 ```
 
-**Method C: Symlinks (for development)**
+**Method D: Symlinks (for development)**
 
 ```bash
-git clone https://github.com/anthropics/polydev.git
+git clone https://github.com/shikihane/polydev.git
 cd polydev
 
 ln -s "$(pwd)/codex/skills/polydev" ~/.codex/skills/polydev
 ln -s "$(pwd)/codex/skills/polydev-plans" ~/.codex/skills/polydev-plans
 ln -s "$(pwd)/codex/skills/polydev-runner" ~/.codex/skills/polydev-runner
 ln -s "$(pwd)/codex/skills/polydev-executor" ~/.codex/skills/polydev-executor
+ln -s "$(pwd)/codex/skills/polydev-agent" ~/.codex/skills/polydev-agent
+ln -s "$(pwd)/codex/skills/using-polydev" ~/.codex/skills/using-polydev
 ```
 
 ### 2. Scripts Path
@@ -79,12 +83,14 @@ winget install wez.wezterm
 
 ## Available Skills
 
-| Skill | Description | When to Use |
-|-------|-------------|-------------|
-| `polydev` | Main orchestration skill | When executing 2+ independent tasks in parallel |
-| `polydev-plans` | Implementation plan generator | Before parallel execution, create detailed plans |
-| `polydev-runner` | Background command runner | Long-running commands (builds, tests, servers) |
-| `polydev-executor` | Worktree executor (sub-agent) | Automatically loaded in worktree sessions |
+| Skill | Session Type | Description |
+|-------|:------------:|-------------|
+| `using-polydev` | - | Entry point - determines which polydev skill to use |
+| `polydev` | `wo:` | Main orchestration (requires git) |
+| `polydev-plans` | - | Implementation plan generator |
+| `polydev-runner` | `bg:` | Background commands (SSH, builds, tests, servers) |
+| `polydev-agent` | `ag:` | Investigation/research sub-agents |
+| `polydev-executor` | - | Worktree executor (sub-agent only) |
 
 ## Usage
 
@@ -117,11 +123,15 @@ Codex will:
 
 ```
 ~/.codex/skills/
-├── polydev/              # Main orchestration
+├── using-polydev/        # Entry point - skill selection
+│   └── SKILL.md
+├── polydev/              # Main orchestration (wo:)
 │   └── SKILL.md
 ├── polydev-plans/        # Plan generation
 │   └── SKILL.md
-├── polydev-runner/       # Background commands
+├── polydev-runner/       # Background commands (bg:)
+│   └── SKILL.md
+├── polydev-agent/        # Investigation agents (ag:)
 │   └── SKILL.md
 └── polydev-executor/     # Worktree execution (sub-agent)
     └── SKILL.md
