@@ -5,7 +5,7 @@
 #           send commands to it. This is for INTERACTIVE sessions like SSH, REPL, etc.
 #
 # DO NOT USE FOR:
-#   - Worktree sessions with task.toon (use send-command.sh with worktree path instead)
+#   - Worktree sessions with task.toon (use wo-send-command.sh with worktree path instead)
 #   - Starting new background tasks (use run-background.sh instead)
 #
 # Usage: send-to-session.sh <session_id> <command> [--no-enter]

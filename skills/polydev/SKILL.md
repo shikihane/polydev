@@ -9,6 +9,43 @@ Parallel development orchestration using Git worktrees and terminal sessions.
 
 ---
 
+## Session Type: wo: (Worktree Development)
+
+**Prefix `wo:` = Parallel development** (git worktree + sub-Claude)
+
+Choose skill by prefix:
+- `bg:` → **terminal-task-runner** - NO git required (SSH, builds, tests)
+- `ag:` → **agent-investigator** - NO git required (research, analysis)
+- `wo:` → **polydev** (this skill) - REQUIRES git repo
+
+---
+
+## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ THIS SKILL REQUIRES GIT REPOSITORY                              │
+│ For non-git tasks, use other skills by prefix                   │
+├─────────────────────────────────────────────────────────────────┤
+│ YOU MUST USE THIS SKILL FOR:                                    │
+│ - Parallel development on 2+ independent branches               │
+│ - Spawning sub-Claude instances in isolated worktrees           │
+│                                                                 │
+│ ABSOLUTELY PROHIBITED:                                          │
+│ - Calling wezterm/tmux commands directly                        │
+│ - Writing git worktree add/remove commands yourself             │
+│ - Deleting anything under .worktrees directory                  │
+│ - Trying to "do it faster myself" without this skill            │
+│                                                                 │
+│ FOR BACKGROUND TASKS (bg:) → Use terminal-task-runner skill     │
+│ FOR SUB-AGENTS (ag:) → Use agent-investigator skill             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**If you violate these rules, the task WILL FAIL.**
+
+---
+
 ## Script Path (Must Follow)
 
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
@@ -102,13 +139,13 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 ```
 
 ### Scenario D: Send Command to Worktree Session (Has task.toon)
-**Script**: `send-command.sh`
+**Script**: `wo-send-command.sh`
 **Parameters**: `<worktree-path> "<command>" [--no-enter]`
 **Prerequisite**: Worktree must have task.toon file
 
 ```bash
-"$POLYDEV_SCRIPTS/send-command.sh" .worktrees/auth "npm test"
-"$POLYDEV_SCRIPTS/send-command.sh" .worktrees/auth "password" --no-enter
+"$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "npm test"
+"$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "password" --no-enter
 ```
 
 ### Scenario E: Send Command to Any Session (SSH, REPL, etc.)

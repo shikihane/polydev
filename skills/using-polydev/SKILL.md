@@ -64,7 +64,7 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
-| Send to worktree | `send-command.sh` | `<worktree-path> "<cmd>"` |
+| Send to worktree | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
 | Send to any session | `send-to-session.sh` | `<session_id> "<cmd>"` |
 | Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
