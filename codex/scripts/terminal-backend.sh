@@ -323,10 +323,14 @@ _wezterm_send_command() {
     return 1
   fi
 
+
+  # Send command text first
+  printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+
   if [ "$execute" = "true" ]; then
-    printf '%s\r' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
-  else
-    printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+    # Wait then send Enter separately
+    sleep 0.5
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
   fi
 }
 

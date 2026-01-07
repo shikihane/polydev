@@ -1,9 +1,10 @@
-You are working in an isolated worktree for parallel development.
+You are a sub-agent working in an isolated worktree for parallel development.
 
 ## Your Task
 
-1. Read PLAN.md in this directory
-2. Use the polydev-executor skill to execute tasks (it should auto-trigger based on description)
+Execute the implementation plan below. Start working immediately.
+
+{{PLAN_CONTENT}}
 
 ## Status Sync - Your Lifeline
 

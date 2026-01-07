@@ -231,57 +231,48 @@ backup_task_toon "$WORKTREE_PATH/task.toon"
 # Use | as delimiter to safely handle : and . in session_id
 sed_inplace "s|PENDING_PANE_ID|$session_id|" "$WORKTREE_PATH/task.toon"
 
-# Start Codex CLI
+# Build prompt with PLAN.md content embedded
+echo ""
+echo "📋 Building agent prompt..."
+CODEX_PROMPT_FILE="$(dirname "$SCRIPT_DIR")/templates/worktree-agent-prompt.md"
+if [ ! -f "$CODEX_PROMPT_FILE" ]; then
+  CODEX_PROMPT_FILE="$CODEX_DIR/templates/worktree-agent-prompt.md"
+fi
+
+if [ -f "$CODEX_PROMPT_FILE" ]; then
+  prompt_template=$(cat "$CODEX_PROMPT_FILE")
+  plan_content=$(cat "$WORKTREE_PATH/PLAN.md" 2>/dev/null || echo "No PLAN.md found")
+  AGENT_PROMPT="${prompt_template//\{\{PLAN_CONTENT\}\}/$plan_content}"
+else
+  # Fallback inline prompt
+  AGENT_PROMPT="Execute the PLAN.md in this directory. Update task.toon with your status."
+fi
+
+# Write prompt to temp file (avoid command line length limits and escaping issues)
+PROMPT_FILE="$WORKTREE_PATH/.codex-prompt.md"
+echo "$AGENT_PROMPT" > "$PROMPT_FILE"
+echo "   ✅ Prompt ready"
+
+# Start Codex CLI with prompt file as argument
 echo ""
 echo "🤖 Starting Codex CLI agent..."
 
-# Build Codex CLI command with correct approval flags
-# Codex CLI uses: -a <mode> or --full-auto, not --approvals
+# Build Codex CLI command - pass short prompt to read the file
+# This avoids tb_send_multiline_text which is unreliable
 if [ "$CODEX_APPROVAL" = "full-auto" ]; then
-  CODEX_CMD="codex --full-auto"
+  CODEX_CMD="codex --full-auto 'Read and execute .codex-prompt.md'"
 else
-  CODEX_CMD="codex -a $CODEX_APPROVAL"
+  CODEX_CMD="codex -a $CODEX_APPROVAL 'Read and execute .codex-prompt.md'"
 fi
 
 if ! tb_send_command "$session_id" "$CODEX_CMD"; then
   echo "❌ Failed to start Codex"
   echo "   Session ID: $session_id"
-  echo "   Try manually: focus the session and run: $CODEX_CMD"
+  echo "   Try manually: focus the session and run the command"
   exit 1
 fi
 
-# Wait for Codex to start (reuse Claude wait function, works for any CLI)
-tb_wait_for_claude "$session_id" 15
-
-# Send the agent prompt for Codex
-CODEX_PROMPT_FILE="$(dirname "$SCRIPT_DIR")/templates/worktree-agent-prompt.md"
-if [ -f "$CODEX_PROMPT_FILE" ]; then
-  echo ""
-  echo "📤 Sending agent prompt..."
-  prompt=$(cat "$CODEX_PROMPT_FILE")
-
-  if tb_send_multiline_text "$session_id" "$prompt" "true"; then
-    echo "   ✅ Prompt sent successfully"
-  else
-    echo "   ⚠️  Warning: Prompt may not have been sent"
-    echo "   You can manually send it by attaching to the session"
-  fi
-elif [ -f "$CODEX_DIR/templates/worktree-agent-prompt.md" ]; then
-  # Fallback to codex templates
-  echo ""
-  echo "📤 Sending agent prompt..."
-  prompt=$(cat "$CODEX_DIR/templates/worktree-agent-prompt.md")
-
-  if tb_send_multiline_text "$session_id" "$prompt" "true"; then
-    echo "   ✅ Prompt sent successfully"
-  else
-    echo "   ⚠️  Warning: Prompt may not have been sent"
-  fi
-else
-  echo "⚠️  Warning: Agent prompt file not found"
-fi
-
-echo "   ✅ Codex launched and configured"
+echo "   ✅ Codex launched with task"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🎉 Session spawned successfully!"
