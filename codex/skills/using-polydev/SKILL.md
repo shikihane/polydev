@@ -53,7 +53,7 @@ User message received
     |
 Contains parallel/multiple keywords?
     | YES
-Is it complex/unclear? --YES--> Clarify requirements first
+Is it complex/unclear/greenfield? --YES--> Use polydev-brainstorm skill
     | NO
 Ready to execute? --YES--> Use polydev skill
     |
@@ -64,12 +64,23 @@ Running background command? --YES--> Use polydev-runner skill
 Need investigation/research? --YES--> Use polydev-agent skill
 ```
 
+### ⚠️ GREENFIELD PROJECT WARNING
+
+**If project is NEW or has no existing code structure:**
+1. **MUST use `polydev-brainstorm` skill first** - understand dependencies
+2. **Skeleton-first principle**: Build shared foundation single-threaded BEFORE parallelizing
+3. Skeleton includes: project structure, core interfaces, shared types, base config
+4. **ONLY parallelize after skeleton branch is merged**
+
+Signs of greenfield: empty repo, "start from scratch", "new project", no package.json/Cargo.toml/etc.
+
 ---
 
 ## Available Skills
 
 | Skill | Session Type | When to Use |
 |-------|:------------:|-------------|
+| **polydev-brainstorm** | - | Complex/unclear/greenfield projects - decompose tasks first |
 | **polydev** | `wo:` | Execute 2+ independent tasks in parallel (requires git) |
 | **polydev-plans** | - | Create detailed implementation plans |
 | **polydev-runner** | `bg:` | Long-running commands (builds, tests, servers, SSH) |
@@ -102,8 +113,9 @@ All scripts via `bash "$HOME/.codex/polydev/scripts/<name>.sh"`:
 ## Quick Decision Guide
 
 **User says "implement X, Y, and Z":**
-1. Are X, Y, Z independent? → **polydev** skill
-2. Need detailed plans? → **polydev-plans** skill first
+1. Is this a NEW/greenfield project? → **polydev-brainstorm** skill first
+2. Are X, Y, Z independent? → **polydev** skill
+3. Need detailed plans? → **polydev-plans** skill first
 
 **User says "run this build/test":**
 1. Will it take > 30 seconds? → **polydev-runner** skill

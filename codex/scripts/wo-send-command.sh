@@ -3,7 +3,7 @@
 #
 # Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]
 #
-# This script sends a command to an idle/active Claude session.
+# This script sends a command to an idle/active Codex session.
 # By default, it appends Enter to execute the command immediately.
 #
 # Options:

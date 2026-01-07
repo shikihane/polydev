@@ -57,7 +57,7 @@ echo ""
 declare -a files_to_check=(
   "task.toon"
   "PLAN.md"
-  ".claude/"
+  ".codex/"
   "src/"
   "tests/"
   "pyproject.toml"

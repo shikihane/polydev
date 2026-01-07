@@ -4,7 +4,8 @@
 # Usage: spawn-session.sh <workspace> <branch_name> <worktree_path> <plan_file> [verify_level] [verify_fallback] [verify_commands]
 #
 # Environment variables:
-#   CODEX_APPROVAL - Approval mode: suggest, auto-edit, full-auto (default: auto-edit)
+#   CODEX_APPROVAL - Approval mode: untrusted, on-failure, full-auto (default: on-failure)
+#                    Maps to Codex CLI: -a <mode> or --full-auto
 #
 # Verification info can be passed as arguments or extracted from plan file frontmatter
 # Supports both tmux (Linux/macOS) and wezterm (Windows) via terminal-backend.sh
@@ -65,8 +66,9 @@ VERIFY_LEVEL="${5:-L2}"
 VERIFY_FALLBACK="${6:-L1}"
 VERIFY_COMMANDS="${7:-}"
 
-# Approval mode for Codex (default: auto-edit for reasonable automation)
-CODEX_APPROVAL="${CODEX_APPROVAL:-auto-edit}"
+# Approval mode for Codex CLI (default: on-failure for reasonable automation)
+# Valid values: untrusted, on-failure, on-request, never, full-auto
+CODEX_APPROVAL="${CODEX_APPROVAL:-on-failure}"
 
 if [ -z "$WORKSPACE" ] || [ -z "$BRANCH_NAME" ] || [ -z "$WORKTREE_PATH" ] || [ -z "$PLAN_FILE" ]; then
   echo "❌ Error: Missing required arguments"
@@ -83,7 +85,7 @@ if [ -z "$WORKSPACE" ] || [ -z "$BRANCH_NAME" ] || [ -z "$WORKTREE_PATH" ] || [ 
   echo "  verify_commands - Optional: Custom verification commands"
   echo ""
   echo "Environment:"
-  echo "  CODEX_APPROVAL  - Approval mode: suggest, auto-edit, full-auto (default: auto-edit)"
+  echo "  CODEX_APPROVAL  - Approval mode: untrusted, on-failure, on-request, never, full-auto (default: on-failure)"
   echo ""
   echo "Example:"
   echo "  ./spawn-session.sh myproject-parallel feature-auth .worktrees/auth ./PLAN.md L3 L2"
@@ -124,6 +126,34 @@ echo "Verification:  $VERIFY_LEVEL (fallback: $VERIFY_FALLBACK)"
 echo "Approval:      $CODEX_APPROVAL"
 echo "Backend:       $(tb_get_backend)"
 echo ""
+
+# Check if git repo exists
+if ! git rev-parse --git-dir &>/dev/null; then
+  echo "❌ Error: Not a git repository."
+  echo ""
+  echo "   Please initialize git first:"
+  echo "     git init"
+  echo "     git add ."
+  echo "     git commit -m \"initial commit\""
+  exit 1
+fi
+
+# Check if there's at least one commit (required for worktree)
+if ! git rev-parse HEAD &>/dev/null; then
+  echo "❌ Error: No commits found. Git worktree requires at least one commit."
+  echo ""
+  echo "   Please create an initial commit first:"
+  echo "     git add ."
+  echo "     git commit -m \"initial commit\""
+  exit 1
+fi
+
+# Create .worktrees directory if needed
+WORKTREE_PARENT=$(dirname "$WORKTREE_PATH")
+if [ ! -d "$WORKTREE_PARENT" ]; then
+  echo "📁 Creating worktrees directory: $WORKTREE_PARENT"
+  mkdir -p "$WORKTREE_PARENT"
+fi
 
 # Create worktree
 echo "📁 Creating git worktree..."
@@ -205,8 +235,13 @@ sed_inplace "s|PENDING_PANE_ID|$session_id|" "$WORKTREE_PATH/task.toon"
 echo ""
 echo "🤖 Starting Codex CLI agent..."
 
-# Codex CLI command with approval mode
-CODEX_CMD="codex --approvals $CODEX_APPROVAL"
+# Build Codex CLI command with correct approval flags
+# Codex CLI uses: -a <mode> or --full-auto, not --approvals
+if [ "$CODEX_APPROVAL" = "full-auto" ]; then
+  CODEX_CMD="codex --full-auto"
+else
+  CODEX_CMD="codex -a $CODEX_APPROVAL"
+fi
 
 if ! tb_send_command "$session_id" "$CODEX_CMD"; then
   echo "❌ Failed to start Codex"

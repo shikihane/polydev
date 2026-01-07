@@ -1,5 +1,5 @@
 #!/bin/bash
-# spawn-agent.sh - Start an investigation agent (Claude, no worktree)
+# spawn-agent.sh - Start an investigation agent (Codex, no worktree)
 #
 # Usage: spawn-agent.sh <name> --prompt "<task>" --report <report_path> [--cwd <dir>] [--model <model>]
 #
@@ -33,7 +33,7 @@ PROMPT=""
 REPORT_PATH=""
 CWD="$(pwd)"
 WORKSPACE="$(basename "$(pwd)")"
-MODEL="${CLAUDE_MODEL:-sonnet}"  # Default to sonnet for cost control
+MODEL="${CODEX_MODEL:-o4-mini}"  # Default to o4-mini for cost control
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -75,7 +75,7 @@ if [ -z "$NAME" ] || [ -z "$PROMPT" ] || [ -z "$REPORT_PATH" ]; then
   echo "  --prompt    The investigation task (required)" >&2
   echo "  --report    Path for the report file (required)" >&2
   echo "  --cwd       Working directory (default: current)" >&2
-  echo "  --model     Claude model: sonnet, opus, haiku (default: sonnet)" >&2
+  echo "  --model     Codex model: o4-mini, o3, gpt-4.1, etc. (default: o4-mini)" >&2
   echo "" >&2
   echo "Example:" >&2
   echo "  ./scripts/spawn-agent.sh auth-research \\" >&2
@@ -121,16 +121,17 @@ internal_session_id=$(tb_create_worktree_session "$ag_workspace" "$NAME" "$CWD" 
 external_session_id="${internal_session_id/wo:/ag:}"
 echo "   ✅ Session created: $external_session_id"
 
-# Start Claude
+# Start Codex
 echo ""
-echo "🤖 Starting Claude agent..."
-if ! tb_send_command "$internal_session_id" "claude --dangerously-skip-permissions --model $MODEL" "true"; then
-  echo "   ❌ Failed to start Claude" >&2
+echo "🤖 Starting Codex agent..."
+# Codex CLI uses: -m for model, --full-auto for automatic execution
+if ! tb_send_command "$internal_session_id" "codex --full-auto -m $MODEL" "true"; then
+  echo "   ❌ Failed to start Codex" >&2
   exit 1
 fi
 
-# Wait for Claude to initialize
-echo "⏳ Waiting for Claude to start..."
+# Wait for Codex to initialize
+echo "⏳ Waiting for Codex to start..."
 tb_wait_for_claude "$internal_session_id" 15
 
 # Build the agent prompt

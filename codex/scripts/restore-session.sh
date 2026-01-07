@@ -13,7 +13,7 @@
 #   --force    Force restart even if session is alive
 #
 # Environment:
-#   CODEX_APPROVAL - Approval mode: suggest, auto-edit, full-auto (default: auto-edit)
+#   CODEX_APPROVAL - Approval mode: untrusted, on-failure, on-request, never, full-auto (default: on-failure)
 
 set -e
 
@@ -23,8 +23,9 @@ CODEX_DIR="$(dirname "$SCRIPT_DIR")"
 # Source terminal backend abstraction (local copy)
 source "$SCRIPT_DIR/terminal-backend.sh"
 
-# Approval mode for Codex (default: auto-edit for reasonable automation)
-CODEX_APPROVAL="${CODEX_APPROVAL:-auto-edit}"
+# Approval mode for Codex CLI (default: on-failure for reasonable automation)
+# Valid values: untrusted, on-failure, on-request, never, full-auto
+CODEX_APPROVAL="${CODEX_APPROVAL:-on-failure}"
 
 WORKTREE_PATH=""
 FORCE_RESTART=false
@@ -179,8 +180,13 @@ if [ "$choice" = "1" ]; then
   echo ""
   echo "🤖 Starting Codex CLI..."
 
-  # Codex CLI command with approval mode
-  CODEX_CMD="codex --approvals $CODEX_APPROVAL"
+  # Build Codex CLI command with correct approval flags
+  # Codex CLI uses: -a <mode> or --full-auto, not --approvals
+  if [ "$CODEX_APPROVAL" = "full-auto" ]; then
+    CODEX_CMD="codex --full-auto"
+  else
+    CODEX_CMD="codex -a $CODEX_APPROVAL"
+  fi
 
   if ! tb_send_command "$new_session_id" "$CODEX_CMD"; then
     echo "❌ Failed to start Codex"

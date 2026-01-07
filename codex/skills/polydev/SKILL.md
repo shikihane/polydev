@@ -71,27 +71,55 @@ bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
 ```
 User request with 2+ independent tasks
     |
-Phase 1: Task Decomposition
+Phase 0: Brainstorming (REQUIRED for greenfield)
+    - Use polydev-brainstorm skill for new/complex projects
+    - Identify skeleton vs parallelizable work
+    |
+Phase 1: Skeleton First (if greenfield)
+    - Build shared foundation SINGLE-THREADED
+    - Includes: project structure, core interfaces, shared types
+    - Merge skeleton before ANY parallel work
+    |
+Phase 2: Task Decomposition
     - Identify independent tasks
     - Determine verification level for each
     |
-Phase 2: Plan Creation
+Phase 3: Plan Creation
     - Create PLAN.md for each task
     - Plans go in .worktrees/<branch>/PLAN.md
     |
-Phase 3: User Confirmation
+Phase 4: User Confirmation
     - Show task breakdown and verification strategy
     - Wait for approval before spawning
     |
-Phase 4: Parallel Execution
+Phase 5: Parallel Execution
     - spawn-session.sh for each task
     - poll.sh loop for monitoring
     |
-Phase 5: Verify & Merge
+Phase 6: Verify & Merge
     - Run verification per level
     - Merge completed branches
     |
-Phase 6: Cleanup (Human Confirms)
+Phase 7: Cleanup (Human Confirms)
+```
+
+### ⚠️ GREENFIELD PROJECT - SKELETON FIRST
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ FOR NEW PROJECTS (no existing code):                            │
+│                                                                 │
+│ 1. MUST use polydev-brainstorm skill first                     │
+│ 2. MUST build skeleton SINGLE-THREADED before parallelizing    │
+│ 3. Skeleton branch includes:                                    │
+│    - Project structure (directories, config files)              │
+│    - Core interfaces and types                                  │
+│    - Shared utilities                                           │
+│    - Base dependencies (package.json, Cargo.toml, etc.)        │
+│ 4. Merge skeleton to main BEFORE spawning parallel branches    │
+│                                                                 │
+│ WHY: Parallel branches on empty repo = merge hell + conflicts  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -101,13 +129,31 @@ Phase 6: Cleanup (Human Confirms)
 ### Spawn Worktree + Codex Session
 
 ```bash
-# Windows (MUST use bash prefix):
-bash "$HOME/.codex/polydev/scripts/spawn-session.sh" myproject feature/auth .worktrees/auth PLAN.md
+# Parameters:
+#   $1 = workspace    : Simple name for grouping sessions (NOT a path!)
+#   $2 = branch       : Git branch name
+#   $3 = worktree-path: Where to create the worktree
+#   $4 = plan-file    : Path to PLAN.md
 
-# With approval mode:
-CODEX_APPROVAL=full-auto bash "$HOME/.codex/polydev/scripts/spawn-session.sh" ...
+# Example - if you're in /home/user/myproject:
+WORKSPACE="myproject-parallel"  # ✅ Simple name
+BRANCH="feature/auth"
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" "$WORKSPACE" "$BRANCH" .worktrees/auth PLAN.md
 
-# Returns: session_id (format: wo:workspace:branch.0)
+# Quick workspace name from current directory:
+WORKSPACE="$(basename "$(pwd)")-parallel"
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" "$WORKSPACE" feature/auth .worktrees/auth PLAN.md
+
+# Returns: session_id (format: wo:myproject-parallel:feature/auth.0)
+```
+
+**⚠️ CRITICAL: workspace parameter:**
+```
+✅ CORRECT: "myproject", "game-parallel", "webapp"
+❌ WRONG:   "C:/Projects/foo", "/home/user/project", "$(pwd)"
+
+workspace is a SESSION GROUP NAME, not a file path!
+Use: $(basename "$(pwd)")-parallel
 ```
 
 ### Monitor All Worktrees (MUST call in loop)
@@ -220,7 +266,8 @@ Codex:
 ## Iron Rules
 
 1. **Windows: ALWAYS use `bash "$HOME/.codex/polydev/scripts/<name>.sh"` to run scripts**
-2. **Never spawn without creating PLAN.md first**
-3. **Always monitor with poll.sh loop after spawning**
-4. **Restore crashed sessions before continuing**
-5. **Human confirms cleanup before deleting worktrees**
+2. **GREENFIELD = SKELETON FIRST**: New projects must build skeleton single-threaded before parallelizing
+3. **Never spawn without creating PLAN.md first**
+4. **Always monitor with poll.sh loop after spawning**
+5. **Restore crashed sessions before continuing**
+6. **Human confirms cleanup before deleting worktrees**

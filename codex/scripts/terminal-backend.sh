@@ -579,7 +579,7 @@ tb_wait_for_claude() {
   local elapsed=0
   local interval=2
 
-  echo "⏳ Waiting for Claude to start (timeout: ${timeout}s)..."
+  echo "⏳ Waiting for Codex to start (timeout: ${timeout}s)..."
 
   while [ $elapsed -lt $timeout ]; do
     # Simple heuristic: wait for session to be responsive
@@ -597,7 +597,7 @@ tb_wait_for_claude() {
   done
 
   echo ""
-  echo "⚠️  Timeout reached. Claude might still be starting..."
+  echo "⚠️  Timeout reached. Codex might still be starting..."
   echo "   Proceeding anyway..."
   return 0
 }

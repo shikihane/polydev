@@ -85,12 +85,21 @@ winget install wez.wezterm
 
 | Skill | Session Type | Description |
 |-------|:------------:|-------------|
+| `polydev-brainstorm` | - | **Use first for complex/greenfield projects** - task decomposition |
 | `using-polydev` | - | Entry point - determines which polydev skill to use |
 | `polydev` | `wo:` | Main orchestration (requires git) |
 | `polydev-plans` | - | Implementation plan generator |
 | `polydev-runner` | `bg:` | Background commands (SSH, builds, tests, servers) |
 | `polydev-agent` | `ag:` | Investigation/research sub-agents |
 | `polydev-executor` | - | Worktree executor (sub-agent only) |
+
+### Important: Greenfield Projects
+
+**For NEW projects with no existing code:**
+1. Use `polydev-brainstorm` skill first
+2. Build skeleton single-threaded before parallelizing
+3. Skeleton = project structure, core interfaces, shared types
+4. Only parallelize after skeleton is merged
 
 ## Usage
 
@@ -122,19 +131,25 @@ Codex will:
 ## Directory Structure
 
 ```
-~/.codex/skills/
-├── using-polydev/        # Entry point - skill selection
-│   └── SKILL.md
-├── polydev/              # Main orchestration (wo:)
-│   └── SKILL.md
-├── polydev-plans/        # Plan generation
-│   └── SKILL.md
-├── polydev-runner/       # Background commands (bg:)
-│   └── SKILL.md
-├── polydev-agent/        # Investigation agents (ag:)
-│   └── SKILL.md
-└── polydev-executor/     # Worktree execution (sub-agent)
-    └── SKILL.md
+~/.codex/
+├── polydev/
+│   ├── scripts/               # Shell scripts
+│   └── templates/             # Agent prompts
+└── skills/
+    ├── polydev-brainstorm/    # Task decomposition (greenfield first!)
+    │   └── SKILL.md
+    ├── using-polydev/         # Entry point - skill selection
+    │   └── SKILL.md
+    ├── polydev/               # Main orchestration (wo:)
+    │   └── SKILL.md
+    ├── polydev-plans/         # Plan generation
+    │   └── SKILL.md
+    ├── polydev-runner/        # Background commands (bg:)
+    │   └── SKILL.md
+    ├── polydev-agent/         # Investigation agents (ag:)
+    │   └── SKILL.md
+    └── polydev-executor/      # Worktree execution (sub-agent)
+        └── SKILL.md
 ```
 
 ## Windows Usage (CRITICAL)

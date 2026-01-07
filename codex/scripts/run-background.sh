@@ -1,5 +1,5 @@
 #!/bin/bash
-# run-background.sh - Start a background command in terminal (no Claude)
+# run-background.sh - Start a background command in terminal (no Codex agent)
 #
 # Usage: run-background.sh <name> "<command>" [--cwd <dir>] [--workspace <ws>]
 #
