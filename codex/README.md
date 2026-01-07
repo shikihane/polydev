@@ -54,13 +54,11 @@ ln -s "$(pwd)/codex/skills/polydev-runner" ~/.codex/skills/polydev-runner
 ln -s "$(pwd)/codex/skills/polydev-executor" ~/.codex/skills/polydev-executor
 ```
 
-### 2. Set Up Scripts Path
+### 2. Scripts Path
 
-Add to `~/.bashrc` or `~/.zshrc`:
+Scripts are installed to `$HOME/.codex/polydev/scripts`. No environment variable setup required - skills reference this path directly.
 
-```bash
-export POLYDEV_SCRIPTS="$HOME/.codex/polydev/scripts"
-```
+**Note for Windows users:** See "Windows Usage" section below.
 
 ### 3. Terminal Backend
 
@@ -129,34 +127,53 @@ Codex will:
     └── SKILL.md
 ```
 
+## Windows Usage (CRITICAL)
+
+**On Windows, you MUST use `bash` to execute `.sh` scripts.** Otherwise Windows will open them in an editor instead of running them.
+
+```powershell
+# ❌ WRONG - Windows opens editor
+& "$HOME/.codex/polydev/scripts/list-sessions.sh"
+
+# ✅ CORRECT - Use bash prefix
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
+```
+
+All script calls should follow this pattern:
+```bash
+bash "$HOME/.codex/polydev/scripts/<script-name>.sh" [args...]
+```
+
 ## Scripts Reference
 
-All scripts via `$POLYDEV_SCRIPTS`:
+Scripts location: `$HOME/.codex/polydev/scripts`
+
+**All examples below use Windows format (with `bash` prefix).** On Linux/macOS, you can omit `bash`.
 
 ```bash
 # Create worktree + Codex session
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 
 # Monitor all worktrees
-"$POLYDEV_SCRIPTS/poll.sh" <worktrees-dir> <timeout>
+bash "$HOME/.codex/polydev/scripts/poll.sh" <worktrees-dir> <timeout>
 
 # Restore crashed session
-"$POLYDEV_SCRIPTS/restore-session.sh" <worktree-path> [--force]
+bash "$HOME/.codex/polydev/scripts/restore-session.sh" <worktree-path> [--force]
 
 # Run background command
-"$POLYDEV_SCRIPTS/run-background.sh" <name> "<command>"
+bash "$HOME/.codex/polydev/scripts/run-background.sh" <name> "<command>"
 
 # Capture terminal output
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session <session_id> --lines <N>
+bash "$HOME/.codex/polydev/scripts/capture-screen.sh" --session <session_id> --lines <N>
 
 # List/close sessions
-"$POLYDEV_SCRIPTS/list-sessions.sh"
-"$POLYDEV_SCRIPTS/close-session.sh" <session_id>
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
+bash "$HOME/.codex/polydev/scripts/close-session.sh" <session_id>
 ```
 
 Environment variable for approval mode:
 ```bash
-CODEX_APPROVAL=full-auto "$POLYDEV_SCRIPTS/spawn-session.sh" ...
+CODEX_APPROVAL=full-auto bash "$HOME/.codex/polydev/scripts/spawn-session.sh" ...
 ```
 
 ## Comparison with Claude Code Version
@@ -178,21 +195,30 @@ Codex matches skills based on `description` field. Try:
 2. Use `/skills` to manually select
 3. Check `~/.codex/skills/` contains the skill directories
 
+### Windows: Script opens in editor instead of running
+
+**This is the most common issue on Windows.** You MUST use `bash` prefix:
+
+```bash
+# ❌ WRONG
+"$HOME/.codex/polydev/scripts/list-sessions.sh"
+
+# ✅ CORRECT
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
+```
+
 ### Terminal backend not working
 
 ```bash
-# Test backend detection
-source /path/to/polydev/scripts/terminal-backend.sh
+# Test backend detection (in Git Bash)
+source "$HOME/.codex/polydev/scripts/terminal-backend.sh"
 echo "Backend: $(tb_get_backend)"
-
-# Run test script
-./scripts/test-terminal-backend.sh
 ```
 
 ### Session not starting
 
 Check that:
-1. `$POLYDEV_SCRIPTS` is set correctly
+1. You're using `bash` prefix on Windows
 2. Terminal backend (tmux/wezterm) is installed
 3. Git is configured for worktrees
 

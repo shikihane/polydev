@@ -192,7 +192,7 @@ When used with polydev parallel execution:
 └── src/             # Working code
 ```
 
-**Spawn command:**
+**Spawn command (Windows - MUST use bash):**
 ```bash
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 ```

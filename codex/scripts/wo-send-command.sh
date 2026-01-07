@@ -1,7 +1,7 @@
 #!/bin/bash
-# send-command.sh - Send command to an existing worktree session
+# wo-send-command.sh - Send command to an existing worktree session
 #
-# Usage: send-command.sh <worktree_path> <command> [--no-enter]
+# Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]
 #
 # This script sends a command to an idle/active Claude session.
 # By default, it appends Enter to execute the command immediately.
@@ -10,8 +10,8 @@
 #   --no-enter    Don't append Enter (just type the text)
 #
 # Examples:
-#   send-command.sh .worktrees/feature-auth "npm test"
-#   send-command.sh .worktrees/feature-auth "git status" --no-enter
+#   wo-send-command.sh .worktrees/feature-auth "npm test"
+#   wo-send-command.sh .worktrees/feature-auth "git status" --no-enter
 
 set -e
 
@@ -44,14 +44,14 @@ done
 
 # Validation
 if [ -z "$WORKTREE_PATH" ] || [ -z "$COMMAND" ]; then
-  echo "Usage: send-command.sh <worktree_path> <command> [--no-enter]"
+  echo "Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]"
   echo ""
   echo "Options:"
   echo "  --no-enter    Don't append Enter (just type the text)"
   echo ""
   echo "Examples:"
-  echo "  send-command.sh .worktrees/feature-auth \"npm test\""
-  echo "  send-command.sh .worktrees/feature-auth \"git status\" --no-enter"
+  echo "  wo-send-command.sh .worktrees/feature-auth \"npm test\""
+  echo "  wo-send-command.sh .worktrees/feature-auth \"git status\" --no-enter"
   exit 1
 fi
 

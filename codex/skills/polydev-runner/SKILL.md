@@ -1,10 +1,11 @@
 ---
 name: polydev-runner
 description: |
-  Run background commands in terminal (tmux/wezterm) for monitoring and recovery.
-  WHEN: Builds >30s, test suites, dev servers, SSH sessions, long-running commands
-  WHEN NOT: Quick commands <10s, simple file operations
-  TRIGGERS: run build, run tests, start server, ssh, background task, npm run, cargo build
+  MUST USE for: SSH connections, long-running commands, background tasks, builds, tests, dev servers.
+  This skill runs commands in a persistent terminal session that survives disconnection.
+  NO git repo required. Works anywhere.
+  TRIGGERS: ssh, remote, background, long-running, build, test, server, npm, cargo, docker, watch
+  WHEN NOT: Quick commands <10s that complete immediately
 ---
 
 # Terminal Task Runner
@@ -13,16 +14,53 @@ Host background commands in terminal sessions (tmux/wezterm) and monitor their s
 
 ---
 
-## Script Path
+## Session Type: bg: (Background Task)
 
-**All scripts MUST be called via `$POLYDEV_SCRIPTS` variable.**
+**Prefix `bg:` = Background command** (SSH, build, test, server, etc.)
+
+Choose skill by prefix:
+- `bg:` → **polydev-runner** (this skill) - NO git required
+- `ag:` → **polydev-agent** - NO git required
+- `wo:` → **polydev** - REQUIRES git repo
+
+---
+
+## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ YOU MUST USE THIS SKILL FOR:                                    │
+│ - ANY SSH connection                                            │
+│ - ANY command that takes >10 seconds                            │
+│ - ANY background/long-running task                              │
+│ - ANY build, test, or dev server                                │
+│                                                                 │
+│ ABSOLUTELY PROHIBITED:                                          │
+│ - Using Bash tool's run_in_background parameter                 │
+│ - Using & or nohup to background commands                       │
+│ - Calling tmux/wezterm commands directly                        │
+│ - Running .sh files without 'bash' prefix on Windows            │
+│ - Trying to "do it faster myself" without this skill            │
+│                                                                 │
+│ NO GIT REPO REQUIRED - This skill works anywhere                │
+│                                                                 │
+│ FOR SUB-AGENTS (ag:) → Use polydev-agent skill                  │
+│ FOR PARALLEL DEV (wo:) → Use polydev skill (requires git)       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**If you violate these rules, the task WILL FAIL.**
+
+---
+
+## Script Path (MANDATORY)
+
+**Scripts location:** `$HOME/.codex/polydev/scripts`
+
+**Windows MUST use `bash` prefix:**
 
 ```bash
-# Verify path is set
-echo "$POLYDEV_SCRIPTS"
-
-# Call scripts
-"$POLYDEV_SCRIPTS/run-background.sh" <name> "<command>"
+bash "$HOME/.codex/polydev/scripts/run-background.sh" <name> "<command>"
 ```
 
 ---
@@ -40,10 +78,12 @@ echo "$POLYDEV_SCRIPTS"
 
 ## Script Reference
 
+**All commands below use Windows format (with `bash` prefix).** On Linux/macOS, you can omit `bash`.
+
 ### Start Background Task
 
 ```bash
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+session_id=$(bash "$HOME/.codex/polydev/scripts/run-background.sh" build "npm run build")
 # Returns: bg:bg-myproject:build.0
 ```
 
@@ -51,23 +91,23 @@ session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 
 ```bash
 # Send command
-"$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh.0 "docker ps"
+bash "$HOME/.codex/polydev/scripts/send-to-session.sh" bg:bg-polydev:ssh.0 "docker ps"
 
 # Send password (without pressing Enter)
-"$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh.0 "mypassword" --no-enter
+bash "$HOME/.codex/polydev/scripts/send-to-session.sh" bg:bg-polydev:ssh.0 "mypassword" --no-enter
 ```
 
 ### Analyze Output Status
 
 ```bash
-result=$("$POLYDEV_SCRIPTS/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --json)
+result=$(bash "$HOME/.codex/polydev/scripts/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --json)
 # Returns: status (running|idle|success|failed|done)
 ```
 
 ### Wait for Pattern Match
 
 ```bash
-"$POLYDEV_SCRIPTS/wait-for-pattern.sh" "$session_id" \
+bash "$HOME/.codex/polydev/scripts/wait-for-pattern.sh" "$session_id" \
   --success "passed|All tests passed" \
   --fail "failed|Error" \
   --timeout 300
@@ -78,50 +118,38 @@ result=$("$POLYDEV_SCRIPTS/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --
 
 ```bash
 # Note: requires wo: prefix for --session
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 50
+bash "$HOME/.codex/polydev/scripts/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 50
 ```
 
 ### Close Task
 
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" bg:bg-myproj:build.0
+bash "$HOME/.codex/polydev/scripts/close-session.sh" bg:bg-myproj:build.0
 ```
 
 ### List All Sessions
 
 ```bash
-"$POLYDEV_SCRIPTS/list-sessions.sh"
-```
-
----
-
-## Prohibited Actions
-
-```
-DO NOT use Bash tool's run_in_background parameter
-DO NOT use & to background
-DO NOT use nohup
-DO NOT call tmux/wezterm commands directly
-DO NOT use relative path ./scripts/
-
-MUST call scripts via $POLYDEV_SCRIPTS variable
-MUST monitor task status
-MUST clean up session when done
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
 ```
 
 ---
 
 ## Typical Workflows
 
+**All examples use Windows format (with `bash` prefix).** On Linux/macOS, you can omit `bash`.
+
 ### Build Task (Polling)
 
 ```bash
+SCRIPTS="$HOME/.codex/polydev/scripts"
+
 # Start
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+session_id=$(bash "$SCRIPTS/run-background.sh" build "npm run build")
 
 # Poll and check
 while true; do
-  result=$("$POLYDEV_SCRIPTS/analyze-output.sh" "$session_id" --lines 20 --json)
+  result=$(bash "$SCRIPTS/analyze-output.sh" "$session_id" --lines 20 --json)
   status=$(echo "$result" | jq -r '.status')
 
   case "$status" in
@@ -131,7 +159,7 @@ while true; do
       ;;
     failed)
       echo "Task failed"
-      "$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 50
+      bash "$SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 50
       break
       ;;
   esac
@@ -140,41 +168,45 @@ while true; do
 done
 
 # Cleanup
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
+bash "$SCRIPTS/close-session.sh" "$session_id"
 ```
 
 ### SSH Interactive Session
 
 ```bash
+SCRIPTS="$HOME/.codex/polydev/scripts"
+
 # 1. Start SSH connection
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
+session_id=$(bash "$SCRIPTS/run-background.sh" ssh-server "ssh user@host")
 
 # 2. Wait for connection (may need password)
 sleep 3
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 20
+bash "$SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 20
 
 # 3. If password needed
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$session_id" "mypassword"
+bash "$SCRIPTS/send-to-session.sh" "$session_id" "mypassword"
 
 # 4. Send commands
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$session_id" "docker ps"
+bash "$SCRIPTS/send-to-session.sh" "$session_id" "docker ps"
 
 # 5. View results
 sleep 2
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30
+bash "$SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30
 
 # 6. Close when done
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
+bash "$SCRIPTS/close-session.sh" "$session_id"
 ```
 
 ### Wait for Pattern
 
 ```bash
+SCRIPTS="$HOME/.codex/polydev/scripts"
+
 # Start and wait
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" test "npm test")
+session_id=$(bash "$SCRIPTS/run-background.sh" test "npm test")
 
 # Wait for success or failure
-"$POLYDEV_SCRIPTS/wait-for-pattern.sh" "$session_id" \
+bash "$SCRIPTS/wait-for-pattern.sh" "$session_id" \
   --success "passed|All tests passed" \
   --fail "failed|Error" \
   --timeout 300
@@ -186,7 +218,7 @@ case $exit_code in
   2) echo "Timeout" ;;
 esac
 
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
+bash "$SCRIPTS/close-session.sh" "$session_id"
 ```
 
 ---
@@ -213,16 +245,16 @@ bg:<workspace>:<name>.0
 
 ### Command Not Executed
 ```bash
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
 ```
 
 ### Cannot See Output
 ```bash
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 100
+bash "$HOME/.codex/polydev/scripts/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 100
 ```
 
 ### Session Stuck
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" bg:myproj:build.0
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
+bash "$HOME/.codex/polydev/scripts/close-session.sh" bg:myproj:build.0
+bash "$HOME/.codex/polydev/scripts/run-background.sh" build "npm run build"
 ```

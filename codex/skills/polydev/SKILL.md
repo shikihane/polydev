@@ -1,10 +1,11 @@
 ---
 name: polydev
 description: |
-  Parallel development orchestration using Git worktrees.
-  WHEN: User has 2+ independent tasks, mentions "parallel", "simultaneously", "multiple features/tasks"
-  WHEN NOT: Single task, sequential work, simple file edits
-  TRIGGERS: parallel, worktree, multiple tasks, simultaneously, independent branches
+  Parallel development: spawn multiple Codex instances on separate git branches.
+  REQUIRES: Git repository (uses worktrees for isolation)
+  WHEN: 2+ independent coding tasks that can run in parallel on different branches
+  WHEN NOT: Single task, background commands (use polydev-runner), non-git work
+  TRIGGERS: parallel development, multiple features, implement X Y and Z, worktree
 ---
 
 # Polydev - Parallel Development Orchestration
@@ -13,32 +14,54 @@ Spawn multiple Codex CLI instances in isolated Git worktrees to work on independ
 
 ---
 
-## Script Path (MANDATORY)
+## Session Type: wo: (Worktree Development)
 
-**All scripts via `$POLYDEV_SCRIPTS`. NEVER use relative paths.**
+**Prefix `wo:` = Parallel development** (git worktree + sub-Codex)
 
-```bash
-# Verify path is set
-echo "$POLYDEV_SCRIPTS"
-
-# Spawn worktree session
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
-
-# Monitor
-"$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
-```
+Choose skill by prefix:
+- `bg:` → **polydev-runner** - NO git required
+- `ag:` → **polydev-agent** - NO git required
+- `wo:` → **polydev** (this skill) - REQUIRES git repo
 
 ---
 
-## ABSOLUTE PROHIBITION
+## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
 
 ```
-BANNED FOREVER - The following are permanently prohibited:
-- Calling wezterm/tmux commands yourself
-- Writing git worktree add/remove commands yourself
-- Using relative path ./scripts/
-- Deleting anything under .worktrees directory
-- Any thought of "scripts are too cumbersome, I'll write it faster myself"
+┌─────────────────────────────────────────────────────────────────┐
+│ THIS SKILL REQUIRES GIT REPOSITORY                              │
+│ For non-git tasks, use polydev-runner instead                   │
+├─────────────────────────────────────────────────────────────────┤
+│ YOU MUST USE THIS SKILL FOR:                                    │
+│ - Parallel development on 2+ independent branches               │
+│ - Spawning sub-Codex instances in isolated worktrees            │
+│                                                                 │
+│ ABSOLUTELY PROHIBITED:                                          │
+│ - Calling wezterm/tmux commands directly                        │
+│ - Writing git worktree add/remove commands yourself             │
+│ - Running .sh files without 'bash' prefix on Windows            │
+│ - Deleting anything under .worktrees directory                  │
+│ - Trying to "do it faster myself" without this skill            │
+│                                                                 │
+│ FOR BACKGROUND TASKS (bg:) → Use polydev-runner skill           │
+│ FOR SUB-AGENTS (ag:) → Use polydev-agent skill                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**If you violate these rules, the task WILL FAIL.**
+
+---
+
+## Script Path (MANDATORY)
+
+**Scripts location:** `$HOME/.codex/polydev/scripts`
+
+**Windows MUST use `bash` prefix:**
+
+```bash
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+bash "$HOME/.codex/polydev/scripts/poll.sh" .worktrees 10
+bash "$HOME/.codex/polydev/scripts/list-sessions.sh"
 ```
 
 ---
@@ -78,27 +101,28 @@ Phase 6: Cleanup (Human Confirms)
 ### Spawn Worktree + Codex Session
 
 ```bash
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
-# Example:
-"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/auth PLAN.md
-# Returns: session_id (format: wo:workspace:branch.0)
+# Windows (MUST use bash prefix):
+bash "$HOME/.codex/polydev/scripts/spawn-session.sh" myproject feature/auth .worktrees/auth PLAN.md
 
-# Control approval mode via environment variable:
-CODEX_APPROVAL=full-auto "$POLYDEV_SCRIPTS/spawn-session.sh" ...
+# With approval mode:
+CODEX_APPROVAL=full-auto bash "$HOME/.codex/polydev/scripts/spawn-session.sh" ...
+
+# Returns: session_id (format: wo:workspace:branch.0)
 ```
 
 ### Monitor All Worktrees (MUST call in loop)
 
 ```bash
+# Windows monitoring loop:
 while branches_remaining; do
-  result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
+  result=$(bash "$HOME/.codex/polydev/scripts/poll.sh" .worktrees 10)
 
   worktree=$(echo "$result" | cut -d',' -f1)
   overall_status=$(echo "$result" | cut -d',' -f3)
   agent_status=$(echo "$result" | cut -d',' -f4)
 
   case "$agent_status" in
-    crashed) "$POLYDEV_SCRIPTS/restore-session.sh" "$worktree" --force ;;
+    crashed) bash "$HOME/.codex/polydev/scripts/restore-session.sh" "$worktree" --force ;;
     idle)    # Check if restart needed
   esac
 
@@ -112,16 +136,16 @@ done
 
 ### Other Scripts
 
-| Scenario | Script | Parameters |
-|----------|--------|------------|
-| Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
-| Send command to session | `send-command.sh` | `<worktree-path> "<cmd>"` |
-| Capture terminal output | `capture-screen.sh` | `--session <session_id> --lines N` |
-| List active sessions | `list-sessions.sh` | `[workspace]` |
-| Close session | `close-session.sh` | `<session_id>` |
-| Cleanup worktree | `cleanup-worktree.sh` | `<worktree-path>` |
+All scripts via `bash "$HOME/.codex/polydev/scripts/<name>.sh"`:
 
-All via `$POLYDEV_SCRIPTS/`.
+| Scenario | Command |
+|----------|---------|
+| Restore crashed session | `bash "$HOME/.codex/polydev/scripts/restore-session.sh" <worktree-path> [--force]` |
+| Send command to worktree | `bash "$HOME/.codex/polydev/scripts/wo-send-command.sh" <worktree-path> "<cmd>"` |
+| Capture terminal output | `bash "$HOME/.codex/polydev/scripts/capture-screen.sh" --session <id> --lines N` |
+| List active sessions | `bash "$HOME/.codex/polydev/scripts/list-sessions.sh" [workspace]` |
+| Close session | `bash "$HOME/.codex/polydev/scripts/close-session.sh" <session_id>` |
+| Cleanup worktree | `bash "$HOME/.codex/polydev/scripts/cleanup-worktree.sh" <worktree-path>` |
 
 ---
 
@@ -195,7 +219,7 @@ Codex:
 
 ## Iron Rules
 
-1. **All scripts via `$POLYDEV_SCRIPTS`, never relative paths**
+1. **Windows: ALWAYS use `bash "$HOME/.codex/polydev/scripts/<name>.sh"` to run scripts**
 2. **Never spawn without creating PLAN.md first**
 3. **Always monitor with poll.sh loop after spawning**
 4. **Restore crashed sessions before continuing**

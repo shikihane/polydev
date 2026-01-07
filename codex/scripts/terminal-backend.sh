@@ -280,20 +280,16 @@ except:
   rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
-    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" -- bash)
+    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd")
   else
-    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" -- bash)
+    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd")
   fi
 
   # Set tab_title - this is how we identify the session later (no map file needed)
   wezterm cli set-tab-title --pane-id "$pane_id" "$branch"
 
-  # Workaround for Windows Git Bash: --cwd may not work correctly
-  # Git Bash often starts in MSYS installation dir or %USERPROFILE%
-  # See: https://github.com/git-for-windows/git/issues/794
-  # Explicitly cd to the target directory after bash starts
-  sleep 0.3  # Wait for bash prompt to initialize
-  printf 'cd "%s" && clear\r' "$cwd" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  # Wait for shell to initialize
+  sleep 0.5
 
   local session_id
   session_id=$(_build_session_id "$workspace" "$branch" "0")
