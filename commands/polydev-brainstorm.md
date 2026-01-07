@@ -80,6 +80,15 @@ When design is complete, output:
 
 ## Next Steps
 
+<CRITICAL>
+When user makes a choice, you MUST immediately invoke the Skill tool:
+- User chooses "Write Plans" → Skill(skill: "polydev:writing-plans")
+- User chooses "Direct Execution" → Skill(skill: "polydev:polydev")
+
+DO NOT just describe what to do. INVOKE the Skill tool immediately.
+</CRITICAL>
+
+
 After brainstorming, offer:
 
 ```

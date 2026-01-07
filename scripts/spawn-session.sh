@@ -94,12 +94,10 @@ if [ ! -f "$PLAN_FILE" ]; then
   exit 1
 fi
 
-# Check if worktree path already exists
-if [ -d "$WORKTREE_PATH" ]; then
-  echo "⚠️  Warning: Directory already exists: $WORKTREE_PATH"
-  echo "   Use restore-session.sh to recover, or cleanup-worktree.sh to remove it."
-  exit 1
-fi
+# Track if worktree already existed
+WORKTREE_EXISTS=false
+[ -d "$WORKTREE_PATH" ] && WORKTREE_EXISTS=true
+
 
 # Try to extract verification info from plan file frontmatter if not provided
 if [ -z "$VERIFY_COMMANDS" ] && [ -f "$PLAN_FILE" ]; then
@@ -123,35 +121,24 @@ echo "Model:         $CLAUDE_MODEL"
 echo "Backend:       $(tb_get_backend)"
 echo ""
 
-# Create worktree
-echo "📁 Creating git worktree..."
-if ! git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" 2>/dev/null; then
-  echo "❌ Failed to create worktree"
-  echo "   This might mean the branch already exists or the path is invalid."
-  echo "   Run 'git worktree list' to see existing worktrees."
-  exit 1
+if [ "$WORKTREE_EXISTS" = "false" ]; then
+  git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" 2>/dev/null || \
+    git worktree add "$WORKTREE_PATH" "$BRANCH_NAME" 2>/dev/null || exit 1
 fi
-echo "   ✅ Worktree created"
 
-# Setup .claude directory with hooks
-echo ""
+if [ ! -d "$WORKTREE_PATH/.claude" ]; then
 echo "⚙️  Setting up Claude configuration..."
 mkdir -p "$WORKTREE_PATH/.claude/hooks"
 cp "$ORCHESTRATOR_DIR/templates/claude-settings.json" "$WORKTREE_PATH/.claude/settings.json"
 cp "$ORCHESTRATOR_DIR/hooks/on-stop.sh" "$WORKTREE_PATH/.claude/hooks/"
 cp "$ORCHESTRATOR_DIR/hooks/on-session-start.sh" "$WORKTREE_PATH/.claude/hooks/"
 chmod +x "$WORKTREE_PATH/.claude/hooks/"*.sh 2>/dev/null || true
-echo "   ✅ Claude config ready"
+fi
 
-# Copy plan file
-echo ""
-echo "📋 Copying plan file..."
-cp "$PLAN_FILE" "$WORKTREE_PATH/PLAN.md"
-echo "   ✅ PLAN.md copied"
+[ ! -f "$WORKTREE_PATH/PLAN.md" ] && cp "$PLAN_FILE" "$WORKTREE_PATH/PLAN.md"
 
-# Initialize task.toon with verification info
-echo ""
-echo "📝 Creating task.toon..."
+TASK_FILE="$WORKTREE_PATH/task.toon"
+if [ ! -f "$TASK_FILE" ]; then
 CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 sed -e "s|{{WORKTREE_PATH}}|$WORKTREE_PATH|g" \
     -e "s|{{BRANCH_NAME}}|$BRANCH_NAME|g" \
@@ -161,6 +148,20 @@ sed -e "s|{{WORKTREE_PATH}}|$WORKTREE_PATH|g" \
     -e "s|{{VERIFY_COMMANDS}}|$VERIFY_COMMANDS|g" \
     "$ORCHESTRATOR_DIR/templates/task.toon.template" > "$WORKTREE_PATH/task.toon"
 echo "   ✅ task.toon initialized"
+fi
+
+# Check if session is already alive
+existing_session_id=""
+if [ -f "$TASK_FILE" ]; then
+  meta_line=$(grep -A1 "^meta{" "$TASK_FILE" 2>/dev/null | tail -1 | tr -d " ")
+  existing_session_id=$(printf "%s" "$meta_line" | cut -d"," -f3)
+fi
+
+if [ -n "$existing_session_id" ] && [ "$existing_session_id" != "PENDING_PANE_ID" ]; then
+  if tb_is_session_alive "$existing_session_id"; then
+    exit 0  # Idempotent: session already running
+  fi
+fi
 
 # Create terminal session using abstraction layer
 echo ""
@@ -175,7 +176,11 @@ echo "   ✅ Session created: $session_id"
 # Backup first, then update
 backup_task_toon "$WORKTREE_PATH/task.toon"
 # Use | as delimiter to safely handle : and . in session_id
-sed_inplace "s|PENDING_PANE_ID|$session_id|" "$WORKTREE_PATH/task.toon"
+if [ -n "$existing_session_id" ] && [ "$existing_session_id" != "PENDING_PANE_ID" ]; then
+  sed_inplace "s|$existing_session_id|$session_id|g" "$TASK_FILE"
+else
+  sed_inplace "s|PENDING_PANE_ID|$session_id|" "$TASK_FILE"
+fi
 
 # Start Claude
 echo ""
