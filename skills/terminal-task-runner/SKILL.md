@@ -9,6 +9,44 @@ Host background commands in terminal (tmux/wezterm) and monitor their status.
 
 ---
 
+## Session Type: bg: (Background Task)
+
+**Prefix `bg:` = Background command** (SSH, build, test, server, etc.)
+
+Choose skill by prefix:
+- `bg:` → **terminal-task-runner** (this skill) - NO git required
+- `ag:` → **agent-investigator** - NO git required (research, analysis)
+- `wo:` → **polydev** - REQUIRES git repo
+
+---
+
+## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ YOU MUST USE THIS SKILL FOR:                                    │
+│ - ANY SSH connection                                            │
+│ - ANY command that takes >10 seconds                            │
+│ - ANY background/long-running task                              │
+│ - ANY build, test, or dev server                                │
+│                                                                 │
+│ ABSOLUTELY PROHIBITED:                                          │
+│ - Using Bash tool's run_in_background parameter                 │
+│ - Using & or nohup to background commands                       │
+│ - Calling tmux/wezterm commands directly                        │
+│ - Trying to "do it faster myself" without this skill            │
+│                                                                 │
+│ NO GIT REPO REQUIRED - This skill works anywhere                │
+│                                                                 │
+│ FOR SUB-AGENTS (ag:) → Use agent-investigator skill             │
+│ FOR PARALLEL DEV (wo:) → Use polydev skill (requires git)       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**If you violate these rules, the task WILL FAIL.**
+
+---
+
 ## Script Path
 
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
@@ -126,7 +164,7 @@ DO NOT use Bash tool's run_in_background parameter
 DO NOT use & to background
 DO NOT use nohup
 DO NOT call tmux/wezterm commands directly
-DO NOT use wrong script (e.g., send-command.sh for bg: session)
+DO NOT use wrong script (e.g., wo-send-command.sh for bg: session - it's for wo: only)
 
 MUST call scripts via $POLYDEV_SCRIPTS variable
 MUST monitor task status

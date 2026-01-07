@@ -446,7 +446,7 @@ test_poll_sessions() {
 # =============================================================================
 
 test_send_command_script() {
-  log_test "send-command.sh Script"
+  log_test "wo-send-command.sh Script"
 
   local test_branch="test-script-$$"
   local test_cwd="$(pwd)"
@@ -476,43 +476,43 @@ EOF
   sleep 1
 
   # Test 1: Send command with Enter
-  if "$SCRIPT_DIR/send-command.sh" "$test_worktree" "echo test-with-enter" >/dev/null 2>&1; then
-    pass "send-command.sh: command with Enter"
+  if "$SCRIPT_DIR/wo-send-command.sh" "$test_worktree" "echo test-with-enter" >/dev/null 2>&1; then
+    pass "wo-send-command.sh: command with Enter"
   else
-    fail "send-command.sh: command with Enter failed"
+    fail "wo-send-command.sh: command with Enter failed"
   fi
 
   # Test 2: Send command without Enter
-  if "$SCRIPT_DIR/send-command.sh" "$test_worktree" "echo test-no-enter" --no-enter >/dev/null 2>&1; then
-    pass "send-command.sh: command without Enter (--no-enter)"
+  if "$SCRIPT_DIR/wo-send-command.sh" "$test_worktree" "echo test-no-enter" --no-enter >/dev/null 2>&1; then
+    pass "wo-send-command.sh: command without Enter (--no-enter)"
   else
-    fail "send-command.sh: --no-enter failed"
+    fail "wo-send-command.sh: --no-enter failed"
   fi
 
   # Test 3: Error handling - non-existent path
-  if ! "$SCRIPT_DIR/send-command.sh" "/nonexistent-path-$$" "test" >/dev/null 2>&1; then
-    pass "send-command.sh: correctly rejects non-existent path"
+  if ! "$SCRIPT_DIR/wo-send-command.sh" "/nonexistent-path-$$" "test" >/dev/null 2>&1; then
+    pass "wo-send-command.sh: correctly rejects non-existent path"
   else
-    fail "send-command.sh: should reject non-existent path"
+    fail "wo-send-command.sh: should reject non-existent path"
   fi
 
   # Test 4: Error handling - no task.toon
   local no_toon_dir="/tmp/no-toon-$$"
   mkdir -p "$no_toon_dir"
-  if ! "$SCRIPT_DIR/send-command.sh" "$no_toon_dir" "test" >/dev/null 2>&1; then
-    pass "send-command.sh: correctly rejects missing task.toon"
+  if ! "$SCRIPT_DIR/wo-send-command.sh" "$no_toon_dir" "test" >/dev/null 2>&1; then
+    pass "wo-send-command.sh: correctly rejects missing task.toon"
   else
-    fail "send-command.sh: should reject missing task.toon"
+    fail "wo-send-command.sh: should reject missing task.toon"
   fi
   rm -rf "$no_toon_dir"
 
   # Test 5: Error handling - dead session
   tb_cleanup_session "$session_id"
   sleep 0.5
-  if ! "$SCRIPT_DIR/send-command.sh" "$test_worktree" "test" >/dev/null 2>&1; then
-    pass "send-command.sh: correctly rejects dead session"
+  if ! "$SCRIPT_DIR/wo-send-command.sh" "$test_worktree" "test" >/dev/null 2>&1; then
+    pass "wo-send-command.sh: correctly rejects dead session"
   else
-    fail "send-command.sh: should reject dead session"
+    fail "wo-send-command.sh: should reject dead session"
   fi
 
   # Cleanup

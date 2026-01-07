@@ -28,7 +28,7 @@ polydev/
 │   ├── spawn-session.sh       # Create worktree + terminal + Claude
 │   ├── poll.sh                # Status monitoring loop
 │   ├── restore-session.sh     # Session recovery
-│   ├── send-command.sh        # Send commands to worktree sessions
+│   ├── wo-send-command.sh     # Send commands to worktree sessions (wo: only)
 │   ├── send-to-session.sh     # Send commands to any session (SSH, REPL, etc.)
 │   ├── capture-screen.sh      # Read terminal output
 │   ├── run-background.sh      # Background commands (no sub-Claude)
@@ -66,7 +66,7 @@ POLYDEV_SCRIPTS="/path/to/polydev/scripts"
 | Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status (loop) | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
-| Send to worktree (has task.toon) | `send-command.sh` | `<worktree-path> "<cmd>"` |
+| Send to worktree (has task.toon) | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
 | Send to any session (SSH, REPL) | `send-to-session.sh` | `<session_id> "<cmd>"` |
 | Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
