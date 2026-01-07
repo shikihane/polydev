@@ -127,6 +127,25 @@ worktree-path MUST be: .worktrees/<branch-name>
 ❌ WRONG:   feature-auth (missing .worktrees/ prefix)
 ```
 
+**⚠️ WORKSPACE RULE - CRITICAL FOR WINDOW GROUPING:**
+```
+workspace determines window grouping. Same workspace = same window with multiple tabs.
+
+✅ CORRECT - All parallel tasks use SAME workspace name:
+   spawn-session.sh my-project feature/auth ...
+   spawn-session.sh my-project feature/api ...
+   spawn-session.sh my-project feature/ui ...
+   → Creates 1 window with 3 tabs
+
+❌ WRONG - Different workspace names create separate windows:
+   spawn-session.sh ws1 feature/auth ...
+   spawn-session.sh ws2 feature/api ...
+   spawn-session.sh ws3 feature/ui ...
+   → Creates 3 separate windows (BAD!)
+
+Rule: Use project name as workspace for all parallel tasks.
+```
+
 ```bash
 "$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
 ```

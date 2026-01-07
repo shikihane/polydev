@@ -74,6 +74,24 @@ POLYDEV_SCRIPTS="/path/to/polydev/scripts"
 
 **Why?** `./scripts/` relative path fails when working outside the plugin directory.
 
+### Workspace Parameter - CRITICAL
+
+**The `workspace` parameter determines window grouping. Same workspace = same window with multiple tabs.**
+
+```bash
+# ❌ WRONG - Creates 3 separate windows
+spawn-session.sh project-ws1 feature/auth ...
+spawn-session.sh project-ws2 feature/api ...
+spawn-session.sh project-ws3 feature/ui ...
+
+# ✅ CORRECT - Creates 1 window with 3 tabs
+spawn-session.sh my-project feature/auth ...
+spawn-session.sh my-project feature/api ...
+spawn-session.sh my-project feature/ui ...
+```
+
+**Rule:** Use a consistent workspace name (e.g., project name) for all parallel tasks in the same project.
+
 ### Script Usage by Scenario
 
 **Core workflow:**
