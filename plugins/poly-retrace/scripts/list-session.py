@@ -41,29 +41,19 @@ def get_project_db_path(project_dir: Path) -> Path:
 
 
 def detect_current_project() -> Optional[str]:
-    """检测当前工作目录对应的项目名称"""
+    """检测当前工作目录对应的项目名称
+
+    Claude 的路径编码规则: E:\Heyang3\polydev -> E--Heyang3-polydev
+    将 : 和 \ 都替换为 -
+    """
     cwd = Path.cwd()
 
     # 获取绝对路径
     cwd_abs = cwd.resolve()
-
-    # 转换路径为编码格式 (E:\Heyang3\polydev -> E--Heyang3-polydev)
-    # 移除驱动器号的冒号和根斜杠
     cwd_str = str(cwd_abs)
 
-    # 统一路径分隔符为 /
-    cwd_str = cwd_str.replace('\\', '/')
-
-    # 移除驱动器号冒号 (E: -> E)
-    if len(cwd_str) > 1 and cwd_str[1] == ':':
-        cwd_str = cwd_str[0] + cwd_str[2:]
-
-    # 移除前导斜杠
-    if cwd_str.startswith('/'):
-        cwd_str = cwd_str[1:]
-
-    # 替换路径分隔符为 -
-    project_encoded = cwd_str.replace('/', '-')
+    # Claude 编码: : 和 \ 都替换为 -
+    project_encoded = cwd_str.replace(':', '-').replace('\\', '-')
 
     return project_encoded
 
