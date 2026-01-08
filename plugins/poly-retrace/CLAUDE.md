@@ -6,17 +6,19 @@ Claude Code session history search and analysis plugin.
 
 Poly-retrace enables searching and analyzing Claude Code conversation history using SQLite FTS5 full-text search with BM25 ranking.
 
-## Architecture
+## Architecture (v2.0)
 
 ```
 poly-retrace/
 ├── .claude-plugin/
 │   └── plugin.json         # Plugin manifest
 ├── scripts/
+│   ├── retrace_common.py   # Shared utilities (search, chunking, haiku)
 │   ├── retrace-locate.py   # Locate session files
-│   ├── retrace-index.py    # Build FTS5 index
-│   ├── retrace-search.py   # Search with layered output
-│   └── retrace-analyze.py  # Auto-chunking Haiku analysis
+│   ├── retrace-index.py    # Build FTS5 index (per-project)
+│   ├── retrace-search.py   # Search with layered output + sessions
+│   ├── retrace-analyze.py  # Query-based analysis
+│   └── retrace-chronicle.py # Full history extraction (TOON)
 ├── skills/
 │   └── retrace/            # Main search skill
 └── CLAUDE.md               # This file
@@ -49,87 +51,36 @@ fi
 **Always ensure index exists before searching:**
 
 ```bash
-# Check and build if needed
-if [[ ! -f ~/.claude/retrace-index.db ]]; then
-    $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto
-fi
+# Check project index
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto --project <name>
 ```
 
-## Data Storage
+## Data Storage (v2.0)
 
 | Item | Location |
 |------|----------|
 | Session files | `~/.claude/projects/<encoded-path>/*.jsonl` |
-| Index database | `~/.claude/retrace-index.db` |
+| **Index database** | `~/.claude/projects/<encoded-path>/retrace-index.db` |
+
+**Note:** Each project has its own index database (not a single global database).
 
 ### Path Encoding
 
-Directory paths are encoded: `E:\Heyang3\polydev` → `E-Heyang3-polydev`
-
-## Search Workflow
-
-### Wide-to-Narrow Pattern
-
-Always start with stats, narrow down progressively:
-
-```bash
-# 1. Stats - see what exists
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "error" --level stats
-
-# 2. List - browse matches
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "error" --level list --limit 20
-
-# 3. Detail - examine interesting ones
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --ids "1,5,12" --level detail
-
-# 4. Full - get complete content if needed
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --full 5
-```
-
-### Token Budget Control
-
-| Level | Approx Tokens | Use Case |
-|-------|---------------|----------|
-| stats | ~50 | Quick check |
-| list | ~500 | Browse results |
-| detail | ~2000 | Examine matches |
-| full | Variable | Deep inspection |
-
-## Haiku Analysis
-
-Auto-chunking analysis with Haiku (handles any data size):
-
-```bash
-# Direct search + analyze (auto-chunks if data > 100KB)
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "bug" --prompt "classify bug types"
-
-# JSON output for further processing
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "error" --prompt "summarize" --json
-```
-
-**Auto-chunking behavior (stdin pipe, 1 API turn):**
-- Data < 100KB → Single Haiku call (~5-7s)
-- Data >= 100KB → Split into ~100KB chunks, parallel processing (~15-22s/chunk, max 20 concurrent)
+Directory paths are encoded: `C:\Projects\myapp` → `C-Projects-myapp`
 
 ## Script Reference
 
-### retrace-locate.py
+### retrace_common.py (Shared Module)
 
-```bash
-# Find current session
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-locate.py" --json
+Provides:
+- `search(query, project)` - Search with query
+- `search_all(project)` - Get all records
+- `get_data_size(json_str)` - Calculate byte size
+- `find_claude()` - Locate claude command
+- `chunk_by_size(results, max_bytes)` - Split data for parallel processing
+- `call_haiku(data, system_prompt, user_prompt, timeout)` - Call Haiku API
 
-# Find by session ID
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-locate.py" --session-id <uuid>
-
-# List all projects
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-locate.py" --list
-
-# List project sessions
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-locate.py" --list --project <name>
-```
-
-### retrace-index.py
+### retrace-index.py (v2.0)
 
 ```bash
 # Index all projects (incremental)
@@ -145,11 +96,17 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto --no-incremental
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --stats
 ```
 
-### retrace-search.py
+### retrace-search.py (v2.0)
 
 ```bash
+# List all sessions
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --list-sessions --project polydev
+
 # Basic search
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "query"
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "query" --project polydev
+
+# Search within session
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "query" --session <uuid>
 
 # With filters
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "query" \
@@ -170,7 +127,7 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --full <id>
 
 ```bash
 # Search and analyze (auto-chunks large data)
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "error" --prompt "summarize errors"
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "error" --prompt "summarize errors" --project polydev
 
 # JSON output
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "bug" --prompt "classify" --json
@@ -179,7 +136,46 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "bug" --prompt "classify" --js
 **Parameters:**
 - `query` (required): Search keyword
 - `--prompt`, `-p`: Analysis task (default: "analyze and summarize")
+- `--project`: Project name filter
 - `--json`: Output JSON format
+
+### retrace-chronicle.py (NEW)
+
+Full history extraction with strong constraints. Outputs TOON format.
+
+```bash
+# Extract all history from project
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --project polydev
+
+# JSON output
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --project polydev --json
+```
+
+**Extracts:**
+- Code snippets, functions, fixes
+- Bash/git/npm commands executed
+- File paths (created/modified/deleted)
+- Error messages, stack traces
+- Technical decisions made
+- Mistakes and rework reasons
+
+**Output format (TOON):**
+```
+@events[time,type,content]
+2026-01-07T14:30,code,`def process_data(): ...`
+2026-01-07T14:35,cmd,`git checkout -b feature/auth`
+2026-01-07T14:40,file,created:src/auth.py
+2026-01-07T14:45,error,TypeError: cannot read property 'x' of undefined
+```
+
+## Token Budget Control
+
+| Level | Approx Tokens | Use Case |
+|-------|---------------|----------|
+| stats | ~50 | Quick check |
+| list | ~500 | Browse results |
+| detail | ~2000 | Examine matches |
+| full | Variable | Deep inspection |
 
 ## Filter Options
 
@@ -189,28 +185,21 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "bug" --prompt "classify" --js
 | `--role` | `user`, `assistant` | Speaker role |
 | `--tool` | `Bash`, `Edit`, `Read`, etc. | Tool name |
 | `--project` | String | Project name (partial match) |
+| `--session` | UUID | Session ID filter |
 | `--since` | ISO date | Start date |
 | `--until` | ISO date | End date |
 
-## Integration with Polydev
+## Auto-Chunking Behavior
 
-Retrace can analyze sub-agent work history:
-
-```bash
-# Find all sub-agent sessions in a project
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "worktree" \
-    --project polydev --level stats
-
-# Analyze patterns across parallel work
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "blocked" \
-    --prompt "summarize sub-agent blocking issues"
-```
+Both `retrace-analyze.py` and `retrace-chronicle.py` use stdin pipe (1 API turn):
+- Data < 100KB → Single Haiku call (~5-7s)
+- Data >= 100KB → Split into ~100KB chunks, parallel (~15-22s/chunk, max 20 concurrent)
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| "索引数据库不存在" | Run `retrace-index.py --auto` |
-| No results | Check filters, try broader search |
+| "索引数据库不存在" | Run `retrace-index.py --auto --project <name>` |
+| No results | Check project filter, try broader search |
 | FTS5 not available | Falls back to FTS4 automatically |
 | Empty analysis | Check file path, ensure results exist |

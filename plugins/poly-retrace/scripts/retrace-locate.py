@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 retrace-locate.py - 定位 Claude Code 会话文件
-版本: 1.0.0
+版本: 1.1.0
 
 功能：
 - 定位当前会话的 JSONL 文件
 - 根据工作目录推断项目目录
 - 从 history.jsonl 获取最近会话
 - 列出指定项目的所有会话
+- 显示项目索引状态
 
 用法：
     python retrace-locate.py                    # 定位当前会话
@@ -25,7 +26,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 def get_claude_dir() -> Path:
@@ -41,11 +42,11 @@ def get_projects_dir() -> Path:
 def encode_path(path: str) -> str:
     """
     将路径编码为 Claude 目录名格式
-    例如：E:\\Heyang3\\polydev → E--Heyang3-polydev
+    例如：E:\\Projects\\myapp → E--Projects-myapp
     """
     path = os.path.normpath(path)
     if sys.platform == "win32" or ":" in path:
-        # Windows: E:\Heyang3\polydev → E--Heyang3-polydev
+        # Windows: E:\Projects\myapp → E--Projects-myapp
         # 驱动器后的冒号变成 --，路径分隔符变成 -
         path = path.replace(":\\", "--").replace(":", "--").replace("\\", "-").replace("/", "-")
     else:
@@ -55,9 +56,9 @@ def encode_path(path: str) -> str:
 
 def decode_path(encoded: str) -> str:
     """将编码的目录名还原为路径"""
-    # 检测 Windows 风格编码 (E--Heyang3-polydev)
+    # 检测 Windows 风格编码 (E--Projects-myapp)
     if "--" in encoded:
-        # Windows: E--Heyang3-polydev → E:\Heyang3\polydev
+        # Windows: E--Projects-myapp → E:\Projects\myapp
         parts = encoded.split("--", 1)
         if len(parts) == 2 and len(parts[0]) == 1:
             drive = parts[0]
@@ -169,6 +170,36 @@ def _build_result(session_id: str, session_file: Path, project_dir: Path) -> dic
     }
 
 
+def get_index_db_path(project_dir: Path) -> Path:
+    """获取项目索引数据库路径"""
+    return project_dir / "retrace-index.db"
+
+
+def get_session_summaries(project_dir: Path) -> Dict[str, str]:
+    """从索引数据库获取会话摘要"""
+    import sqlite3
+    db_path = get_index_db_path(project_dir)
+    if not db_path.exists():
+        return {}
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+        if not cursor.fetchone():
+            conn.close()
+            return {}
+
+        cursor.execute("SELECT session_id, summary, message_count FROM sessions")
+        summaries = {}
+        for row in cursor.fetchall():
+            summaries[row[0]] = {"summary": row[1], "message_count": row[2]}
+        conn.close()
+        return summaries
+    except:
+        return {}
+
+
 def list_projects() -> List[Dict]:
     """列出所有项目"""
     projects_dir = get_projects_dir()
@@ -181,30 +212,48 @@ def list_projects() -> List[Dict]:
             sessions = list(pd.glob("*.jsonl"))
             total_size = sum(f.stat().st_size for f in sessions)
             latest = max(sessions, key=lambda f: f.stat().st_mtime) if sessions else None
+            db_path = get_index_db_path(pd)
             projects.append({
                 "name": pd.name,
                 "path": decode_path(pd.name),
                 "session_count": len(sessions),
                 "total_size": total_size,
-                "latest_modified": datetime.fromtimestamp(latest.stat().st_mtime).isoformat() if latest else None
+                "latest_modified": datetime.fromtimestamp(latest.stat().st_mtime).isoformat() if latest else None,
+                "has_index": db_path.exists(),
+                "index_size": db_path.stat().st_size if db_path.exists() else 0
             })
     return projects
 
 
 def list_sessions(project_name: str) -> List[Dict]:
-    """列出项目的所有会话"""
-    project_dir = get_projects_dir() / project_name
-    if not project_dir.exists():
+    """列出项目的所有会话（含摘要）"""
+    projects_dir = get_projects_dir()
+
+    # 支持模糊匹配项目名
+    project_dir = None
+    for pd in projects_dir.iterdir():
+        if pd.is_dir() and project_name.lower() in pd.name.lower():
+            project_dir = pd
+            break
+
+    if not project_dir or not project_dir.exists():
         return []
+
+    # 获取摘要
+    summaries = get_session_summaries(project_dir)
 
     sessions = []
     for f in sorted(project_dir.glob("*.jsonl"), key=lambda x: x.stat().st_mtime, reverse=True):
         stat = f.stat()
+        session_id = f.stem
+        info = summaries.get(session_id, {})
         sessions.append({
-            "session_id": f.stem,
+            "session_id": session_id,
             "file": str(f),
             "size": stat.st_size,
-            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "message_count": info.get("message_count"),
+            "summary": info.get("summary")
         })
     return sessions
 
@@ -231,9 +280,20 @@ def main():
         if isinstance(result, list):
             for item in result:
                 if "session_id" in item:
-                    print(f"{item['session_id']}\t{item['size']:,} bytes\t{item['modified']}")
+                    # 会话列表
+                    sid = item['session_id'][:8] + "..."
+                    msg_count = item.get('message_count') or '?'
+                    summary = item.get('summary', '')
+                    print(f"[{sid}] {item['modified'][:16]} ({msg_count} msgs, {item['size']:,}B)")
+                    if summary:
+                        print(f"   📝 {summary[:80]}...")
                 else:
-                    print(f"{item['name']}\t{item['session_count']} sessions\t{item['total_size']:,} bytes")
+                    # 项目列表
+                    idx = "✓" if item.get('has_index') else "✗"
+                    print(f"[{idx}] {item['name']}")
+                    print(f"    {item['session_count']} sessions, {item['total_size']:,} bytes")
+                    if item.get('has_index'):
+                        print(f"    索引: {item['index_size']:,} bytes")
         elif "error" in result:
             print(f"❌ {result['error']}", file=sys.stderr)
             sys.exit(1)

@@ -21,6 +21,12 @@ This is NOT optional. If there's even a 10% chance the user is asking about past
 
 Search and analyze your Claude Code conversation history using FTS5 full-text search.
 
+## Architecture (v2.0)
+
+- **Per-project databases**: Each project has its own index at `~/.claude/projects/<project>/retrace-index.db`
+- **Session isolation**: Sessions table with metadata and summaries
+- **Shared module**: `retrace_common.py` for common utilities
+
 ## Mandatory Triggers
 
 **You MUST use retrace when:**
@@ -32,6 +38,7 @@ Search and analyze your Claude Code conversation history using FTS5 full-text se
 | "上次那个 bug 是怎么修的？" | Search "bug fix" + analyze |
 | "有没有类似的实现？" | Search pattern + analyze |
 | "回顾一下之前的方案" | Search + context retrieval |
+| "回溯这个会话" / "这次聊了什么" | Use retrace-chronicle.py on session |
 
 ## Prerequisites
 
@@ -46,26 +53,29 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto
 
 ## Quick Reference
 
-### 1. Locate Current Session
+### 1. List Sessions
 
 ```bash
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-locate.py" --json
+# List all sessions in a project
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --list-sessions --project polydev
+
+# JSON output
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --list-sessions --project polydev --json
 ```
 
 ### 2. Search Sessions
 
 ```bash
 # Basic search
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "error handling"
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "error handling" --project polydev
 
-# Search with filters
+# Search within a specific session
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "bug" \
-    --type tool_result \
-    --limit 10 \
+    --session <session-id> \
     --level detail
 
 # Get statistics only (minimal tokens)
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "token" --level stats
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "token" --level stats --project polydev
 
 # Get context around a message
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --context <id> --before 5 --after 5
@@ -74,16 +84,45 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --context <id> --before 5 --aft
 ### 3. AI-Powered Analysis (Auto-Chunking)
 
 ```bash
-# 自动分析（小数据<100KB直接处理，大数据自动分片并行）
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "error" --prompt "classify error types"
+# Search + analyze (auto-chunks if data > 100KB)
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "error" --prompt "classify error types" --project polydev
 
-# JSON 输出（用于进一步处理）
+# JSON output
 $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "query" --prompt "summarize" --json
 ```
 
-**Auto-chunking behavior (stdin pipe, 1 API turn):**
-- Data < 100KB → Single Haiku call (~5-7s)
-- Data >= 100KB → Auto-split into ~100KB chunks, parallel (~15-22s/chunk, max 20)
+### 4. Session Chronicle (Single Session History Extraction)
+
+Extract key events from a single session with timestamps in TOON format.
+
+```bash
+# By session UUID (requires --project to locate file)
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --session <uuid> --project polydev
+
+# By direct file path
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --file ~/.claude/projects/<project-dir>/<uuid>.jsonl
+
+# JSON output
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --file <path> --json
+```
+
+**Workflow:** First use `--list-sessions` to find session UUID, then use chronicle on specific session.
+
+**Chronicle extracts (TOON format: `time,type,content`):**
+- `code`: Code snippets, functions, fixes
+- `cmd`: Bash/git/npm commands executed
+- `file`: File operations (created/modified/deleted)
+- `error`: Error messages and root causes
+- `decision`: Technical choices made
+- `mistake`: Wrong assumptions, bugs found
+
+**Output example:**
+```
+@events[time,type,content]
+2026-01-06T12:27:48,error,Windows PowerShell runs .sh scripts as file association
+2026-01-06T12:30:10,fix,Modified config to use absolute path
+2026-01-06T14:10:21,cmd,`git checkout -b feature/auth`
+```
 
 ## Search Levels (Token Budget Control)
 
@@ -104,8 +143,35 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "query" --prompt "summarize" -
 | `--role` | `user`, `assistant` | Speaker role |
 | `--tool` | `Bash`, `Edit`, `Read` | Tool used |
 | `--project` | `polydev` | Project name (partial match) |
+| `--session` | `<uuid>` | Filter by session ID |
 | `--since` | `2025-01-01` | Start date |
 | `--until` | `2025-01-07` | End date |
+
+## Script Reference
+
+| Script | Purpose |
+|--------|---------|
+| `retrace-index.py` | Build/update FTS5 index per project |
+| `retrace-search.py` | Search with layered output + session listing |
+| `retrace-analyze.py` | Query-based AI analysis |
+| `retrace-chronicle.py` | Single session history extraction (TOON format) |
+| `retrace_common.py` | Shared utilities |
+
+## Index Management
+
+```bash
+# Build/update index for all projects
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto
+
+# Index specific project
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto --project polydev
+
+# Rebuild from scratch (no incremental)
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto --no-incremental
+
+# View statistics
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --stats
+```
 
 ## Red Flags - STOP and Use Retrace
 
@@ -121,53 +187,6 @@ If you catch yourself thinking:
 
 **All of these mean: Use retrace first.**
 
-## Mandatory Analysis Steps
-
-When user asks about past work:
-
-1. **Always search first** - Never say "I don't know" without searching
-2. **Use stats level first** - Check if results exist (low token cost)
-3. **Narrow down** - Use filters to reduce results
-4. **Analyze if needed** - Use Haiku for pattern extraction
-5. **Show evidence** - Include relevant snippets in response
-
-## Example Workflows
-
-### Find Past Bug Fixes
-
-```bash
-# 1. Quick check - how many results?
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "fix bug" --level stats
-
-# 2. One-step search + analyze (auto-chunks if large)
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-analyze.py" "fix bug" \
-    --prompt "categorize bug types and solutions"
-```
-
-### Recall Implementation Patterns
-
-```bash
-# Search for specific pattern
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "authentication" \
-    --type assistant --level detail
-
-# Get context for interesting results
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" --context <id> --before 10
-```
-
-### Index Management
-
-```bash
-# Build/update index (incremental)
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto
-
-# Rebuild from scratch
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --auto --no-incremental
-
-# View statistics
-$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-index.py" --stats
-```
-
 ## Output Formats
 
 All scripts support `--json` flag for machine-readable output.
@@ -179,7 +198,7 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-search.py" "query" --json | jq '.[] | .id'
 
 ## Notes
 
-- Index is stored at `~/.claude/retrace-index.db`
+- Index is stored per-project at `~/.claude/projects/<project>/retrace-index.db`
 - Session files are in `~/.claude/projects/<encoded-path>/`
 - Sessions auto-delete after 30 days by default
 - FTS5 requires SQLite 3.9+ (most systems have this)

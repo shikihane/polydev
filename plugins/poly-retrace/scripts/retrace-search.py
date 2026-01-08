@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
 retrace-search.py - Claude Code 会话日志搜索器
-版本: 1.0.0
+版本: 2.0.0
 
 功能：
 - FTS5 全文搜索 + BM25 排序
 - 分层输出（stats → list → detail → full）
 - Token 预算控制
 - 时间范围过滤
+- 按项目独立数据库
+- 会话过滤和列表
 - 无 LLM 依赖，纯 Python 实现
 
 用法：
@@ -16,6 +18,8 @@ retrace-search.py - Claude Code 会话日志搜索器
     python retrace-search.py "token" --level stats      # 只看统计
     python retrace-search.py "bug" --level detail --limit 10  # 详细预览
     python retrace-search.py --context <id> --before 5  # 获取上下文
+    python retrace-search.py --list-sessions            # 列出所有会话
+    python retrace-search.py "query" --session <id>     # 按会话过滤
 """
 
 import json
@@ -25,18 +29,66 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, List
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 
 
-def get_default_db_path() -> Path:
-    return Path.home() / ".claude" / "retrace-index.db"
+def get_claude_dir() -> Path:
+    return Path.home() / ".claude"
+
+
+def get_projects_dir() -> Path:
+    return get_claude_dir() / "projects"
+
+
+def get_project_db_path(project_dir: Path) -> Path:
+    """按项目返回索引路径"""
+    return project_dir / "retrace-index.db"
+
+
+def find_all_project_dbs() -> List[Path]:
+    """找到所有项目的索引数据库"""
+    projects_dir = get_projects_dir()
+    if not projects_dir.exists():
+        return []
+
+    dbs = []
+    for pd in projects_dir.iterdir():
+        if pd.is_dir():
+            db_path = get_project_db_path(pd)
+            if db_path.exists():
+                dbs.append(db_path)
+    return dbs
+
+
+def get_default_db_path(project: str = None) -> Optional[Path]:
+    """获取数据库路径（支持项目过滤）"""
+    projects_dir = get_projects_dir()
+    if not projects_dir.exists():
+        return None
+
+    if project:
+        # 查找匹配的项目
+        for pd in projects_dir.iterdir():
+            if pd.is_dir() and project.lower() in pd.name.lower():
+                db_path = get_project_db_path(pd)
+                if db_path.exists():
+                    return db_path
+        return None
+
+    # 返回最新修改的数据库
+    dbs = find_all_project_dbs()
+    if not dbs:
+        return None
+    return max(dbs, key=lambda p: p.stat().st_mtime)
 
 
 def search_stats(conn: sqlite3.Connection, query: str = None,
                  msg_type: str = None, role: str = None,
                  tool: str = None, project: str = None,
-                 since: str = None, until: str = None) -> dict:
+                 since: str = None, until: str = None,
+                 session_id: str = None) -> dict:
     """Level 0: 返回搜索统计信息（极小 token 开销）"""
     cursor = conn.cursor()
 
@@ -55,9 +107,10 @@ def search_stats(conn: sqlite3.Connection, query: str = None,
     if tool:
         conditions.append("tool_name = ?")
         params.append(tool)
-    if project:
-        conditions.append("project_dir LIKE ?")
-        params.append(f"%{project}%")
+    # Note: project filtering now happens at database selection level (per-project DBs)
+    if session_id:
+        conditions.append("session_id = ?")
+        params.append(session_id)
     if since:
         conditions.append("timestamp >= ?")
         params.append(since)
@@ -107,6 +160,7 @@ def search_list(conn: sqlite3.Connection, query: str = None,
                 msg_type: str = None, role: str = None,
                 tool: str = None, project: str = None,
                 since: str = None, until: str = None,
+                session_id: str = None,
                 limit: int = 20, offset: int = 0,
                 preview_len: int = 80) -> list:
     """Level 1: 返回摘要列表"""
@@ -127,9 +181,10 @@ def search_list(conn: sqlite3.Connection, query: str = None,
     if tool:
         conditions.append("m.tool_name = ?")
         params.append(tool)
-    if project:
-        conditions.append("m.project_dir LIKE ?")
-        params.append(f"%{project}%")
+    # Note: project filtering now happens at database selection level (per-project DBs)
+    if session_id:
+        conditions.append("m.session_id = ?")
+        params.append(session_id)
     if since:
         conditions.append("m.timestamp >= ?")
         params.append(since)
@@ -148,7 +203,7 @@ def search_list(conn: sqlite3.Connection, query: str = None,
         sql = f"""
             SELECT m.id, m.timestamp, m.msg_type, m.role, m.tool_name,
                    SUBSTR(m.content_preview, 1, ?) as preview,
-                   m.session_id, m.project_dir
+                   m.session_id
             FROM messages m
             JOIN messages_fts f ON m.id = f.rowid
             WHERE {where}
@@ -160,7 +215,7 @@ def search_list(conn: sqlite3.Connection, query: str = None,
         sql = f"""
             SELECT m.id, m.timestamp, m.msg_type, m.role, m.tool_name,
                    SUBSTR(m.content_preview, 1, ?) as preview,
-                   m.session_id, m.project_dir
+                   m.session_id
             FROM messages m
             WHERE {where}
             ORDER BY m.timestamp DESC
@@ -179,8 +234,7 @@ def search_list(conn: sqlite3.Connection, query: str = None,
             "role": row[3],
             "tool": row[4],
             "preview": row[5],
-            "session_id": row[6],
-            "project": row[7]
+            "session_id": row[6]
         })
 
     return results
@@ -194,7 +248,7 @@ def search_detail(conn: sqlite3.Connection, ids: list, preview_len: int = 300) -
     cursor.execute(f"""
         SELECT id, timestamp, msg_type, role, tool_name,
                SUBSTR(content_preview, 1, ?) as preview,
-               session_id, project_dir, session_file, line_no
+               session_id, session_file, line_no
         FROM messages
         WHERE id IN ({placeholders})
         ORDER BY timestamp
@@ -210,9 +264,8 @@ def search_detail(conn: sqlite3.Connection, ids: list, preview_len: int = 300) -
             "tool": row[4],
             "preview": row[5],
             "session_id": row[6],
-            "project": row[7],
-            "file": row[8],
-            "line": row[9]
+            "file": row[7],
+            "line": row[8]
         })
 
     return results
@@ -301,6 +354,53 @@ def get_context(conn: sqlite3.Connection, msg_id: int,
     return results
 
 
+def list_sessions(conn: sqlite3.Connection, project: str = None) -> list:
+    """列出所有会话"""
+    cursor = conn.cursor()
+
+    # 检查 sessions 表是否存在
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'")
+    if not cursor.fetchone():
+        # 回退到从 messages 表聚合
+        cursor.execute('''
+            SELECT session_id, MIN(timestamp), MAX(timestamp), COUNT(*)
+            FROM messages
+            WHERE session_id IS NOT NULL AND session_id != ''
+            GROUP BY session_id
+            ORDER BY MAX(timestamp) DESC
+        ''')
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                "session_id": row[0],
+                "start_time": row[1],
+                "end_time": row[2],
+                "message_count": row[3],
+                "summary": None
+            })
+        return results
+
+    # 从 sessions 表获取
+    cursor.execute('''
+        SELECT session_id, session_file, start_time, end_time, message_count, summary
+        FROM sessions
+        ORDER BY end_time DESC
+    ''')
+
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            "session_id": row[0],
+            "session_file": row[1],
+            "start_time": row[2],
+            "end_time": row[3],
+            "message_count": row[4],
+            "summary": row[5]
+        })
+
+    return results
+
+
 def format_output(data, level: str, json_output: bool):
     """格式化输出"""
     if json_output:
@@ -355,15 +455,33 @@ def format_output(data, level: str, json_output: bool):
             print(f"     {preview}...")
             print()
 
+    elif level == "sessions":
+        if not data:
+            print("❌ 没有找到会话")
+            return
+        print(f"📂 共 {len(data)} 个会话:\n")
+        for item in data:
+            sid = item.get('session_id', '')[:8] + "..."
+            start = item.get('start_time', '')[:16] if item.get('start_time') else 'N/A'
+            end = item.get('end_time', '')[:16] if item.get('end_time') else 'N/A'
+            count = item.get('message_count', 0)
+            summary = item.get('summary', '')
+            print(f"[{sid}] {start} ~ {end} ({count} msgs)")
+            if summary:
+                print(f"   📝 {summary[:80]}...")
+            print()
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Claude Code 会话日志搜索器")
+    parser = argparse.ArgumentParser(description="Claude Code 会话日志搜索器 (按项目独立数据库)")
     parser.add_argument("query", nargs="?", help="搜索关键词")
     parser.add_argument("--db", default=None, help="索引数据库路径")
     parser.add_argument("--type", dest="msg_type", help="消息类型过滤")
     parser.add_argument("--role", help="角色过滤 (user/assistant)")
     parser.add_argument("--tool", help="工具名过滤")
     parser.add_argument("--project", help="项目名过滤")
+    parser.add_argument("--session", dest="session_id", help="会话 ID 过滤")
+    parser.add_argument("--list-sessions", action="store_true", help="列出所有会话")
     parser.add_argument("--since", help="开始时间")
     parser.add_argument("--until", help="结束时间")
     parser.add_argument("--level", choices=["stats", "list", "detail"], default="list",
@@ -381,7 +499,17 @@ def main():
 
     args = parser.parse_args()
 
-    db_path = args.db or str(get_default_db_path())
+    # 获取数据库路径
+    if args.db:
+        db_path = args.db
+    else:
+        db_path_obj = get_default_db_path(args.project)
+        if db_path_obj is None:
+            print("❌ 没有找到索引数据库", file=sys.stderr)
+            print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
+            sys.exit(1)
+        db_path = str(db_path_obj)
+
     if not os.path.exists(db_path):
         print(f"❌ 索引数据库不存在: {db_path}", file=sys.stderr)
         print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
@@ -390,7 +518,11 @@ def main():
     conn = sqlite3.connect(db_path)
 
     # 处理不同的查询模式
-    if args.full:
+    if args.list_sessions:
+        result = list_sessions(conn, args.project)
+        format_output(result, "sessions", args.json)
+
+    elif args.full:
         result = get_full_content(conn, args.full)
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -408,12 +540,14 @@ def main():
 
     elif args.level == "stats":
         result = search_stats(conn, args.query, args.msg_type, args.role,
-                              args.tool, args.project, args.since, args.until)
+                              args.tool, args.project, args.since, args.until,
+                              args.session_id)
         format_output(result, "stats", args.json)
 
     else:
         result = search_list(conn, args.query, args.msg_type, args.role,
                              args.tool, args.project, args.since, args.until,
+                             args.session_id,
                              args.limit, args.offset)
 
         if args.level == "detail" and result:

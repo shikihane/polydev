@@ -1,140 +1,35 @@
 #!/usr/bin/env python3
 """
 retrace-analyze.py - 智能分析 Claude Code 会话历史
-
-自动流程：
-1. 检索数据
-2. 按字节大小判断规模
-3. 小数据(<100KB) → 直接分析
-4. 大数据 → 自动分片(每片~100KB) → 并行处理 → 汇总
+版本: 1.2.0
 
 用法：
     python retrace-analyze.py "query" --prompt "分析任务"
-    python retrace-analyze.py "error"
+    python retrace-analyze.py "error" --project polydev
+
+时间回溯功能请使用 retrace-chronicle.py
 """
 
 import argparse
 import json
-import os
-import shutil
-import subprocess
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict
 
-VERSION = "1.1.0"
-SCRIPT_DIR = Path(__file__).parent
+from retrace_common import (
+    search, get_data_size, call_haiku, chunk_by_size,
+    SINGLE_CHUNK_BYTES, MAX_BYTES_PER_CHUNK, MAX_PARALLEL
+)
 
-# 配置（基于字节大小）
-SINGLE_CHUNK_BYTES = 100 * 1024      # 100KB 以下直接处理
-MAX_BYTES_PER_CHUNK = 100 * 1024     # 每个分片最大 100KB
-MAX_PARALLEL = 20                     # 最大并行数
+VERSION = "1.2.0"
 
-
-def search(query: str) -> str:
-    """执行搜索，返回原始 JSON 字符串（避免反复序列化）"""
-    cmd = [
-        sys.executable,
-        str(SCRIPT_DIR / "retrace-search.py"),
-        query,
-        "--level", "detail",
-        "--limit", "0",  # 0 = 不限制，返回所有结果
-        "--json"
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
-    if result.returncode != 0:
-        return "[]"
-    return result.stdout or "[]"
+SYSTEM_PROMPT = "Data analyzer. Output JSON with findings array and summary string. No explanation."
 
 
-def get_data_size(json_str: str) -> int:
-    """获取数据字节大小"""
-    return len(json_str.encode('utf-8'))
-
-
-def to_windows_path(path: str) -> str:
-    """Git Bash 路径转 Windows 路径"""
-    import platform
-    if platform.system() == "Windows" or "MINGW" in os.environ.get("MSYSTEM", ""):
-        if path.startswith("/") and len(path) > 2 and path[2] == "/":
-            return f"{path[1].upper()}:{path[2:]}"
-    return path
-
-
-def find_claude() -> Optional[str]:
-    """查找 claude 命令"""
-    cmd = shutil.which("claude") or shutil.which("claude.cmd")
-    return cmd
-
-
-def analyze_single(results: List[Dict], prompt: str) -> Dict:
-    """单次分析 - stdin pipe 方式，1 turn"""
-    claude_cmd = find_claude()
-    if not claude_cmd:
-        return {"success": False, "error": "claude not found"}
-
-    data_str = json.dumps(results, ensure_ascii=False, separators=(',', ':'))
-    system_prompt = "Data analyzer. Output JSON with findings array and summary string. No explanation."
-    user_prompt = f"Analyze {len(results)} records. Task: {prompt}."
-
-    start = time.time()
-    result = subprocess.run(
-        [claude_cmd, "-p", user_prompt,
-         "--system-prompt", system_prompt,
-         "--model", "haiku",
-         "--no-session-persistence",
-         "--dangerously-skip-permissions",
-         "--output-format", "json"],
-        input=data_str,
-        capture_output=True, text=True, encoding="utf-8", timeout=120
-    )
-    elapsed = time.time() - start
-
-    if result.returncode == 0:
-        return parse_claude_output(result.stdout, elapsed)
-    return {"success": False, "error": result.stderr[:200], "elapsed": elapsed}
-
-
-def analyze_chunk(chunk: List[Dict], chunk_id: int, prompt: str) -> Dict:
-    """分析单个分片 - stdin pipe 方式，1 turn"""
-    claude_cmd = find_claude()
-    if not claude_cmd:
-        return {"chunk_id": chunk_id, "success": False, "error": "claude not found"}
-
-    data_str = json.dumps(chunk, ensure_ascii=False, separators=(',', ':'))
-    system_prompt = "Data analyzer. Output JSON with findings array and summary string. No explanation."
-    user_prompt = f"Analyze {len(chunk)} records. Task: {prompt}."
-
-    start = time.time()
-    try:
-        result = subprocess.run(
-            [claude_cmd, "-p", user_prompt,
-             "--system-prompt", system_prompt,
-             "--model", "haiku",
-             "--no-session-persistence",
-             "--dangerously-skip-permissions",
-             "--output-format", "json"],
-            input=data_str,
-            capture_output=True, text=True, encoding="utf-8", timeout=120
-        )
-        elapsed = time.time() - start
-
-        if result.returncode == 0:
-            parsed = parse_claude_output(result.stdout, elapsed)
-            parsed["chunk_id"] = chunk_id
-            parsed["count"] = len(chunk)
-            return parsed
-        return {"chunk_id": chunk_id, "success": False, "error": result.stderr[:100], "elapsed": elapsed}
-    except Exception as e:
-        return {"chunk_id": chunk_id, "success": False, "error": str(e), "elapsed": 0}
-
-
-def parse_claude_output(stdout: str, elapsed: float) -> Dict:
+def parse_output(stdout: str, elapsed: float) -> Dict:
     """解析 Claude 输出"""
-    import re
     try:
         output = json.loads(stdout)
         content = output.get("result", "")
@@ -162,43 +57,44 @@ def parse_claude_output(stdout: str, elapsed: float) -> Dict:
         return {"success": True, "analysis": {"summary": stdout[:500]}, "elapsed": elapsed}
 
 
-def chunk_by_size(results: List[Dict], max_bytes: int) -> List[List[Dict]]:
-    """按字节大小自动分片"""
-    chunks = []
-    current = []
-    current_size = 0
+def analyze_single(results: List[Dict], prompt: str) -> Dict:
+    """单次分析"""
+    user_prompt = f"Analyze {len(results)} records. Task: {prompt}."
+    result = call_haiku(results, SYSTEM_PROMPT, user_prompt)
 
-    for record in results:
-        # 估算单条记录大小（避免每次都 json.dumps）
-        record_size = len(str(record)) * 2  # 粗略估算
+    if result.get("success"):
+        return parse_output(result["stdout"], result["elapsed"])
+    return result
 
-        if current_size + record_size > max_bytes and current:
-            chunks.append(current)
-            current = []
-            current_size = 0
 
-        current.append(record)
-        current_size += record_size
+def analyze_chunk(chunk: List[Dict], chunk_id: int, prompt: str) -> Dict:
+    """分析单个分片"""
+    user_prompt = f"Analyze {len(chunk)} records. Task: {prompt}."
+    result = call_haiku(chunk, SYSTEM_PROMPT, user_prompt)
 
-    if current:
-        chunks.append(current)
-    return chunks
+    if result.get("success"):
+        parsed = parse_output(result["stdout"], result["elapsed"])
+        parsed["chunk_id"] = chunk_id
+        parsed["count"] = len(chunk)
+        return parsed
+
+    result["chunk_id"] = chunk_id
+    return result
 
 
 def aggregate(chunk_results: List[Dict]) -> Dict:
-    """拼接分片结果（无额外LLM调用）"""
+    """拼接分片结果"""
     all_analysis = []
     success = 0
 
     for r in sorted(chunk_results, key=lambda x: x.get("chunk_id", 0)):
         if r.get("success"):
             success += 1
-            analysis = r.get("analysis", {})
             all_analysis.append({
                 "chunk": r.get("chunk_id"),
                 "count": r.get("count", 0),
                 "elapsed": r.get("elapsed", 0),
-                "result": analysis
+                "result": r.get("analysis", {})
             })
 
     return {
@@ -212,13 +108,13 @@ def main():
     parser = argparse.ArgumentParser(description="智能分析 Claude Code 会话历史")
     parser.add_argument("query", help="搜索关键词")
     parser.add_argument("--prompt", "-p", default="analyze and summarize", help="分析任务")
+    parser.add_argument("--project", help="项目名过滤")
     parser.add_argument("--json", action="store_true", help="JSON输出")
     parser.add_argument("--version", "-v", action="version", version=f"retrace-analyze {VERSION}")
     args = parser.parse_args()
 
-    # Step 1: 检索（返回原始 JSON 字符串）
     print(f"🔍 检索: {args.query}", file=sys.stderr)
-    json_str = search(args.query)
+    json_str = search(args.query, args.project)
     data_size = get_data_size(json_str)
 
     try:
@@ -236,7 +132,6 @@ def main():
     start_time = time.time()
 
     if data_size < SINGLE_CHUNK_BYTES:
-        # 小数据直接处理
         print(f"⚡ 直接分析", file=sys.stderr)
         result = analyze_single(results, args.prompt)
         wall_time = time.time() - start_time
@@ -259,7 +154,6 @@ def main():
             else:
                 print(f"❌ {result.get('error', 'Unknown error')}")
     else:
-        # 大数据自动分片并行处理
         chunks = chunk_by_size(results, MAX_BYTES_PER_CHUNK)
         parallel = min(len(chunks), MAX_PARALLEL)
         print(f"📦 {len(chunks)} 片, {parallel} 并发", file=sys.stderr)

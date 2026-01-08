@@ -1,32 +1,38 @@
 #!/usr/bin/env python3
 """
 retrace-index.py - Claude Code 会话日志索引器
-版本: 1.0.0
+版本: 2.0.0
 
 功能：
+- 按项目建立独立索引
 - 流式解析 JSONL 会话文件（不加载到内存）
 - 建立 SQLite FTS5 全文索引
 - 支持增量索引
+- 会话摘要生成（Haiku）
 - 去重和幂等性保证
-- 无 LLM 依赖，纯 Python 实现
 
 用法：
-    python retrace-index.py <session_file>     # 索引单个文件
-    python retrace-index.py --auto             # 自动索引所有项目
+    python retrace-index.py --auto             # 索引当前项目
     python retrace-index.py --auto --project X # 索引指定项目
+    python retrace-index.py --stats            # 显示统计
 """
 
 import json
 import sqlite3
 import hashlib
-import re
+import shutil
+import subprocess
 import os
 import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
+from typing import Optional, List, Dict
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
+
+# 会话摘要配置
+SUMMARY_HEAD_LINES = 100  # 读取前 N 行生成摘要
 
 
 def get_claude_dir() -> Path:
@@ -37,8 +43,14 @@ def get_projects_dir() -> Path:
     return get_claude_dir() / "projects"
 
 
-def get_default_db_path() -> Path:
-    return get_claude_dir() / "retrace-index.db"
+def get_project_db_path(project_dir: Path) -> Path:
+    """按项目返回索引路径"""
+    return project_dir / "retrace-index.db"
+
+
+def find_claude() -> Optional[str]:
+    """查找 claude 命令"""
+    return shutil.which("claude") or shutil.which("claude.cmd")
 
 
 def create_index_db(db_path: str) -> sqlite3.Connection:
@@ -62,7 +74,6 @@ def create_index_db(db_path: str) -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_file TEXT NOT NULL,
-            project_dir TEXT,
             line_no INTEGER NOT NULL,
             byte_offset INTEGER NOT NULL,
             byte_length INTEGER NOT NULL,
@@ -76,6 +87,16 @@ def create_index_db(db_path: str) -> sqlite3.Connection:
             content_preview TEXT,
             content_hash TEXT,
             UNIQUE(session_file, byte_offset)
+        );
+
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            session_file TEXT,
+            start_time TEXT,
+            end_time TEXT,
+            message_count INTEGER DEFAULT 0,
+            summary TEXT,
+            summarized_at TEXT
         );
 
         CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING {fts}(
@@ -92,7 +113,6 @@ def create_index_db(db_path: str) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_role ON messages(role);
         CREATE INDEX IF NOT EXISTS idx_tool ON messages(tool_name);
         CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id);
-        CREATE INDEX IF NOT EXISTS idx_project ON messages(project_dir);
     ''')
 
     return conn
@@ -122,8 +142,8 @@ def extract_content_preview(message: dict, max_len: int = 300) -> str:
 
 
 def index_session_file(conn: sqlite3.Connection, session_file: str,
-                       project_dir: str = None, incremental: bool = True) -> int:
-    """索引单个会话文件，返回新索引的消息数"""
+                       incremental: bool = True) -> tuple:
+    """索引单个会话文件，返回 (新索引消息数, 会话ID集合)"""
     cursor = conn.cursor()
 
     # 获取上次索引位置
@@ -133,10 +153,11 @@ def index_session_file(conn: sqlite3.Connection, session_file: str,
 
     file_size = os.path.getsize(session_file)
     if start_offset >= file_size:
-        return 0
+        return 0, set()
 
     indexed_count = 0
     line_no = 0
+    session_ids = set()
 
     if start_offset > 0:
         with open(session_file, 'rb') as f:
@@ -166,6 +187,9 @@ def index_session_file(conn: sqlite3.Connection, session_file: str,
             message = data.get("message", {})
             role = message.get("role", "")
 
+            if session_id:
+                session_ids.add(session_id)
+
             tool_name = None
             content = message.get("content", [])
             if isinstance(content, list):
@@ -180,11 +204,11 @@ def index_session_file(conn: sqlite3.Connection, session_file: str,
             try:
                 cursor.execute('''
                     INSERT OR IGNORE INTO messages
-                    (session_file, project_dir, line_no, byte_offset, byte_length,
+                    (session_file, line_no, byte_offset, byte_length,
                      uuid, parent_uuid, session_id, timestamp, msg_type, role,
                      tool_name, content_preview, content_hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (session_file, project_dir, line_no, byte_offset, line_length,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (session_file, line_no, byte_offset, line_length,
                       uuid, parent_uuid, session_id, timestamp, msg_type, role,
                       tool_name, content_preview, content_hash))
 
@@ -206,28 +230,143 @@ def index_session_file(conn: sqlite3.Connection, session_file: str,
         )
 
     conn.commit()
-    return indexed_count
+    return indexed_count, session_ids
 
 
-def index_project(conn: sqlite3.Connection, project_dir: Path, incremental: bool = True) -> int:
-    """索引单个项目的所有会话"""
+def update_session_meta(conn: sqlite3.Connection, session_id: str, session_file: str):
+    """更新会话元信息"""
+    cursor = conn.cursor()
+
+    # 获取会话的时间范围和消息数
+    cursor.execute('''
+        SELECT MIN(timestamp), MAX(timestamp), COUNT(*)
+        FROM messages WHERE session_id = ?
+    ''', (session_id,))
+    row = cursor.fetchone()
+
+    if row and row[2] > 0:
+        cursor.execute('''
+            INSERT OR REPLACE INTO sessions (session_id, session_file, start_time, end_time, message_count)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (session_id, session_file, row[0], row[1], row[2]))
+        conn.commit()
+
+
+def generate_session_summary(conn: sqlite3.Connection, session_id: str) -> Optional[str]:
+    """生成会话摘要（读取 head + Haiku）"""
+    cursor = conn.cursor()
+
+    # 检查是否已有摘要
+    cursor.execute("SELECT summary FROM sessions WHERE session_id = ? AND summary IS NOT NULL", (session_id,))
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+
+    # 读取前 N 条消息
+    cursor.execute('''
+        SELECT content_preview, msg_type, role, tool_name
+        FROM messages WHERE session_id = ?
+        ORDER BY timestamp LIMIT ?
+    ''', (session_id, SUMMARY_HEAD_LINES))
+
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+
+    # 构建输入数据
+    messages = []
+    for preview, msg_type, role, tool in rows:
+        if preview:
+            messages.append({"type": msg_type, "role": role, "tool": tool, "content": preview[:200]})
+
+    if not messages:
+        return None
+
+    data_str = json.dumps(messages, ensure_ascii=False, separators=(',', ':'))
+
+    claude_cmd = find_claude()
+    if not claude_cmd:
+        return None
+
+    system_prompt = "Summarize this session in 1-2 sentences. What was the main goal/topic? Output plain text only."
+    user_prompt = f"Summarize this Claude Code session ({len(messages)} messages):"
+
+    try:
+        result = subprocess.run(
+            [claude_cmd, "-p", user_prompt,
+             "--system-prompt", system_prompt,
+             "--model", "haiku",
+             "--no-session-persistence",
+             "--dangerously-skip-permissions",
+             "--output-format", "json"],
+            input=data_str,
+            capture_output=True, text=True, encoding="utf-8", timeout=60
+        )
+
+        if result.returncode == 0:
+            out = json.loads(result.stdout)
+            summary = out.get("result", "")[:500]
+
+            # 保存摘要
+            cursor.execute('''
+                UPDATE sessions SET summary = ?, summarized_at = ?
+                WHERE session_id = ?
+            ''', (summary, datetime.now().isoformat(), session_id))
+            conn.commit()
+
+            return summary
+    except Exception as e:
+        print(f"  ⚠️ 摘要生成失败: {e}", file=sys.stderr)
+
+    return None
+
+
+def index_single_project(project_dir: Path, incremental: bool = True,
+                         generate_summaries: bool = True) -> int:
+    """索引单个项目（独立数据库）"""
+    db_path = get_project_db_path(project_dir)
+    conn = create_index_db(str(db_path))
+
     total = 0
+    all_session_ids = set()
+
     for session_file in project_dir.glob("*.jsonl"):
-        count = index_session_file(conn, str(session_file), project_dir.name, incremental)
+        count, session_ids = index_session_file(conn, str(session_file), incremental)
+        all_session_ids.update(session_ids)
         if count > 0:
             print(f"  📝 {session_file.name[:40]}... (+{count})")
+
+            # 更新会话元信息
+            for sid in session_ids:
+                update_session_meta(conn, sid, str(session_file))
+
         total += count
+
+    # 生成会话摘要
+    if generate_summaries and total > 0:
+        cursor = conn.cursor()
+        cursor.execute("SELECT session_id FROM sessions WHERE summary IS NULL")
+        unsummarized = [r[0] for r in cursor.fetchall()]
+
+        if unsummarized:
+            print(f"  📋 生成 {len(unsummarized)} 个会话摘要...")
+            for sid in unsummarized:
+                summary = generate_session_summary(conn, sid)
+                if summary:
+                    print(f"    ✓ {sid[:8]}... {summary[:50]}")
+
+    conn.close()
     return total
 
 
-def index_all_projects(db_path: str, project_filter: str = None, incremental: bool = True) -> int:
-    """索引所有项目"""
+def index_all_projects(project_filter: str = None, incremental: bool = True,
+                       generate_summaries: bool = True) -> int:
+    """索引所有项目（每个项目独立数据库）"""
     projects_dir = get_projects_dir()
     if not projects_dir.exists():
         print(f"❌ 找不到项目目录: {projects_dir}", file=sys.stderr)
         return 0
 
-    conn = create_index_db(db_path)
     total = 0
 
     for pd in sorted(projects_dir.iterdir()):
@@ -237,29 +376,29 @@ def index_all_projects(db_path: str, project_filter: str = None, incremental: bo
             continue
 
         print(f"📂 {pd.name}")
-        count = index_project(conn, pd, incremental)
+        count = index_single_project(pd, incremental, generate_summaries)
         total += count
 
-    conn.close()
     return total
 
 
-def get_stats(db_path: str) -> dict:
-    """获取索引统计信息"""
-    if not os.path.exists(db_path):
-        return {"error": "索引数据库不存在"}
+def get_project_stats(project_dir: Path) -> dict:
+    """获取单个项目的索引统计"""
+    db_path = get_project_db_path(project_dir)
+    if not db_path.exists():
+        return {"error": "索引数据库不存在", "project": project_dir.name}
 
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
 
     cursor.execute("SELECT COUNT(*) FROM messages")
     total_messages = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(DISTINCT session_file) FROM messages")
+    cursor.execute("SELECT COUNT(*) FROM sessions")
     total_sessions = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(DISTINCT project_dir) FROM messages")
-    total_projects = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM sessions WHERE summary IS NOT NULL")
+    summarized = cursor.fetchone()[0]
 
     cursor.execute("SELECT msg_type, COUNT(*) FROM messages GROUP BY msg_type ORDER BY COUNT(*) DESC")
     by_type = dict(cursor.fetchall())
@@ -270,56 +409,77 @@ def get_stats(db_path: str) -> dict:
     conn.close()
 
     return {
+        "project": project_dir.name,
         "total_messages": total_messages,
         "total_sessions": total_sessions,
-        "total_projects": total_projects,
+        "summarized_sessions": summarized,
         "by_type": by_type,
         "top_tools": top_tools,
-        "db_size": os.path.getsize(db_path)
+        "db_size": db_path.stat().st_size
     }
 
 
+def get_all_stats(project_filter: str = None) -> list:
+    """获取所有项目的统计"""
+    projects_dir = get_projects_dir()
+    if not projects_dir.exists():
+        return []
+
+    stats = []
+    for pd in sorted(projects_dir.iterdir()):
+        if not pd.is_dir():
+            continue
+        if project_filter and project_filter.lower() not in pd.name.lower():
+            continue
+
+        db_path = get_project_db_path(pd)
+        if db_path.exists():
+            stats.append(get_project_stats(pd))
+
+    return stats
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Claude Code 会话日志索引器")
-    parser.add_argument("session_file", nargs="?", help="会话文件路径")
-    parser.add_argument("--db", default=None, help="索引数据库路径")
+    parser = argparse.ArgumentParser(description="Claude Code 会话日志索引器 (按项目独立索引)")
     parser.add_argument("--auto", action="store_true", help="自动索引所有项目")
-    parser.add_argument("--project", help="过滤项目名（与 --auto 配合）")
+    parser.add_argument("--project", help="过滤项目名")
     parser.add_argument("--no-incremental", action="store_true", help="重建索引")
+    parser.add_argument("--no-summary", action="store_true", help="不生成会话摘要")
     parser.add_argument("--stats", action="store_true", help="显示统计信息")
     parser.add_argument("--json", action="store_true", help="JSON 格式输出")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
 
     args = parser.parse_args()
 
-    db_path = args.db or str(get_default_db_path())
     incremental = not args.no_incremental
+    generate_summaries = not args.no_summary
 
     if args.stats:
-        result = get_stats(db_path)
+        stats = get_all_stats(args.project)
         if args.json:
-            print(json.dumps(result, ensure_ascii=False, indent=2))
+            print(json.dumps(stats, ensure_ascii=False, indent=2))
         else:
-            if "error" in result:
-                print(f"❌ {result['error']}")
+            if not stats:
+                print("❌ 没有找到索引数据库")
             else:
-                print(f"📊 索引统计")
-                print(f"   消息总数: {result['total_messages']:,}")
-                print(f"   会话数: {result['total_sessions']:,}")
-                print(f"   项目数: {result['total_projects']:,}")
-                print(f"   数据库大小: {result['db_size']:,} bytes")
-                print(f"   按类型: {result['by_type']}")
-                print(f"   Top 工具: {result['top_tools']}")
+                total_msg = sum(s.get("total_messages", 0) for s in stats)
+                total_sess = sum(s.get("total_sessions", 0) for s in stats)
+                total_size = sum(s.get("db_size", 0) for s in stats)
+                print(f"📊 索引统计 ({len(stats)} 个项目)")
+                print(f"   消息总数: {total_msg:,}")
+                print(f"   会话总数: {total_sess:,}")
+                print(f"   总大小: {total_size:,} bytes")
+                print()
+                for s in stats:
+                    if "error" not in s:
+                        summ = s.get('summarized_sessions', 0)
+                        sess = s.get('total_sessions', 0)
+                        print(f"   📂 {s['project']}: {s['total_messages']:,} 消息, {sess} 会话 ({summ} 已摘要)")
         return
 
     if args.auto:
-        total = index_all_projects(db_path, args.project, incremental)
-        print(f"\n✅ 索引完成，共 {total:,} 条新消息 → {db_path}")
-    elif args.session_file:
-        conn = create_index_db(db_path)
-        count = index_session_file(conn, args.session_file, incremental=incremental)
-        conn.close()
-        print(f"✅ 索引完成，共 {count:,} 条新消息")
+        total = index_all_projects(args.project, incremental, generate_summaries)
+        print(f"\n✅ 索引完成，共 {total:,} 条新消息")
     else:
         parser.print_help()
 
