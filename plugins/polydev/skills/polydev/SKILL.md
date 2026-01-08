@@ -105,6 +105,11 @@ BANNED FOREVER - The following are permanently prohibited:
 - Deleting anything under .worktrees directory yourself
 - Using relative path ./scripts/ (breaks when leaving directory)
 - Any thought of "scripts are too cumbersome, I'll write it faster myself"
+
+CLEANUP ORDER VIOLATION - Will cause "Permission denied":
+- Deleting worktree before closing session (terminal holds directory lock!)
+- Using rm -rf .worktrees/xxx instead of git worktree remove
+- Skipping list-sessions.sh verification before deletion
 ```
 
 ---
@@ -229,19 +234,48 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 
 ### Scenario J: Cleanup Worktree (After Completion)
 
-**Step 1**: Close session (terminal window)
+**⚠️ CLEANUP ORDER IS MANDATORY - VIOLATION CAUSES "Permission denied" ERROR:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ CLEANUP MUST FOLLOW THIS EXACT ORDER:                           │
+│                                                                 │
+│ 1. close-session.sh  → Close terminal (releases directory lock) │
+│ 2. list-sessions.sh  → Verify session is gone                   │
+│ 3. git worktree remove → Delete worktree                        │
+│ 4. git branch -D     → Delete branch (optional)                 │
+│                                                                 │
+│ ❌ SKIPPING STEP 1 = "Permission denied" error                  │
+│ ❌ Direct rm -rf .worktrees/xxx = FORBIDDEN                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Step 1**: Close session (releases directory lock)
 ```bash
 "$POLYDEV_SCRIPTS/close-session.sh" wo:myproject:feature-auth.0
 ```
 
-**Step 2**: Ask user for confirmation before deleting worktree
+**Step 2**: Verify session is closed
+```bash
+"$POLYDEV_SCRIPTS/list-sessions.sh"  # Should show "(No sessions found)" or not include your session
+```
 
-**Step 3**: Remove worktree with git command
+**Step 3**: Ask user for confirmation before deleting worktree
+
+**Step 4**: Remove worktree with git command
 ```bash
 git worktree remove .worktrees/auth --force
+git worktree prune  # Clean up stale references
+```
+
+**Step 5**: Delete branch (optional)
+```bash
+git branch -D feature-auth
 ```
 
 **NEVER use `cleanup-worktree.sh`** - it has interactive prompts that cause automation to hang.
+
+**NEVER use `rm -rf .worktrees/xxx`** - always use `git worktree remove` after closing sessions.
 
 ### Scenario K: Start Background Command (No Sub-Claude)
 **Script**: `run-background.sh`
@@ -427,3 +461,4 @@ Phase 6: Cleanup (Human Confirms)
 3. **Execute by verification level, no skipping**
 4. **Restore session first when crashed, then continue**
 5. **Parallel agents MUST use sonnet! Unless user explicitly requests another model!**
+6. **Cleanup order: close-session → verify → git worktree remove (NEVER skip close-session!)**
