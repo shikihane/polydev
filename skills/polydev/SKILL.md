@@ -228,12 +228,20 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 ```
 
 ### Scenario J: Cleanup Worktree (After Completion)
-**Script**: `cleanup-worktree.sh`
-**Parameters**: `<worktree-path>`
 
+**Step 1**: Close session (terminal window)
 ```bash
-"$POLYDEV_SCRIPTS/cleanup-worktree.sh" .worktrees/auth
+"$POLYDEV_SCRIPTS/close-session.sh" wo:myproject:feature-auth.0
 ```
+
+**Step 2**: Ask user for confirmation before deleting worktree
+
+**Step 3**: Remove worktree with git command
+```bash
+git worktree remove .worktrees/auth --force
+```
+
+**NEVER use `cleanup-worktree.sh`** - it has interactive prompts that cause automation to hang.
 
 ### Scenario K: Start Background Command (No Sub-Claude)
 **Script**: `run-background.sh`

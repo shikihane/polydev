@@ -399,7 +399,7 @@ _wezterm_send_multiline_text() {
 
   if [ "$execute" = "true" ]; then
     # Wait for Claude Code to process the pasted text
-    sleep 0.5
+    sleep 3
     # Send Enter key separately using \r
     printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
   fi

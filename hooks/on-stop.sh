@@ -10,7 +10,20 @@ sed_inplace() {
   sed "$expr" "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
-TASK_FILE="$CLAUDE_PROJECT_DIR/task.toon"
+# Convert Windows path to Unix path for Git Bash
+to_unix_path() {
+  local path="$1"
+  # E:\foo\bar -> /e/foo/bar
+  if [[ "$path" =~ ^([A-Za-z]):\\ ]]; then
+    local drive="${BASH_REMATCH[1]}"
+    path="/${drive,,}${path:2}"
+    path="${path//\\//}"
+  fi
+  echo "$path"
+}
+
+PROJECT_DIR="$(to_unix_path "$CLAUDE_PROJECT_DIR")"
+TASK_FILE="$PROJECT_DIR/task.toon"
 
 if [ ! -f "$TASK_FILE" ]; then
   exit 0
