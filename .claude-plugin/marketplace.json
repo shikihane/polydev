@@ -8,6 +8,12 @@
       "name": "polydev",
       "source": "./",
       "description": "Parallel development orchestration with terminal-hosted background tasks and agent investigations",
+      "version": "1.1.0"
+    },
+    {
+      "name": "poly-retrace",
+      "source": "./plugins/poly-retrace",
+      "description": "Claude Code session history search and analysis - search, index, and analyze conversation logs with AI-powered insights",
       "version": "1.0.0"
     }
   ]
