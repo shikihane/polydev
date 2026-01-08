@@ -62,6 +62,35 @@ def find_all_project_dbs() -> List[Path]:
     return dbs
 
 
+def get_project_db_paths(project: str) -> List[Path]:
+    """获取项目及其 worktrees 的所有数据库路径"""
+    projects_dir = get_projects_dir()
+    if not projects_dir.exists():
+        return []
+
+    dbs = []
+    main_project_name = None
+
+    for pd in projects_dir.iterdir():
+        if pd.is_dir() and project.lower() in pd.name.lower():
+            # 记录主项目名（最短匹配）
+            if main_project_name is None or len(pd.name) < len(main_project_name):
+                main_project_name = pd.name
+            db_path = get_project_db_path(pd)
+            if db_path.exists():
+                dbs.append(db_path)
+
+    # 如果找到主项目，继续查找其 worktrees
+    if main_project_name:
+        for pd in projects_dir.iterdir():
+            if pd.is_dir() and pd.name.startswith(main_project_name + "--worktrees-"):
+                db_path = get_project_db_path(pd)
+                if db_path.exists() and db_path not in dbs:
+                    dbs.append(db_path)
+
+    return dbs
+
+
 def get_default_db_path(project: str = None) -> Optional[Path]:
     """获取数据库路径（支持项目过滤）"""
     projects_dir = get_projects_dir()
@@ -69,13 +98,12 @@ def get_default_db_path(project: str = None) -> Optional[Path]:
         return None
 
     if project:
-        # 查找匹配的项目
-        for pd in projects_dir.iterdir():
-            if pd.is_dir() and project.lower() in pd.name.lower():
-                db_path = get_project_db_path(pd)
-                if db_path.exists():
-                    return db_path
-        return None
+        # 使用新函数获取所有匹配的数据库（主项目 + worktrees）
+        dbs = get_project_db_paths(project)
+        if not dbs:
+            return None
+        # 返回第一个数据库（保持向后兼容）
+        return dbs[0]
 
     # 返回最新修改的数据库
     dbs = find_all_project_dbs()
@@ -499,71 +527,178 @@ def main():
 
     args = parser.parse_args()
 
-    # 获取数据库路径
+    # 获取数据库路径（支持多数据库）
+    db_paths = []
     if args.db:
-        db_path = args.db
+        db_paths = [Path(args.db)]
+    elif args.project:
+        # 获取所有匹配的数据库（主项目 + worktrees）
+        db_paths = get_project_db_paths(args.project)
+        if not db_paths:
+            print("❌ 没有找到索引数据库", file=sys.stderr)
+            print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
+            sys.exit(1)
     else:
-        db_path_obj = get_default_db_path(args.project)
+        # 没有指定项目，使用默认数据库
+        db_path_obj = get_default_db_path()
         if db_path_obj is None:
             print("❌ 没有找到索引数据库", file=sys.stderr)
             print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
             sys.exit(1)
-        db_path = str(db_path_obj)
+        db_paths = [db_path_obj]
 
-    if not os.path.exists(db_path):
-        print(f"❌ 索引数据库不存在: {db_path}", file=sys.stderr)
-        print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
-        sys.exit(1)
-
-    conn = sqlite3.connect(db_path)
+    # 验证数据库存在
+    for db_path in db_paths:
+        if not db_path.exists():
+            print(f"❌ 索引数据库不存在: {db_path}", file=sys.stderr)
+            print("   请先运行: python retrace-index.py --auto", file=sys.stderr)
+            sys.exit(1)
 
     # 处理不同的查询模式
     if args.list_sessions:
-        result = list_sessions(conn, args.project)
-        format_output(result, "sessions", args.json)
+        # 合并所有数据库的会话列表
+        all_sessions = []
+        for db_path in db_paths:
+            conn = sqlite3.connect(str(db_path))
+            sessions = list_sessions(conn, args.project)
+            # 添加来源项目标注
+            project_name = db_path.parent.name
+            for session in sessions:
+                session['project'] = project_name
+            all_sessions.extend(sessions)
+            conn.close()
+
+        # 按结束时间排序
+        all_sessions.sort(key=lambda x: x.get('end_time', ''), reverse=True)
+        format_output(all_sessions, "sessions", args.json)
 
     elif args.full:
+        # 单数据库操作，使用第一个数据库
+        conn = sqlite3.connect(str(db_paths[0]))
         result = get_full_content(conn, args.full)
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print(json.dumps(result, ensure_ascii=False, indent=2))
+        conn.close()
 
     elif args.context:
+        # 单数据库操作，使用第一个数据库
+        conn = sqlite3.connect(str(db_paths[0]))
         result = get_context(conn, args.context, args.before, args.after)
         format_output(result, "context", args.json)
+        conn.close()
 
     elif args.ids:
+        # 单数据库操作，使用第一个数据库
+        conn = sqlite3.connect(str(db_paths[0]))
         ids = [int(x.strip()) for x in args.ids.split(",")]
         result = search_detail(conn, ids)
         format_output(result, "detail", args.json)
+        conn.close()
 
     elif args.level == "stats":
-        result = search_stats(conn, args.query, args.msg_type, args.role,
-                              args.tool, args.project, args.since, args.until,
-                              args.session_id)
+        # 合并所有数据库的统计结果
+        total_count = 0
+        all_by_type = {}
+        all_by_tool = {}
+        min_time = None
+        max_time = None
+
+        for db_path in db_paths:
+            conn = sqlite3.connect(str(db_path))
+            stats = search_stats(conn, args.query, args.msg_type, args.role,
+                                args.tool, args.project, args.since, args.until,
+                                args.session_id)
+            conn.close()
+
+            if "error" not in stats and stats.get("total", 0) > 0:
+                total_count += stats["total"]
+
+                # 合并类型分布
+                for mtype, count in stats.get("by_type", {}).items():
+                    all_by_type[mtype] = all_by_type.get(mtype, 0) + count
+
+                # 合并工具分布
+                for tool, count in stats.get("by_tool", {}).items():
+                    all_by_tool[tool] = all_by_tool.get(tool, 0) + count
+
+                # 更新时间范围
+                tr = stats.get("time_range", {})
+                if tr.get("start"):
+                    if min_time is None or tr["start"] < min_time:
+                        min_time = tr["start"]
+                if tr.get("end"):
+                    if max_time is None or tr["end"] > max_time:
+                        max_time = tr["end"]
+
+        # 排序工具分布，取前5
+        sorted_tools = sorted(all_by_tool.items(), key=lambda x: x[1], reverse=True)[:5]
+
+        result = {
+            "total": total_count,
+            "by_type": all_by_type,
+            "by_tool": dict(sorted_tools),
+            "time_range": {"start": min_time, "end": max_time}
+        }
         format_output(result, "stats", args.json)
 
     else:
-        result = search_list(conn, args.query, args.msg_type, args.role,
-                             args.tool, args.project, args.since, args.until,
-                             args.session_id,
-                             args.limit, args.offset)
+        # 合并所有数据库的搜索结果
+        all_results = []
+        for db_path in db_paths:
+            conn = sqlite3.connect(str(db_path))
+            results = search_list(conn, args.query, args.msg_type, args.role,
+                                args.tool, args.project, args.since, args.until,
+                                args.session_id,
+                                0, 0)  # 先不限制，后面统一排序和限制
+            # 添加来源项目标注
+            project_name = db_path.parent.name
+            for item in results:
+                item['project'] = project_name
+            all_results.extend(results)
+            conn.close()
 
-        if args.level == "detail" and result:
-            ids = [r["id"] for r in result]
-            result = search_detail(conn, ids)
-            format_output(result, "detail", args.json)
+        # 按时间戳排序
+        all_results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        # 应用 limit 和 offset
+        if args.limit > 0:
+            all_results = all_results[args.offset:args.offset + args.limit]
+
+        if args.level == "detail" and all_results:
+            # 对于 detail 级别，需要从各个数据库获取详细信息
+            # 按来源项目分组
+            by_project = {}
+            for item in all_results:
+                project = item.get('project', '')
+                if project not in by_project:
+                    by_project[project] = []
+                by_project[project].append(item['id'])
+
+            # 从各数据库获取详细信息
+            detailed_results = []
+            for db_path in db_paths:
+                project_name = db_path.parent.name
+                if project_name in by_project:
+                    conn = sqlite3.connect(str(db_path))
+                    details = search_detail(conn, by_project[project_name])
+                    for detail in details:
+                        detail['project'] = project_name
+                    detailed_results.extend(details)
+                    conn.close()
+
+            # 按时间戳重新排序
+            detailed_results.sort(key=lambda x: x.get('timestamp', ''))
+            format_output(detailed_results, "detail", args.json)
         else:
-            format_output(result, "list", args.json)
+            format_output(all_results, "list", args.json)
 
     # 输出到文件
     if args.output and 'result' in dir():
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
         print(f"📁 结果已保存到: {args.output}")
-
-    conn.close()
 
 
 if __name__ == "__main__":
