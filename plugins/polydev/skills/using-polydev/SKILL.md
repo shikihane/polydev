@@ -22,7 +22,7 @@ This is NOT optional. If there's even a 10% chance polydev applies, CHECK IT.
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 "$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 ```
 

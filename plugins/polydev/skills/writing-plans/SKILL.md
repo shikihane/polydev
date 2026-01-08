@@ -167,7 +167,7 @@ When used with polydev parallel execution:
 
 **Main agent spawns worktree with:**
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 "$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 ```
 

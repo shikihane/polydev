@@ -65,7 +65,7 @@ polydev/
 
 ```bash
 # Set path variable first
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Then call scripts
 "$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>

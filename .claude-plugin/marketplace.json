@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "polydev",
-      "source": "./",
+      "source": "./plugins/polydev",
       "description": "Parallel development orchestration with terminal-hosted background tasks and agent investigations",
       "version": "1.1.0"
     },

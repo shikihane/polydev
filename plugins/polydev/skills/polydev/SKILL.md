@@ -52,7 +52,7 @@ Choose skill by prefix:
 
 ```bash
 # Set script path variable (use plugin installation location)
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Then call using the variable
 "$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
@@ -296,7 +296,7 @@ ag:workspace:name.0      # Agent investigation (agent)
 ## Poll Loop - Must Monitor Continuously After Starting
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # After starting all sessions, immediately enter monitoring loop - cannot skip!
 while branches_remaining; do

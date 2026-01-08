@@ -64,7 +64,7 @@ POLYDEV_SCRIPTS="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]:-$0}")")")/s
 **When called from Claude Code**: Use the plugin installation path
 ```bash
 # Plugin path example (based on actual installation location)
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 "$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
 ```
 
@@ -178,7 +178,7 @@ MUST clean up session when done
 ### Workflow A: Build Task (Polling)
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Start
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
@@ -210,7 +210,7 @@ done
 ### Workflow B: SSH Interactive Session
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # 1. Start SSH connection
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
@@ -236,7 +236,7 @@ sleep 2
 ### Workflow C: Wait for Pattern
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Start and wait
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" test "npm test")

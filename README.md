@@ -121,7 +121,7 @@ mkdir -p "$USERPROFILE/.claude/plugins"
 cp -r /path/to/polydev "$USERPROFILE/.claude/plugins/"
 
 # Set permissions (Linux/macOS only)
-chmod +x ~/.claude/plugins/polydev/scripts/*.sh
+chmod +x ~/.claude/plugins/polydev/plugins/polydev/scripts/*.sh
 ```
 
 ### Verify Installation
@@ -201,7 +201,7 @@ User Request
 All scripts must be called via `$POLYDEV_SCRIPTS` variable:
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Background task
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")

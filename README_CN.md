@@ -121,7 +121,7 @@ mkdir -p "$USERPROFILE/.claude/plugins"
 cp -r /path/to/polydev "$USERPROFILE/.claude/plugins/"
 
 # 设置权限（仅 Linux/macOS）
-chmod +x ~/.claude/plugins/polydev/scripts/*.sh
+chmod +x ~/.claude/plugins/polydev/plugins/polydev/scripts/*.sh
 ```
 
 ### 验证安装
@@ -201,7 +201,7 @@ Claude 会自动使用相应的 polydev 技能。
 所有脚本必须通过 `$POLYDEV_SCRIPTS` 变量调用：
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/scripts"
+POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # 后台任务
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
