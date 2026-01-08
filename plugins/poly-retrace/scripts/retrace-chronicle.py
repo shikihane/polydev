@@ -348,6 +348,7 @@ def main():
     group.add_argument("--session", help="Session UUID")
     group.add_argument("--file", help="JSONL 文件路径")
     parser.add_argument("--project", help="项目名（--session 时必须）")
+    parser.add_argument("--output", "-o", required=True, help="输出文件路径（必选）")
     parser.add_argument("--json", action="store_true", help="JSON 输出")
     parser.add_argument("--version", "-v", action="version", version=f"retrace-chronicle {VERSION}")
     args = parser.parse_args()
@@ -387,20 +388,24 @@ def main():
         result = analyze_single(messages)
         wall_time = time.time() - start_time
 
-        if args.json:
-            result["wall_time"] = wall_time
-            result["data_size"] = data_size
-            result["records"] = len(messages)
-            result["file"] = str(session_file)
-            print(json.dumps(result, ensure_ascii=False, indent=2))
-        else:
-            print(f"⏱ {wall_time:.1f}s", file=sys.stderr)
-            if result.get("success"):
-                events = result.get("events", [])
-                print(f"\n📋 提取 {len(events)} 个关键事件:\n")
-                print(format_toon(events))
+        # 进度信息到 stderr
+        print(f"[1/1] 处理块 1... 完成 ({result.get('elapsed', 0):.1f}s)", file=sys.stderr)
+
+        # 结果写入文件
+        with open(args.output, 'w', encoding='utf-8') as f:
+            if args.json:
+                result["wall_time"] = wall_time
+                result["data_size"] = data_size
+                result["records"] = len(messages)
+                result["file"] = str(session_file)
+                json.dump(result, f, ensure_ascii=False, indent=2)
             else:
-                print(f"❌ {result.get('error', 'Unknown error')}")
+                events = result.get("events", [])
+                f.write(format_toon(events))
+
+        # 总结信息
+        print(f"\n总计: 1 块, {len(result.get('events', []))} 事件, 耗时 {wall_time:.1f}s", file=sys.stderr)
+        print(f"输出文件: {args.output}", file=sys.stderr)
     else:
         chunks = chunk_by_size(messages, MAX_BYTES_PER_CHUNK)
         parallel = min(len(chunks), MAX_PARALLEL)
@@ -415,23 +420,29 @@ def main():
             for future in as_completed(futures):
                 r = future.result()
                 chunk_results.append(r)
+                chunk_id = r.get('chunk_id', 0)
                 status = "✓" if r.get("success") else "✗"
-                print(f"  {status} #{r.get('chunk_id', '?')} {r.get('elapsed', 0):.1f}s", file=sys.stderr)
+                # 进度信息格式: [N/Total] 处理块 N... 完成 (X.Xs)
+                print(f"[{chunk_id + 1}/{len(chunks)}] 处理块 {chunk_id + 1}... 完成 ({r.get('elapsed', 0):.1f}s)", file=sys.stderr)
 
         wall_time = time.time() - start_time
         agg = aggregate(chunk_results)
 
-        if args.json:
-            agg["wall_time"] = wall_time
-            agg["data_size"] = data_size
-            agg["records"] = len(messages)
-            agg["file"] = str(session_file)
-            print(json.dumps(agg, ensure_ascii=False, indent=2))
-        else:
-            print(f"⏱ {wall_time:.1f}s | {agg['success']}/{agg['chunks']} ok", file=sys.stderr)
-            events = agg.get("events", [])
-            print(f"\n📋 提取 {len(events)} 个关键事件:\n")
-            print(format_toon(events))
+        # 结果写入文件
+        with open(args.output, 'w', encoding='utf-8') as f:
+            if args.json:
+                agg["wall_time"] = wall_time
+                agg["data_size"] = data_size
+                agg["records"] = len(messages)
+                agg["file"] = str(session_file)
+                json.dump(agg, f, ensure_ascii=False, indent=2)
+            else:
+                events = agg.get("events", [])
+                f.write(format_toon(events))
+
+        # 总结信息
+        print(f"\n总计: {len(chunks)} 块, {len(agg.get('events', []))} 事件, 耗时 {wall_time:.1f}s", file=sys.stderr)
+        print(f"输出文件: {args.output}", file=sys.stderr)
 
 
 if __name__ == "__main__":
