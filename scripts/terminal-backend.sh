@@ -231,65 +231,7 @@ _tmux_poll_sessions() {
 # wezterm Backend Implementation
 # =============================================================================
 
-# Get pane_id by looking up workspace + tab_title from wezterm cli list
-_wezterm_get_pane_id() {
-  local session_id="$1"
-
-  # Parse session_id to get workspace and tab_title
-  _parse_session_id "$session_id"
-  local target_ws="$SESSION"
-  local target_title="$WINDOW"
-
-  # Query wezterm and find matching pane
-  local panes_json
-  panes_json=$(wezterm cli list --format json 2>/dev/null) || return 1
-
-  local result
-  result=$(TARGET_WS="$target_ws" TARGET_TITLE="$target_title" PANES_JSON="$panes_json" $TB_PYTHON -c "
-import json, os, sys
-
-target_ws = os.environ.get('TARGET_WS', '')
-target_title = os.environ.get('TARGET_TITLE', '')
-panes_json = os.environ.get('PANES_JSON', '[]')
-
-try:
-    data = json.loads(panes_json)
-except:
-    sys.exit(1)
-
-# Filter by workspace
-ws_panes = [p for p in data if p.get('workspace') == target_ws]
-if not ws_panes:
-    sys.exit(1)
-
-# Strategy 1: exact match on tab_title
-for p in ws_panes:
-    if p.get('tab_title') == target_title:
-        print(p['pane_id'])
-        sys.exit(0)
-
-# Strategy 2: single pane in workspace (handles tab_title changes)
-if len(ws_panes) == 1:
-    print(ws_panes[0]['pane_id'])
-    sys.exit(0)
-
-# Strategy 3: partial match
-for p in ws_panes:
-    t = p.get('tab_title', '')
-    if target_title in t or t in target_title:
-        print(p['pane_id'])
-        sys.exit(0)
-
-sys.exit(1)
-" 2>/dev/null)
-
-  if [ -n "$result" ]; then
-    echo "$result"
-    return 0
-  fi
-  return 1
-}
-
+# Create session, return numeric pane_id
 _wezterm_create_session() {
   local workspace="$1"
   local branch="$2"
@@ -334,81 +276,56 @@ except:
   # Git Bash often starts in MSYS installation dir or %USERPROFILE%
   # See: https://github.com/git-for-windows/git/issues/794
   # Explicitly cd to the target directory after bash starts
-  sleep 0.3  # Wait for bash prompt to initialize
-  printf 'cd "%s" && clear\r' "$cwd" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  sleep 2  # Wait for bash prompt to initialize
+  printf 'cd "%s"' "$cwd" | wezterm cli send-text --pane-id "$pane_id"
+  sleep 2
+  printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+  sleep 0.3
+  printf 'clear' | wezterm cli send-text --pane-id "$pane_id"
+  sleep 2
+  printf '\r' | wezterm cli send-text --pane-id "$pane_id"
 
-  local session_id
-  session_id=$(_build_session_id "$workspace" "$branch" "0")
-
-  echo "$session_id"
+  # Return the numeric pane_id (not session_id)
+  echo "$pane_id"
 }
 
 _wezterm_is_alive() {
-  local session_id="$1"
+  local pane_id="$1"
 
-  # Simply try to get pane_id - if found, session is alive
-  # _wezterm_get_pane_id does the workspace+tab_title lookup
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
-
-  if [ -n "$pane_id" ]; then
-    return 0
-  fi
-  return 1
+  # Try to get pane info - if succeeds, pane is alive
+  wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 0 &>/dev/null
 }
 
 _wezterm_send_command() {
-  local session_id="$1"
+  local pane_id="$1"
   local command="$2"
   local execute="${3:-true}"
 
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
-
-  if [ -z "$pane_id" ]; then
-    return 1
-  fi
-
   # Send text first
-  printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    # Send Enter separately (wezterm may drop \r if sent with text)
-    sleep 0.3
-    printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
+    sleep 2
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
 
 _wezterm_send_multiline_text() {
-  local session_id="$1"
+  local pane_id="$1"
   local text="$2"
   local execute="${3:-true}"
 
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
-
-  if [ -z "$pane_id" ]; then
-    return 1
-  fi
-
-  # For multiline text, send the entire text with newlines preserved
-  # wezterm cli send-text handles this correctly
-  # IMPORTANT: Send text first, then send Enter separately after delay
-  # Claude Code needs time to process pasted text before receiving Enter
-  printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id" --no-paste
+  # Send text first, then send Enter separately after delay
+  printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    # Wait for Claude Code to process the pasted text
-    sleep 3
-    # Send Enter key separately using \r
-    printf '\r' | wezterm cli send-text --pane-id "$pane_id" --no-paste
+    sleep 2
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
 
 _wezterm_focus_session() {
-  local session_id="$1"
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
+  local pane_id="$1"
 
   if [ -n "$pane_id" ]; then
     wezterm cli activate-pane --pane-id "$pane_id"
@@ -416,9 +333,7 @@ _wezterm_focus_session() {
 }
 
 _wezterm_cleanup_session() {
-  local session_id="$1"
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
+  local pane_id="$1"
 
   if [ -n "$pane_id" ]; then
     wezterm cli kill-pane --pane-id "$pane_id" 2>/dev/null || true
@@ -427,9 +342,7 @@ _wezterm_cleanup_session() {
 }
 
 _wezterm_get_session_info() {
-  local session_id="$1"
-  local pane_id
-  pane_id=$(_wezterm_get_pane_id "$session_id")
+  local pane_id="$1"
 
   if [ -z "$pane_id" ]; then
     echo "|dead||"
@@ -437,19 +350,19 @@ _wezterm_get_session_info() {
   fi
 
   local info
-  info=$(wezterm cli list --format json 2>/dev/null | $TB_PYTHON -c "
+  info=$(wezterm cli list --format json 2>/dev/null | $TB_PYTHON -c '
 import sys, json
 try:
     d = json.load(sys.stdin)
     for p in d:
-        if p.get('pane_id') == $pane_id:
-            print(f\"{p.get('pane_id', '')}|active|{p.get('title', '')}|{p.get('cwd', '')}\")
+        if p.get("pane_id") == int('"$pane_id"'):
+            print("{}|active|{}|{}".format(p.get("pane_id", ""), p.get("title", ""), p.get("cwd", "")))
             break
     else:
-        print('|dead||')
+        print("|dead||")
 except:
-    print('|dead||')
-" 2>/dev/null) || info="|dead||"
+    print("|dead||")
+' 2>/dev/null) || info="|dead||"
 
   echo "$info"
 }
@@ -462,22 +375,22 @@ _wezterm_poll_sessions() {
   tmpfile="$(mktemp)"
   wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
 
-  WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c "
+  WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c '
 import json, os
 
-workspace = os.environ.get('WORKSPACE', '')
-tmpfile = os.environ.get('TMPFILE', '')
+workspace = os.environ.get("WORKSPACE", "")
+tmpfile = os.environ.get("TMPFILE", "")
 
-with open(tmpfile, 'r') as f:
+with open(tmpfile, "r") as f:
     data = json.load(f)
 
 for p in data:
-    ws = p.get('workspace', '')
-    tab_title = p.get('tab_title', '')
-    if ws == workspace and tab_title:
-        session_id = f'wo:{ws}:{tab_title}.0'
-        print(f'{session_id}|active')
-" 2>/dev/null
+    ws = p.get("workspace", "")
+    tab_title = p.get("tab_title", "")
+    pane_id = p.get("pane_id", "")
+    if ws == workspace and tab_title and pane_id:
+        print(str(pane_id) + "|active")
+' 2>/dev/null
 
   rm -f "$tmpfile"
 }
@@ -572,21 +485,21 @@ tb_cleanup_session() {
 # Usage: tb_get_session_info <session_id>
 # Returns: pane_id|status|window_name|cwd
 tb_get_session_info() {
-  local session_id="$1"
+  local pane_id="$1"
 
   case "$TB_BACKEND" in
     tmux)
-      _tmux_get_session_info "$session_id"
+      _tmux_get_session_info "$pane_id"
       ;;
     wezterm)
-      _wezterm_get_session_info "$session_id"
+      _wezterm_get_session_info "$pane_id"
       ;;
   esac
 }
 
 # Poll all sessions in workspace
 # Usage: tb_poll_sessions <workspace>
-# Returns: session_id|status (one per line)
+# Returns: pane_id|status (one per line)
 tb_poll_sessions() {
   local workspace="$1"
 

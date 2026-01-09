@@ -26,33 +26,24 @@ polydev/
 ├── scripts/                   # Shell scripts (MUST use via $POLYDEV_SCRIPTS)
 │   │
 │   │ # Core (required for parallel dev)
-│   ├── spawn-session.sh       # Create worktree + terminal + Claude
+│   ├── spawn-session.sh       # Create worktree + terminal + Claude (returns pane_id)
 │   ├── poll.sh                # Status monitoring loop
 │   ├── restore-session.sh     # Session recovery
 │   ├── terminal-backend.sh    # Backend abstraction (internal)
 │   │
 │   │ # Session management
 │   ├── wo-send-command.sh     # Send commands to worktree sessions
-│   ├── send-to-session.sh     # Send commands to any session
-│   ├── capture-screen.sh      # Read terminal output
+│   ├── send-to-session.sh     # Send commands to any session (via pane_id)
+│   ├── capture-screen.sh      # Read terminal output (via worktree path or --pane-id)
 │   ├── list-sessions.sh       # List active sessions
-│   ├── close-session.sh       # Terminate sessions
-│   ├── focus-session.sh       # Focus/activate session
+│   ├── close-session.sh       # Terminate sessions (via worktree path or --pane-id)
 │   │
 │   │ # Background tasks
-│   ├── run-background.sh      # Background commands (no sub-Claude)
-│   ├── analyze-output.sh      # Analyze background task output
-│   ├── wait-for-pattern.sh    # Wait for pattern match
-│   ├── spawn-agent.sh         # Investigation agents
+│   ├── run-background.sh      # Background commands (no sub-Claude, returns pane_id)
+│   └── spawn-agent.sh         # Investigation agents (returns pane_id)
 │   │
 │   │ # Cleanup
-│   ├── cleanup-worktree.sh    # Clean up worktree + session
-│   │
-│   │ # Utilities (optional, for debugging)
-│   ├── get-pane-id.sh         # Get pane ID (standalone tool)
-│   ├── git-info.sh            # Git status queries
-│   ├── prune-dead-sessions.sh # Show session status (diagnostic)
-│   └── test-terminal-backend.sh # Backend tests (dev only)
+│   └── cleanup-worktree.sh    # Clean up worktree + session
 ├── hooks/                     # Claude Code hooks
 └── templates/                 # Task templates
 ```
@@ -105,31 +96,21 @@ spawn-session.sh my-project feature/ui ...
 | Scenario | Script | Parameters |
 |----------|--------|------------|
 | Send to worktree (has task.toon) | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
-| Send to any session (SSH, REPL) | `send-to-session.sh` | `<session_id> "<cmd>"` |
-| Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
+| Send to any session (SSH, REPL) | `send-to-session.sh` | `<pane_id> "<cmd>"` |
+| Read screen output | `capture-screen.sh` | `<worktree-path> [--lines N]` or `--pane-id <id>` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
-| Close session | `close-session.sh` | `<session_id>` |
-| Focus/activate session | `focus-session.sh` | `<worktree-path>` |
+| Close session | `close-session.sh` | `<worktree-path>` or `--pane-id <id>` |
 
 **Background tasks:**
 | Scenario | Script | Parameters |
 |----------|--------|------------|
-| Start background command | `run-background.sh` | `<name> "<cmd>"` |
-| Analyze output | `analyze-output.sh` | `<session_id> --lines N` |
-| Wait for pattern | `wait-for-pattern.sh` | `<session_id> --success "<pattern>"` |
+| Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>]` |
 | Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
 
 **Cleanup:**
 | Scenario | Script | Parameters |
 |----------|--------|------------|
 | Clean up worktree | `cleanup-worktree.sh` | `<worktree-path>` |
-
-**Utilities (optional):**
-| Scenario | Script | Parameters |
-|----------|--------|------------|
-| Get pane ID | `get-pane-id.sh` | `<session_id>` |
-| Git info | `git-info.sh` | `<diff\|conflicts\|status> <worktree-path>` |
-| Show all sessions | `prune-dead-sessions.sh` | (no params) |
 
 ### Cost Control
 
@@ -151,13 +132,16 @@ Sub-agents communicate only via `task.toon` files. Main agent monitors via `poll
 - `blocked`: Main agent might resolve (dependency, env issue)
 - `hil`: Human must decide (credentials, design decisions, ambiguity)
 
-### Session ID Format
+### pane_id Format
 
-```
-wo:workspace:branch.0    # Worktree sessions
-bg:workspace:name.0      # Background commands
-ag:workspace:name.0      # Investigation agents
-```
+pane_id 是主要标识符，格式因后端而异：
+
+| 后端 | pane_id 格式 | 示例 |
+|------|-------------|------|
+| WezTerm | 数字 | `5` |
+| tmux | `session:window.pane` | `polydev:1.0` |
+
+**注意**：调试信息输出到 stderr，人类可通过 `[D]` 前缀查看工作树、分支等上下文。
 
 ## Development Workflow
 
@@ -176,9 +160,6 @@ ag:workspace:name.0      # Investigation agents
 # Verify terminal backend
 source scripts/terminal-backend.sh
 echo "Backend: $(tb_get_backend)"
-
-# Test session functions
-./scripts/test-terminal-backend.sh
 ```
 
 ## Verification Levels
@@ -204,11 +185,11 @@ When passing shell variables to inline Python, use environment variables instead
 
 ```bash
 # ✅ Correct - use environment variable
-SESSION_ID="$session_id" $PYTHON -c "
+PANE_ID="$pane_id" $PYTHON -c "
 import os
-sid = os.environ.get('SESSION_ID', '')
+pid = os.environ.get('PANE_ID', '')
 "
 
 # ❌ Wrong - string interpolation breaks on special chars
-$PYTHON -c "if sid == '$session_id': ..."
+$PYTHON -c "if pid == '$pane_id': ..."
 ```
