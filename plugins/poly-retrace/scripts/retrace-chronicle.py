@@ -88,6 +88,94 @@ def read_session_file(path: Path) -> List[Dict]:
     return messages
 
 
+def _extract_code_location(text: str) -> str:
+    """从消息文本中提取代码定位标识符：函数名 → 配置项 → 文件"""
+    # 提取函数定义
+    func_match = re.search(r'@(\w+)\(\)', text)
+    if func_match:
+        return f"@{func_match.group(1)}()"
+
+    # 提取配置项 assignment=value
+    config_match = re.search(r'(\w+_?\w*)\s*=\s*([0-9.]+)', text)
+    if config_match:
+        return f"@{config_match.group(1)}={config_match.group(2)}"
+
+    # 提取文件名
+    file_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*\.(?:sh|md|json|cmd|py))', text)
+    if file_match:
+        return f"@{file_match.group(1)}"
+
+    # 提取关键函数名 (不带括号但出现在代码上下文中)
+    func_ref = re.search(r'(to_unix_path|sed_inplace|multiline_delay|--force)', text)
+    if func_ref:
+        return f"@{func_ref.group(1)}"
+
+    return "@global"
+
+
+def _extract_code_keywords(text: str) -> str:
+    """从文本中提取代码相关的关键词"""
+    # 配置项
+    config_match = re.search(r'(\w+_?\w*)\s*=\s*([0-9.]+)', text)
+    if config_match:
+        return f"{config_match.group(1)}={config_match.group(2)}"
+
+    # 关键参数
+    if '--force' in text:
+        return "--force"
+
+    # 关键函数名
+    func_match = re.search(r'(to_unix_path|sed_inplace|multiline_delay)', text)
+    if func_match:
+        return func_match.group(1)
+
+    return ""
+
+
+def _format_tool_use(tool_name: str, tool_input: Dict) -> str:
+    """格式化工具调用信息，提取关键参数和定位信息"""
+    if tool_name == "Edit":
+        file_path = tool_input.get("file_path", "")
+        new_str = tool_input.get("new_string", "")
+
+        # 提取文件名作为锚点
+        filename = Path(file_path).name
+
+        # 提取关键配置或函数
+        if 'sleep' in new_str and '3' in new_str:
+            return f"@{filename} multiline_delay=3"
+        elif '--force' in new_str:
+            return f"@{filename} --force"
+        elif 'to_unix_path' in new_str:
+            return f"@{filename} to_unix_path()"
+        elif 'Scenario J' in new_str or 'cleanup' in new_str:
+            return f"@{filename} cleanup_workflow"
+
+        return f"@{filename}"
+    elif tool_name == "Write":
+        file_path = tool_input.get("file_path", "")
+        filename = Path(file_path).name
+        return f"@{filename}"
+    elif tool_name == "Bash":
+        command = tool_input.get("command", "")
+        cmd_match = re.search(r'(\w+)\s+', command)
+        return f"@cmd {cmd_match.group(1) if cmd_match else command[:15]}"
+    elif tool_name == "Read":
+        file_path = tool_input.get("file_path", "")
+        filename = Path(file_path).name
+        return f"@{filename}"
+    elif tool_name == "Glob":
+        pattern = tool_input.get("pattern", "")
+        return f"@glob {pattern}"
+    elif tool_name == "Grep":
+        pattern = tool_input.get("pattern", "")
+        return f"@grep {pattern}"
+    elif tool_name == "Task":
+        return "@task"
+    else:
+        return f"@{tool_name}"
+
+
 def extract_message(record: Dict, line_num: int) -> Optional[Dict]:
     """从 JSONL 记录中提取消息"""
     msg_type = record.get("type", "")
@@ -135,7 +223,8 @@ def extract_message(record: Dict, line_num: int) -> Optional[Dict]:
                     elif item.get("type") == "tool_use":
                         tool_name = item.get("name", "")
                         tool_input = item.get("input", {})
-                        tool_uses.append(f"[{tool_name}]: {json.dumps(tool_input, ensure_ascii=False)[:500]}")
+                        tool_info = _format_tool_use(tool_name, tool_input)
+                        tool_uses.append(tool_info)
 
         full_content = "\n".join(text_parts)
         if tool_uses:
@@ -192,46 +281,96 @@ SYSTEM_PROMPT = """You are a code history compressor. Extract key information fr
 ├── decision: technical choices made, approaches selected, trade-offs discussed
 └── mistake: wrong assumptions corrected, bugs found, rework reasons
 
+【INPUT DATA STRUCTURE】
+Each record contains a "TOOLS" section with tool calls. CRITICAL:
+- Edit tool: has file_path, old_string, new_string - extract the ACTUAL CODE CHANGES
+- Write tool: has file_path - extract the file path
+- Bash tool: has command - extract the command
+
 【MUST DISCARD】
 ├── greetings, confirmations ("OK", "Thanks", "Let me...")
 ├── redundant explanations of what code does
 ├── duplicate content across messages
 └── empty responses or status messages
 
-【OUTPUT FORMAT - MANDATORY 3-FIELD CSV】
-EVERY line MUST have exactly 3 comma-separated fields: time,type,content
+【OUTPUT FORMAT - MANDATORY 4-FIELD CSV - CODE MUST BE SINGLE LINE】
+EVERY line MUST have exactly 4 comma-separated fields: time,type,content,code
 - time: ISO timestamp (2026-01-07T14:30) or "-" if unknown
-- type: one of [code|cmd|file|error|decision|mistake]
-- content: the actual information (no internal commas, use semicolons)
+- type: one of [code|cmd|file|error|decision|mistake|user|analysis]
+- content: brief description (no internal commas, use semicolons)
+- code: SHORT identifier ONLY - filename, function name, or config value. NEVER multi-line. Use "-" if none.
 
-@events[time,type,content]
+【CODE FIELD STRICT RULES】
+✗ WRONG: code contains JSON or multi-line content
+✗ WRONG: code contains file path like "E:/Projects/..."
+✓ CORRECT: code is short like "hooks.json", "to_unix_path()", "multiline_delay=3", "--force"
+✓ CORRECT: code is "-" when no specific identifier
+
+@events[time,type,content,code]
 ```
-2026-01-07T14:30,code,`def process_data(): ...`
-2026-01-07T14:35,cmd,`git checkout -b feature/auth`
-2026-01-07T14:40,file,created:src/auth.py
--,error,TypeError: cannot read property 'x' of undefined
--,decision,chose JWT over session-based auth for stateless API
--,mistake,assumed API returned array but was object
+2026-01-07T14:30,code,add multiline delay,multiline_delay=3
+2026-01-07T14:35,cmd,switch branch,git checkout master
+2026-01-07T14:40,file,create hooks config,hooks.json
+2026-01-07T14:45,error,fix path resolution,to_unix_path()
+-,mistake,wrong assumption,-
 ```
+
+【EXAMPLES - COPY THIS PATTERN】
+For Edit changing sleep 0.5 to sleep 3:
+  `2026-01-07T14:30,code,increase multiline delay,multiline_delay=3`
+
+For Edit adding to_unix_path function:
+  `2026-01-08T08:19:00,code,add path conversion,to_unix_path()`
+
+For Write creating hooks.json:
+  `2026-01-08T08:15:49,file,create hooks config,hooks.json`
 
 【STRICT FORMAT RULES】
 ✗ WRONG: `edit,path/to/file` (missing time field)
-✗ WRONG: `bug,description` (missing time field)
-✓ CORRECT: `-,file,edit:path/to/file`
-✓ CORRECT: `-,error,bug description here`
+✗ WRONG: `2026-01-07T14:30,code,desc` (missing code field)
+✗ WRONG: `2026-01-07T14:30,code,desc,` (empty code field, use - instead)
+✓ CORRECT: `2026-01-07T14:30,code,desc,multiline_delay=3`
+✓ CORRECT: `-,file,create,hooks.json`
 
 【FORBIDDEN】
-- Lines with fewer than 3 fields
-- No explanations or meta-commentary
-- No summaries like "various improvements"
-- No vague words: "etc", "and more", "some", "several"
+- Lines with fewer than 4 fields
+- Commas in content or code fields
+- Explanations or meta-commentary
+- Summaries like "various improvements"
+- Vague words: "etc", "and more", "some", "several"
 - Every line must contain concrete, actionable information"""
 
-USER_PROMPT = "Extract key events from these {count} session records. STRICT: every output line must be `time,type,content` format (3 fields). Use `-` for unknown time. Output TOON format only."
+USER_PROMPT = "Extract key events from these {count} session records. STRICT: every output line must be `time,type,content,code` format (4 fields). Use `-` for unknown time. Look at TOOLS section in each record to find actual code changes (Edit old_string/new_string, Write file_path, Bash command). Output TOON format only."
+
+
+def _clean_code_field(code: str) -> str:
+    """清理 code 字段：提取文件名 + 保留代码片段"""
+    if not code:
+        return ""
+
+    # 提取文件/路径名（去除全路径，保留文件名）
+    # 匹配 E:/... 或 /c/... 或 Windows 路径
+    path_match = re.search(r'([a-zA-Z0-9_-]+\.(?:sh|md|json|cmd|py))', code)
+    filename = path_match.group(1) if path_match else ""
+
+    # 提取配置值或代码片段
+    # 匹配 multiline_delay=3, to_unix_path(), --force 等
+    config_match = re.search(r'(multiline_delay=\d+|--force|to_unix_path\(\)|cleanup_workflow)', code)
+
+    # 组合：文件名 + 关键配置/代码
+    parts = []
+    if filename:
+        parts.append(filename)
+    if config_match:
+        parts.append(config_match.group(1))
+
+    if parts:
+        return " ".join(parts)
+    return code
 
 
 def parse_output(stdout: str, elapsed: float) -> Dict:
-    """解析 TOON 输出"""
+    """解析 TOON 输出（支持 3 字段和 4 字段格式）"""
     try:
         # 尝试解析 JSON 输出
         content = ""
@@ -255,21 +394,32 @@ def parse_output(stdout: str, elapsed: float) -> Dict:
             line = line.strip()
             if not line or line.startswith('@') or line.startswith('#'):
                 continue
-            # 格式: time,type,content 或 -,type,content
-            parts = line.split(',', 2)
-            if len(parts) >= 3:
+
+            # 先尝试 4 字段格式: time,type,content,code
+            parts = line.split(',', 3)
+            if len(parts) >= 4:
                 time_str = parts[0].strip()
                 event_type = parts[1].strip()
                 event_content = parts[2].strip()
-                # 验证是否像时间戳或占位符
+                event_code = parts[3].strip() if parts[3].strip() else ""
+
+                # 清理 code 字段（全路径 → 文件名）
+                event_code = _clean_code_field(event_code)
+
                 if time_str.startswith('20') or time_str.startswith('19') or time_str == '-':
-                    events.append({
-                        "time": time_str,
-                        "type": event_type,
-                        "content": event_content
-                    })
-            elif line and ',' in line:
-                events.append({"raw": line})
+                    # 过滤：必须有非空的 code 字段
+                    if event_code:
+                        events.append({
+                            "time": time_str,
+                            "type": event_type,
+                            "content": event_content,
+                            "code": event_code
+                        })
+                    continue
+
+            # 回退到 3 字段格式: time,type,content（跳过）
+            # 3 字段格式没有 code，不符合要求
+            continue
 
         return {
             "success": True,
@@ -332,13 +482,29 @@ def aggregate(chunk_results: List[Dict]) -> Dict:
 
 
 def format_toon(events: List[Dict]) -> str:
-    """格式化 TOON 输出"""
-    lines = ["@events[time,type,content]"]
-    for e in events:
-        if "raw" in e:
-            lines.append(e["raw"])
-        else:
-            lines.append(f"{e.get('time', '')},{e.get('type', '')},{e.get('content', '')}")
+    """格式化 TOON 输出（支持 code 字段）"""
+    # 检查是否有 code 字段来决定格式
+    has_code = any(e.get("code") for e in events)
+    if has_code:
+        lines = ["@events[time,type,content,code]"]
+        for e in events:
+            if "raw" in e:
+                lines.append(e["raw"])
+            else:
+                time = e.get('time', '')
+                type_ = e.get('type', '')
+                content = e.get('content', '')
+                code = e.get('code', '')
+                # 只转义 content 中的逗号（code 字段已清理）
+                content = content.replace(',', ';')
+                lines.append(f"{time},{type_},{content},{code}")
+    else:
+        lines = ["@events[time,type,content]"]
+        for e in events:
+            if "raw" in e:
+                lines.append(e["raw"])
+            else:
+                lines.append(f"{e.get('time', '')},{e.get('type', '')},{e.get('content', '')}")
     return '\n'.join(lines)
 
 

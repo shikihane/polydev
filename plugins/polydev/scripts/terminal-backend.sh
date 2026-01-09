@@ -322,9 +322,9 @@ except:
   rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
-    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" -- bash)
+    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd")
   else
-    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" -- bash)
+    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd")
   fi
 
   # Set tab_title - this is how we identify the session later (no map file needed)

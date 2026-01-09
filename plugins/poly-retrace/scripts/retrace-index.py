@@ -25,11 +25,28 @@ import subprocess
 import os
 import sys
 import argparse
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
+
+# 并行配置
+MAX_WORKERS = 4  # 项目级并行数
+MAX_SUMMARY_WORKERS = 20  # 摘要生成并行数（LLM调用）
+
+# 线程本地存储（每个线程自己的数据库连接）
+_thread_local = threading.local()
+
+def _get_thread_conn(project_dir: Path) -> sqlite3.Connection:
+    """获取当前线程的数据库连接（线程安全，自动初始化）"""
+    if not hasattr(_thread_local, 'conn'):
+        db_path = get_project_db_path(project_dir)
+        # 先创建数据库（包含表结构），再返回连接
+        _thread_local.conn = create_index_db(str(db_path))
+    return _thread_local.conn
 
 # 会话摘要配置
 SUMMARY_HEAD_LINES = 100  # 读取前 N 行生成摘要
@@ -305,7 +322,7 @@ def generate_session_summary(conn: sqlite3.Connection, session_id: str) -> Optio
 
         if result.returncode == 0:
             out = json.loads(result.stdout)
-            summary = out.get("result", "")[:500]
+            summary = out.get("result", "")
 
             # 保存摘要
             cursor.execute('''
@@ -320,10 +337,99 @@ def generate_session_summary(conn: sqlite3.Connection, session_id: str) -> Optio
 
     return None
 
+def _generate_summary_worker(args):
+    """摘要生成 worker（线程安全版本）"""
+    import threading
+    import time
+    project_dir, session_id = args
+    thread_id = threading.get_ident()
+    overall_start = time.time()
+    
+    # 日志显示开始
+    print(f"    [THREAD {thread_id}] >>> {session_id[:8]} (overall_start)")
+    
+    conn = _get_thread_conn(project_dir)
+
+    cursor = conn.cursor()
+    # DB 查询时间
+    db_start = time.time()
+    cursor.execute("SELECT summary FROM sessions WHERE session_id = ? AND summary IS NOT NULL", (session_id,))
+    if cursor.fetchone():
+        print(f"    [THREAD {thread_id}] <<< {session_id[:8]} SKIP cache={time.time()-overall_start:.2f}s")
+        return session_id, None, "skipped"
+
+    cursor.execute("""
+        SELECT content_preview, msg_type, role, tool_name
+        FROM messages WHERE session_id = ?
+        ORDER BY timestamp LIMIT ?
+    """, (session_id, SUMMARY_HEAD_LINES))
+    rows = cursor.fetchall()
+    db_time = time.time() - db_start
+
+    if not rows:
+        print(f"    [THREAD {thread_id}] <<< {session_id[:8]} EMPTY db={db_time:.2f}s")
+        return session_id, None, "empty"
+
+    messages = []
+    for preview, msg_type, role, tool in rows:
+        if preview:
+            messages.append({"type": msg_type, "role": role, "tool": tool, "content": preview[:200]})
+
+    if not messages:
+        print(f"    [THREAD {thread_id}] <<< {session_id[:8]} NO_MSG db={db_time:.2f}s")
+        return session_id, None, "empty"
+
+    data_str = json.dumps(messages, ensure_ascii=False, separators=(',', ':'))
+    claude_cmd = find_claude()
+    if not claude_cmd:
+        print(f"    [THREAD {thread_id}] <<< {session_id[:8]} NO_CLAUDE")
+        return session_id, None, "no_claude"
+
+    system_prompt = "Summarize this session in 1-2 sentences. Output plain text only."
+    user_prompt = f"Summarize this ({len(messages)} msgs):"
+
+    # API 调用时间
+    api_start = time.time()
+    try:
+        result = subprocess.run(
+            [claude_cmd, "-p", user_prompt,
+             "--system-prompt", system_prompt,
+             "--model", "haiku",
+             "--no-session-persistence",
+             "--dangerously-skip-permissions",
+             "--output-format", "json"],
+            input=data_str, capture_output=True, text=True, encoding="utf-8", timeout=60
+        )
+        api_time = time.time() - api_start
+        
+        if result.returncode == 0:
+            out = json.loads(result.stdout)
+            summary = out.get("result", "")
+            save_start = time.time()
+            cursor.execute("UPDATE sessions SET summary = ?, summarized_at = ? WHERE session_id = ?",
+                          (summary, datetime.now().isoformat(), session_id))
+            conn.commit()
+            save_time = time.time() - save_start
+            total_time = time.time() - overall_start
+            print(f"    [THREAD {thread_id}] <<< {session_id[:8]} OK api={api_time:.1f}s db={db_time:.2f}s save={save_time:.2f}s total={total_time:.1f}s")
+            return session_id, summary, "success"
+        else:
+            api_time = time.time() - api_start
+            total_time = time.time() - overall_start
+            print(f"    [THREAD {thread_id}] <<< {session_id[:8]} FAIL code={result.returncode} api={api_time:.1f}s total={total_time:.1f}s")
+            return session_id, None, f"error: {result.returncode}"
+    except Exception as e:
+        total_time = time.time() - overall_start
+        print(f"    [THREAD {thread_id}] <<< {session_id[:8]} EXC {e} total={total_time:.1f}s")
+        return session_id, None, f"exception: {e}"
+
 
 def index_single_project(project_dir: Path, incremental: bool = True,
                          generate_summaries: bool = True) -> int:
     """索引单个项目（独立数据库）"""
+    import time
+    start_time = time.time()
+
     db_path = get_project_db_path(project_dir)
     conn = create_index_db(str(db_path))
 
@@ -335,33 +441,54 @@ def index_single_project(project_dir: Path, incremental: bool = True,
         all_session_ids.update(session_ids)
         if count > 0:
             print(f"  📝 {session_file.name[:40]}... (+{count})")
-
-            # 更新会话元信息
             for sid in session_ids:
                 update_session_meta(conn, sid, str(session_file))
 
         total += count
 
-    # 生成会话摘要
+    # 生成会话摘要（并行）
     if generate_summaries and total > 0:
         cursor = conn.cursor()
         cursor.execute("SELECT session_id FROM sessions WHERE summary IS NULL")
         unsummarized = [r[0] for r in cursor.fetchall()]
 
         if unsummarized:
-            print(f"  📋 生成 {len(unsummarized)} 个会话摘要...")
-            for sid in unsummarized:
-                summary = generate_session_summary(conn, sid)
-                if summary:
-                    print(f"    ✓ {sid[:8]}... {summary[:50]}")
+            summary_start = time.time()
+            print(f"  📋 生成 {len(unsummarized)} 个会话摘要 (并行 {MAX_SUMMARY_WORKERS})...")
 
+            # 使用线程池并行生成摘要
+            with ThreadPoolExecutor(max_workers=MAX_SUMMARY_WORKERS) as executor:
+                futures = {executor.submit(_generate_summary_worker, (project_dir, sid)): sid
+                          for sid in unsummarized}
+
+                completed = 0
+                for future in as_completed(futures):
+                    sid = futures[future]
+                    completed += 1
+                    try:
+                        result_sid, summary, status = future.result()
+                        if status == "success":
+                            print(f"    [{completed}/{len(unsummarized)}] ✓ ({time.time() - summary_start:.1f}s)")
+                        elif status == "skipped":
+                            print(f"    [{completed}/{len(unsummarized)}] ⊘ 已存在 ({time.time() - summary_start:.1f}s)")
+                        else:
+                            print(f"    [{completed}/{len(unsummarized)}] ✗ {status} ({time.time() - summary_start:.1f}s)")
+                    except Exception as e:
+                        print(f"    [{completed}/{len(unsummarized)}] ✗ {e} ({time.time() - summary_start:.1f}s)")
+
+    wall_time = time.time() - start_time
     conn.close()
+    if total > 0:
+        print(f"  ⏱ 索引完成: {total} 条消息, 耗时 {wall_time:.1f}s")
     return total
 
 
 def index_all_projects(project_filter: str = None, incremental: bool = True,
                        generate_summaries: bool = True) -> int:
     """索引所有项目（每个项目独立数据库）"""
+    import time
+    overall_start = time.time()
+
     projects_dir = get_projects_dir()
     if not projects_dir.exists():
         print(f"❌ 找不到项目目录: {projects_dir}", file=sys.stderr)
@@ -379,6 +506,9 @@ def index_all_projects(project_filter: str = None, incremental: bool = True,
         count = index_single_project(pd, incremental, generate_summaries)
         total += count
 
+    overall_time = time.time() - overall_start
+    if total > 0:
+        print(f"\n✅ 索引完成，共 {total} 条新消息, 总耗时 {overall_time:.1f}s")
     return total
 
 

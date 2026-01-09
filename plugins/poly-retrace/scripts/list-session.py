@@ -183,7 +183,7 @@ def format_human_readable(sessions: list, current_dir: str, matched_projects: Li
 
     print(f"会话列表:")
     for i, session in enumerate(sessions, 1):
-        sid = session.get('session_id', '')[:12] + "..."
+        sid = session.get('session_id', '')
 
         # 格式化时间
         start_time = session.get('start_time', '')
@@ -195,13 +195,19 @@ def format_human_readable(sessions: list, current_dir: str, matched_projects: Li
         msg_count = session.get('message_count', 0)
         summary = session.get('summary', '')
 
-        print(f"[{i}] {sid} | {start_time} | {msg_count} 条消息", end="")
-        if summary:
-            print(f" | {summary[:40]}...")
-        else:
-            print()
+        # 第一行: ID、时间、消息数
+        print(f"[{i}] {sid}")
+        print(f"    时间: {start_time} | 消息: {msg_count} 条")
 
-    print()
+        # 第二行: 完整摘要（换行显示）
+        if summary:
+            # 处理多行摘要，保持缩进
+            summary_lines = summary.split('\n')
+            print(f"    摘要: {summary_lines[0]}")
+            for line in summary_lines[1:]:
+                print(f"          {line}")
+        print()
+
     print(f"共 {len(sessions)} 个会话")
 
 
