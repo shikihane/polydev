@@ -7,17 +7,23 @@
 #   diff      - Show commits ahead of main
 #   conflicts - Show files that might conflict with main
 #   status    - Show working directory status
+#
+# Output (TOON):
+#   action=diff,commits="<list of commits>"
+#   action=conflicts,files="<list of files>"
+#   action=status,files="<list of files>"
 
 ACTION="$1"
 WORKTREE="$2"
 
 if [ -z "$ACTION" ] || [ -z "$WORKTREE" ]; then
-  echo "Usage: git-info.sh <diff|conflicts|status> <worktree-path>"
+  echo "error=Missing action or worktree" >&2
+  echo "Usage: git-info.sh <diff|conflicts|status> <worktree-path>" >&2
   exit 1
 fi
 
 if [ ! -d "$WORKTREE" ]; then
-  echo "Error: Worktree directory not found: $WORKTREE"
+  echo "error=Worktree not found: $WORKTREE" >&2
   exit 1
 fi
 
@@ -25,20 +31,19 @@ cd "$WORKTREE" || exit 1
 
 case "$ACTION" in
   diff)
-    # Show commits ahead of main
-    git log --oneline main..HEAD
+    commits=$(git log --oneline main..HEAD 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    echo "action=diff,commits=${commits:-none}"
     ;;
   conflicts)
-    # Show files changed in both branches (potential conflicts)
-    git diff --name-only main...HEAD
+    files=$(git diff --name-only main...HEAD 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    echo "action=conflicts,files=${files:-none}"
     ;;
   status)
-    # Show working directory status
-    git status --short
+    files=$(git status --short 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+    echo "action=status,files=${files:-none}"
     ;;
   *)
-    echo "Unknown action: $ACTION"
-    echo "Usage: git-info.sh <diff|conflicts|status> <worktree-path>"
+    echo "error=Unknown action: $ACTION" >&2
     exit 1
     ;;
 esac

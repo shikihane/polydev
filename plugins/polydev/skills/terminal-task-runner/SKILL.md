@@ -106,38 +106,16 @@ session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 "$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh-remote.0 "mypassword" --no-enter
 ```
 
-### Scenario C: Analyze Output Status
-**Script**: `analyze-output.sh`
-**Parameters**: `<session_id> --lines <N> [--json]`
-**Returns**: status (running|idle|success|failed|done)
-
-```bash
-result=$("$POLYDEV_SCRIPTS/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --json)
-```
-
-### Scenario D: Wait for Pattern Match
-**Script**: `wait-for-pattern.sh`
-**Parameters**: `<session_id> --success "<pattern>" [--fail "<pattern>"] [--timeout <seconds>]`
-**Returns**: exit code (0=success, 1=fail, 2=timeout)
-
-```bash
-"$POLYDEV_SCRIPTS/wait-for-pattern.sh" "$session_id" \
-  --success "passed|All tests passed" \
-  --fail "failed|Error" \
-  --timeout 300
-```
-
-### Scenario E: View Raw Output
+### Scenario C: Monitor Output
 **Script**: `capture-screen.sh`
 **Parameters**: `--session <wo:session_id> --lines <N>`
-**Note**: session parameter requires `wo:` prefix!
 
 ```bash
-# Convert bg: to wo: prefix
+# Convert bg: to wo: prefix for capture
 "$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 50
 ```
 
-### Scenario F: Close Task
+### Scenario D: Close Task
 **Script**: `close-session.sh`
 **Parameters**: `<session_id>`
 
@@ -145,7 +123,7 @@ result=$("$POLYDEV_SCRIPTS/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --
 "$POLYDEV_SCRIPTS/close-session.sh" bg:bg-myproj:build.0
 ```
 
-### Scenario G: List All Sessions
+### Scenario E: List All Sessions
 **Script**: `list-sessions.sh`
 **Parameters**: `[workspace]` (optional filter)
 
@@ -175,7 +153,7 @@ MUST clean up session when done
 
 ## Typical Workflows
 
-### Workflow A: Build Task (Polling)
+### Workflow A: Build Task (Monitor Output)
 
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
@@ -183,22 +161,19 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 # Start
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 
-# Poll and check
+# Monitor output periodically
 while true; do
-  result=$("$POLYDEV_SCRIPTS/analyze-output.sh" "$session_id" --lines 20 --json)
-  status=$(echo "$result" | jq -r '.status')
+  output=$("$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30)
 
-  case "$status" in
-    success|done)
-      echo "Task completed"
-      break
-      ;;
-    failed)
-      echo "Task failed"
-      "$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 50
-      break
-      ;;
-  esac
+  if echo "$output" | grep -q "BUILD_SUCCESS\|completed\|passed"; then
+    echo "Task completed"
+    break
+  fi
+
+  if echo "$output" | grep -q "BUILD_FAILED\|Error\|failed"; then
+    echo "Task failed"
+    break
+  fi
 
   sleep 10
 done
@@ -230,30 +205,6 @@ sleep 2
 "$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30
 
 # 6. Close when done
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
-```
-
-### Workflow C: Wait for Pattern
-
-```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
-
-# Start and wait
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" test "npm test")
-
-# Wait for success or failure
-"$POLYDEV_SCRIPTS/wait-for-pattern.sh" "$session_id" \
-  --success "passed|All tests passed" \
-  --fail "failed|Error" \
-  --timeout 300
-
-exit_code=$?
-case $exit_code in
-  0) echo "Tests passed" ;;
-  1) echo "Tests failed" ;;
-  2) echo "Timeout" ;;
-esac
-
 "$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
 ```
 

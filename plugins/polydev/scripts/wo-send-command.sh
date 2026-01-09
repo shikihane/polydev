@@ -3,24 +3,17 @@
 #
 # Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]
 #
-# This script sends a command to an idle/active Claude session.
-# By default, it appends Enter to execute the command immediately.
+# Output (TOON):
+#   [I] event=command_sent,pane_id=...,command=...,executed=true
 #
-# Options:
-#   --no-enter    Don't append Enter (just type the text)
-#
-# Examples:
+# Example:
 #   wo-send-command.sh .worktrees/feature-auth "npm test"
-#   wo-send-command.sh .worktrees/feature-auth "git status" --no-enter
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Source terminal backend abstraction
 source "$SCRIPT_DIR/terminal-backend.sh"
 
-# Parse arguments
 WORKTREE_PATH=""
 COMMAND=""
 EXECUTE="true"
@@ -42,65 +35,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Validation
 if [ -z "$WORKTREE_PATH" ] || [ -z "$COMMAND" ]; then
-  echo "Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]"
-  echo ""
-  echo "Options:"
-  echo "  --no-enter    Don't append Enter (just type the text)"
-  echo ""
-  echo "Examples:"
-  echo "  wo-send-command.sh .worktrees/feature-auth \"npm test\""
-  echo "  wo-send-command.sh .worktrees/feature-auth \"git status\" --no-enter"
+  echo "error=Missing worktree_path or command" >&2
+  echo "Usage: wo-send-command.sh <worktree_path> <command> [--no-enter]" >&2
   exit 1
 fi
 
 if [ ! -d "$WORKTREE_PATH" ]; then
-  echo "Error: Worktree path does not exist: $WORKTREE_PATH"
+  echo "error=Worktree not found: $WORKTREE_PATH" >&2
   exit 1
 fi
 
-WORKTREE_PATH=$(cd "$WORKTREE_PATH" && pwd)  # Absolute path
+WORKTREE_PATH=$(cd "$WORKTREE_PATH" && pwd)
 TASK_FILE="$WORKTREE_PATH/task.toon"
 
-# Check task.toon exists
 if [ ! -f "$TASK_FILE" ]; then
-  echo "Error: task.toon not found in $WORKTREE_PATH"
-  echo "Hint: Use restore-session.sh first if session was lost"
+  echo "error=task.toon not found in $WORKTREE_PATH" >&2
   exit 1
 fi
 
-# Parse session_id from task.toon
 meta_line=$(grep -A1 "^meta{" "$TASK_FILE" | tail -1 | tr -d ' ')
-session_id=$(echo "$meta_line" | cut -d',' -f3)
+PANE_ID=$(echo "$meta_line" | cut -d',' -f3)
 
-if [ -z "$session_id" ] || [ "$session_id" = "PENDING_PANE_ID" ]; then
-  echo "Error: No valid session_id in task.toon"
-  echo "Session ID: $session_id"
-  echo "Hint: Use restore-session.sh to create a new session"
+if [ -z "$PANE_ID" ] || [ "$PANE_ID" = "PENDING_PANE_ID" ]; then
+  echo "error=No valid pane_id in task.toon" >&2
   exit 1
 fi
 
-# Check if session is alive
-if ! tb_is_session_alive "$session_id"; then
-  echo "Error: Session is not alive: $session_id"
-  echo "Hint: Use restore-session.sh to restore the session first"
+if ! tb_is_session_alive "$PANE_ID" 2>/dev/null; then
+  echo "error=Session not alive: $PANE_ID" >&2
   exit 1
 fi
 
-# Send the command
-echo "Sending command to session: $session_id"
-echo "Command: $COMMAND"
-echo "Execute (Enter): $EXECUTE"
-echo ""
-
-if tb_send_command "$session_id" "$COMMAND" "$EXECUTE"; then
-  if [ "$EXECUTE" = "true" ]; then
-    echo "Sent and executed"
-  else
-    echo "Sent (no Enter)"
-  fi
+if tb_send_command "$PANE_ID" "$COMMAND" "$EXECUTE"; then
+  echo "[I] event=command_sent,pane_id=$PANE_ID,command=${COMMAND:0:50},executed=$EXECUTE"
 else
-  echo "Error: Failed to send command"
+  echo "[E] error=Failed to send command,pane_id=$PANE_ID" >&2
   exit 1
 fi

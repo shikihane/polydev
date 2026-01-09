@@ -70,8 +70,6 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | List sessions | `list-sessions.sh` | `[workspace]` |
 | Close session | `close-session.sh` | `<session_id>` |
 | Start background command | `run-background.sh` | `<name> "<cmd>"` |
-| Analyze output | `analyze-output.sh` | `<session_id> --lines N` |
-| Wait for pattern | `wait-for-pattern.sh` | `<session_id> --success "<pattern>"` |
 | Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
 
 ---

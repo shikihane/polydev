@@ -21,7 +21,7 @@ You are a sub-agent started by the main agent via `spawn-agent.sh`.
 3. Generate report (write to specified file)
 4. Output completion marker (let main agent know you're done)
 
-The main agent detects your `[AGENT_DONE]` output via `wait-for-pattern.sh`.
+The main agent detects your `[AGENT_DONE]` output via terminal capture.
 
 ---
 

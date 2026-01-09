@@ -118,7 +118,8 @@ CLEANUP ORDER VIOLATION - Will cause "Permission denied":
 
 ### Scenario A: Create Worktree + Claude Session
 **Script**: `spawn-session.sh`
-**Parameters**: `<workspace> <branch> <worktree-path> <plan-file>`
+**Parameters**: `<workspace> <branch> <worktree-path> <plan-file> [verify] [fallback] [--verbose]`
+**Output**: TOON event log lines + final `session_id=...` line
 **Returns**: session_id (format: `wo:<workspace>:<branch>.0`)
 
 **⚠️ WORKTREE PATH RULE - MUST FOLLOW:**
@@ -157,10 +158,14 @@ Rule: Use project name as workspace for all parallel tasks.
 
 ### Scenario B: Monitor All Worktree Status (Must Call in Loop)
 **Script**: `poll.sh`
-**Parameters**: `<worktrees-dir> <timeout-seconds>`
-**Returns**: Status change information
+**Parameters**: `<worktrees-dir> <timeout-seconds> [--verbose]`
+**Output**: TOON status lines (one per worktree)
+**Returns**: Exits with status info when needs attention
 
 ```bash
+# Output format (TOON):
+# worktree=.worktrees/feature,branch=feature,overall_status=in_progress,agent_status=active,last_update=2025-01-09T10:30:00Z,session_id=wo:ws:feature.0
+
 result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 ```
 
@@ -193,19 +198,18 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 "$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh.0 "docker ps"
 ```
 
-### Scenario F: Focus on a Session
-**Script**: `focus-session.sh`
-**Parameters**: `<worktree-path>` or `<session_id>`
-
-```bash
-"$POLYDEV_SCRIPTS/focus-session.sh" .worktrees/auth
-```
+### Scenario F: Focus on a Session (Manual)
+Use wezterm/tmux directly to focus on a session. This is a manual operation for humans only.
 
 ### Scenario G: List All Active Sessions
 **Script**: `list-sessions.sh`
 **Parameters**: `[workspace]` (optional filter)
+**Output**: TOON status lines
 
 ```bash
+# Output format (TOON):
+# session_id=wo:myproject:feature.0,status=alive,cwd=/path/to/worktree
+
 "$POLYDEV_SCRIPTS/list-sessions.sh"
 "$POLYDEV_SCRIPTS/list-sessions.sh" myproject
 ```
@@ -213,6 +217,7 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 ### Scenario H: Close/Terminate Session
 **Script**: `close-session.sh`
 **Parameters**: `<session_id>`
+**Output**: TOON event log
 
 ```bash
 "$POLYDEV_SCRIPTS/close-session.sh" wo:myproject:feature-auth.0
@@ -225,6 +230,8 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 **Note**: `--session` parameter requires `wo:` prefix!
 
 ```bash
+# Output: Terminal screen content (no headers)
+
 # Via worktree path
 "$POLYDEV_SCRIPTS/capture-screen.sh" .worktrees/auth --lines 50
 
@@ -279,33 +286,14 @@ git branch -D feature-auth
 
 ### Scenario K: Start Background Command (No Sub-Claude)
 **Script**: `run-background.sh`
-**Parameters**: `<name> "<command>" [--cwd <dir>]`
+**Parameters**: `<name> "<command>" [--cwd <dir>] [--verbose]`
 **Returns**: session_id (format: `bg:<workspace>:<name>.0`)
 
 ```bash
 session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 ```
 
-### Scenario L: Analyze Background Task Output Status
-**Script**: `analyze-output.sh`
-**Parameters**: `<session_id> --lines <N> [--json]`
-
-```bash
-result=$("$POLYDEV_SCRIPTS/analyze-output.sh" bg:bg-myproj:build.0 --lines 20 --json)
-```
-
-### Scenario M: Wait for Pattern Match
-**Script**: `wait-for-pattern.sh`
-**Parameters**: `<session_id> --success "<pattern>" [--fail "<pattern>"] [--timeout <seconds>]`
-
-```bash
-"$POLYDEV_SCRIPTS/wait-for-pattern.sh" "$session_id" \
-  --success "Build completed" \
-  --fail "Error" \
-  --timeout 300
-```
-
-### Scenario N: Start Investigation Agent
+### Scenario L: Start Investigation Agent
 **Script**: `spawn-agent.sh`
 **Parameters**: `<name> --prompt "<task>" --report <report-path>`
 
@@ -344,9 +332,15 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 while branches_remaining; do
   result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)  # Must call!
 
-  worktree=$(echo "$result" | cut -d',' -f1)
-  overall_status=$(echo "$result" | cut -d',' -f3)
-  agent_status=$(echo "$result" | cut -d',' -f4)
+  # Parse TOON output lines
+  echo "$result" | while IFS=',' read -r key1 rest; do
+    worktree=$(echo "$key1" | cut -d'=' -f2)
+    # Extract other fields: overall_status, agent_status, session_id, etc.
+  done
+
+  # Handle each worktree based on status
+  # overall_status: in_progress, completed, hil, blocked, conflict, rejected
+  # agent_status: active, idle, crashed
 
   case "$agent_status" in
     crashed) "$POLYDEV_SCRIPTS/restore-session.sh" "$worktree" --force ;;
