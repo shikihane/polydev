@@ -6,13 +6,15 @@ description: "Search and analyze Claude Code session history. Use when user asks
 <CRITICAL>
 If the user mentions ANY of these, you MUST use retrace:
 
-- "之前" / "上次" / "以前" / "earlier" / "before" / "previously"
-- "记得" / "recall" / "remember" / "what did we"
-- "找" / "搜" / "search" / "find" (relating to past work)
-- "历史" / "history" / "session" / "conversation"
-- "怎么做的" / "how did we" / "what approach"
-- "复用" / "reuse" / "similar to what we did"
+- "earlier", "before", "previously", "last time"
+- "recall", "remember", "what did we", "what was"
+- "search", "find", "look up" (relating to past work)
+- "history", "session", "conversation", "past"
+- "how did we", "what approach", "how was"
+- "reuse", "similar to what we did", "has this been done"
 - References to past debugging, implementations, or solutions
+- "recover", "restore", "rollback", "version history", "previous version"
+- "broke", "ruined", "messed up", "damaged" (code recovery needed)
 
 This is NOT optional. If there's even a 10% chance the user is asking about past work, USE RETRACE.
 </CRITICAL>
@@ -33,12 +35,14 @@ Search and analyze your Claude Code conversation history using FTS5 full-text se
 
 | User Says | Action |
 |-----------|--------|
-| "我们之前怎么处理 X 的？" | Search for X, analyze results |
-| "找一下关于 Y 的讨论" | Search for Y with filters |
-| "上次那个 bug 是怎么修的？" | Search "bug fix" + analyze |
-| "有没有类似的实现？" | Search pattern + analyze |
-| "回顾一下之前的方案" | Search + context retrieval |
-| "回溯这个会话" / "这次聊了什么" | Use retrace-chronicle.py on session |
+| "How did we handle X before?" | Search for X, analyze results |
+| "Find discussion about Y" | Search for Y with filters |
+| "How was that bug fixed?" | Search "bug fix" + analyze |
+| "Similar implementation?" | Search pattern + analyze |
+| "Review previous approach" | Search + context retrieval |
+| "Session chronicle" / "what happened" | Use retrace-chronicle.py on session |
+| "Recover file" / "restore version" | Use retrace-recover.py |
+| "Code was messed up" / "no git record" | Use retrace-recover.py |
 
 ## Prerequisites
 
@@ -124,6 +128,44 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --file <path> --json
 2026-01-06T14:10:21,cmd,`git checkout -b feature/auth`
 ```
 
+### 5. File Version Recovery (Recover Code from Session)
+
+When code was damaged and needs recovery from session history.
+
+**USE WHEN:**
+- Code was modified incorrectly and no git record exists
+- User asks "recover", "restore", "previous version"
+- Code broke after agent modifications without git commit
+- Need to restore file from session snapshots
+
+```bash
+# Recover file versions from a session
+$PYTHON_CMD "$RETRACE_SCRIPTS/retrace-recover.py" \
+    --session <uuid> \
+    --project polydev \
+    --file "scripts/filename.sh" \
+    --output ./recovery
+
+# Output structure:
+#   ./recovery/
+#   ├── versions.txt           # Index (TOON format)
+#   ├── filename_v001.sh       # Version 1
+#   ├── filename_v002.sh       # Version 2
+#   └── ...
+```
+
+**Data sources (trusted in order):**
+1. `Write` tool - Complete file content, 100% reliable
+2. `Read` tool (no offset/limit) - Complete read, 100% reliable
+3. `Bash cat file` - Complete file output, 100% reliable
+
+**Skipped (unreliable):**
+- `Edit` tool - Only fragments, cannot verify consistency
+- `Bash` with pipes/processing - May modify content
+- `Read` with offset/limit - Partial content only
+
+**If no versions found:** Script exits with error. No fallback to unreliable sources.
+
 ## Search Levels (Token Budget Control)
 
 | Level | Output | Token Cost | Use Case |
@@ -155,6 +197,7 @@ $PYTHON_CMD "$RETRACE_SCRIPTS/retrace-chronicle.py" --file <path> --json
 | `retrace-search.py` | Search with layered output + session listing |
 | `retrace-analyze.py` | Query-based AI analysis |
 | `retrace-chronicle.py` | Single session history extraction (TOON format) |
+| `retrace-recover.py` | Recover file versions from session history |
 | `retrace_common.py` | Shared utilities |
 
 ## Index Management
@@ -184,6 +227,8 @@ If you catch yourself thinking:
 | "User probably doesn't remember" | YOU can search for them |
 | "I'll implement from scratch" | Check if similar work exists first |
 | "This seems familiar" | IT IS - search for it |
+| "Code was modified without git" | Use retrace-recover.py |
+| "Need to restore previous version" | Use retrace-recover.py |
 
 **All of these mean: Use retrace first.**
 

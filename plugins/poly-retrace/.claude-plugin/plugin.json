@@ -1,6 +1,6 @@
 {
   "name": "poly-retrace",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Claude Code session history search and analysis - search, index, and analyze conversation logs with AI-powered insights",
   "author": {
     "name": "shikihane"
