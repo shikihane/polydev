@@ -1,6 +1,7 @@
 ---
 name: writing-plans
-description: "Use when creating detailed implementation plans for polydev parallel tasks - generates step-by-step PLAN.md files"
+description: This skill should be used when creating detailed implementation plans for polydev parallel tasks - generates step-by-step PLAN.md files.
+version: 0.1.0
 ---
 
 # Writing Implementation Plans

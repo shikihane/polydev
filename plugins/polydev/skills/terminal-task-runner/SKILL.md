@@ -1,6 +1,7 @@
 ---
 name: terminal-task-runner
-description: "Use when running commands that take >30 seconds (builds, tests, servers) - hosts in terminal session for monitoring and recovery"
+description: This skill should be used when running commands that take >30 seconds (builds, tests, servers) - hosts in terminal session for monitoring and recovery.
+version: 0.1.0
 ---
 
 # Terminal Task Runner
@@ -20,11 +21,11 @@ Choose skill by prefix:
 
 ---
 
-## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
+## ⛔ Mandatory Constraints - Violation = Failure
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ YOU MUST USE THIS SKILL FOR:                                    │
+│ USE THIS SKILL FOR:                                             │
 │ - ANY SSH connection                                            │
 │ - ANY command that takes >10 seconds                            │
 │ - ANY background/long-running task                              │
@@ -43,7 +44,7 @@ Choose skill by prefix:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**If you violate these rules, the task WILL FAIL.**
+**If these rules are violated, the task WILL FAIL.**
 
 ---
 

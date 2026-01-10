@@ -1,6 +1,7 @@
 ---
 name: worktree-executor
-description: "SUB-AGENT ONLY: Use when spawned in isolated worktree - executes PLAN.md and syncs status to task.toon"
+description: SUB-AGENT ONLY: This skill should be used when spawned in isolated worktree - executes PLAN.md and syncs status to task.toon.
+version: 0.1.0
 ---
 
 # Worktree Executor
@@ -11,17 +12,17 @@ Execute implementation plans in isolated worktrees with mandatory status synchro
 
 ---
 
-## Important: You Are a Sub-Agent
+## Important: Sub-Agent Context
 
-You are a sub-agent started by the main agent via `spawn-session.sh`, running in an isolated worktree.
+This is a sub-agent started by the main agent via `spawn-session.sh`, running in an isolated worktree.
 
-**You do NOT need to call any polydev scripts.** Your responsibilities are:
+**Do NOT call any polydev scripts.** The responsibilities are:
 1. Read `PLAN.md`
 2. Execute tasks step by step
 3. Update `task.toon` status
 4. Commit code changes
 
-The main agent monitors your `task.toon` status via `poll.sh`.
+The main agent monitors `task.toon` status via `poll.sh`.
 
 ---
 
@@ -155,7 +156,7 @@ When all tasks done:
 **Trigger conditions** (all must be met):
 1. Encountered **environment/compatibility/parameter usage** issue
 2. Issue **will recur when new Agent executes**
-3. You **have solved it** with a clear solution
+3. Issue **has been solved** with a clear solution
 
 **Action:** Write file to `.agent-memory/proposed-rules/<issue-summary>.md`
 

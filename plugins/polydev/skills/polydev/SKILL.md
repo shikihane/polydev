@@ -1,6 +1,7 @@
 ---
 name: polydev
-description: "You MUST use this when executing 2+ independent tasks in parallel - orchestrates git worktrees with terminal sessions (tmux/wezterm)"
+description: This skill should be used when executing 2+ independent tasks in parallel - orchestrates git worktrees with terminal sessions (tmux/wezterm).
+version: 0.1.0
 ---
 
 # Polydev
@@ -20,14 +21,14 @@ Choose skill by prefix:
 
 ---
 
-## ⛔ MANDATORY CONSTRAINTS - VIOLATION = FAILURE
+## ⛔ Mandatory Constraints - Violation = Failure
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ THIS SKILL REQUIRES GIT REPOSITORY                              │
 │ For non-git tasks, use other skills by prefix                   │
 ├─────────────────────────────────────────────────────────────────┤
-│ YOU MUST USE THIS SKILL FOR:                                    │
+│ USE THIS SKILL FOR:                                             │
 │ - Parallel development on 2+ independent branches               │
 │ - Spawning sub-Claude instances in isolated worktrees           │
 │                                                                 │
@@ -42,7 +43,7 @@ Choose skill by prefix:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**If you violate these rules, the task WILL FAIL.**
+**If these rules are violated, the task WILL FAIL.**
 
 ---
 
@@ -62,16 +63,15 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 ---
 
-## COST CONTROL - Save Money
+## Cost Control - Save Money
 
-**Parallel agents (sub-agents) MUST use `sonnet` model! Otherwise you will bankrupt your user!**
+**Parallel agents (sub-agents) MUST use `sonnet` model!**
 
 ```
-WILL BANKRUPT YOUR USER - The following will drain funds:
+WILL BANKRUPT USER - The following will drain funds:
 - Spawn multiple parallel agents with opus model
 - Not specifying model parameter (inherits expensive main agent model)
 - Using haiku for tasks requiring code capability (will fail repeatedly, wasting more)
-- "This task is important, opus is better" -- WRONG! sonnet is good enough!
 
 CORRECT USAGE:
 - Task tool: MUST specify model: "sonnet"
@@ -90,9 +90,9 @@ Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
 
 ---
 
-## ABSOLUTE PROHIBITION
+## Absolute Prohibition
 
-**You MUST use scripts. Absolutely forbidden to write terminal commands yourself.**
+**Use scripts. Absolutely forbidden to write terminal commands yourself.**
 
 ```
 BANNED FOREVER - The following are permanently prohibited:
@@ -456,3 +456,22 @@ Phase 6: Cleanup (Human Confirms)
 4. **Restore session first when crashed, then continue**
 5. **Parallel agents MUST use sonnet! Unless user explicitly requests another model!**
 6. **Cleanup order: close-session → verify → git worktree remove (NEVER skip close-session!)**
+
+---
+
+## Additional Resources
+
+### Reference Files
+
+- **`references/architecture.md`** - Detailed architecture, directory structure, and session types
+- **`references/verification-levels.md`** - Verification level definitions and workflows
+
+### Related Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `polydev:brainstorming` | Explore requirements, decompose tasks |
+| `polydev:writing-plans` | Create detailed implementation plans |
+| `polydev:worktree-executor` | Execute plans in worktrees |
+| `polydev:agent-investigator` | Run investigation tasks |
+| `polydev:terminal-task-runner` | Run background commands |

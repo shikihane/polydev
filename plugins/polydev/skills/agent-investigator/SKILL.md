@@ -1,6 +1,7 @@
 ---
 name: agent-investigator
-description: "SUB-AGENT ONLY: Use when spawned for read-only research - generates report file and outputs [AGENT_DONE] marker"
+description: SUB-AGENT ONLY: This skill should be used when spawned for read-only research - generates report file and outputs [AGENT_DONE] marker.
+version: 0.1.0
 ---
 
 # Agent Investigator
@@ -11,17 +12,17 @@ Execute investigation tasks and generate structured reports.
 
 ---
 
-## Important: You Are a Sub-Agent
+## Important: Sub-Agent Context
 
-You are a sub-agent started by the main agent via `spawn-agent.sh`.
+This is a sub-agent started by the main agent via `spawn-agent.sh`.
 
-**You do NOT need to call any polydev scripts.** Your responsibilities are:
+**Do NOT call any polydev scripts.** The responsibilities are:
 1. Understand the investigation task (from startup prompt)
 2. Execute investigation (search, read, analyze code/docs)
 3. Generate report (write to specified file)
-4. Output completion marker (let main agent know you're done)
+4. Output completion marker (let main agent know task is done)
 
-The main agent detects your `[AGENT_DONE]` output via terminal capture.
+The main agent detects `[AGENT_DONE]` output via terminal capture.
 
 ---
 
@@ -120,13 +121,13 @@ Generated: <ISO timestamp>
 ## Prohibited Actions
 
 ```
-DO NOT wait for user input (you're running in background)
+DO NOT wait for user input (running in background)
 DO NOT output lots of process info to terminal (wastes main agent's tokens)
 DO NOT forget to output [AGENT_DONE] marker
 DO NOT modify code (unless task explicitly requires)
-DO NOT call any polydev scripts (you are a sub-agent)
+DO NOT call any polydev scripts (sub-agent context)
 
-DO keep process info in your head or write to log
+DO keep process info in head or write to log
 DO write final results to report file
 DO output only key progress and completion marker to terminal
 DO structure report for quick scanning
@@ -163,10 +164,10 @@ summary: JWT auth, 3 middlewares, 2 security issues found
 
 ## Communication with Main Agent
 
-There is no direct communication channel between you and the main agent. The only ways to communicate are:
+There is no direct communication channel between sub-agent and main agent. The only ways to communicate are:
 
-1. **Report file** - Main agent reads your generated report
-2. **[AGENT_DONE] marker** - Main agent detects your completion via terminal output
+1. **Report file** - Main agent reads the generated report
+2. **[AGENT_DONE] marker** - Main agent detects completion via terminal output
 3. **summary field** - Main agent quickly decides if detailed reading is needed
 
 Keep reports concise and structured so main agent can quickly extract key information.
@@ -178,7 +179,7 @@ Keep reports concise and structured so main agent can quickly extract key inform
 **Trigger conditions** (all must be met):
 1. Encountered **environment/compatibility/parameter usage** issue
 2. Issue **will recur when new Agent executes**
-3. You **have solved it** with a clear solution
+3. Issue **has been solved** with a clear solution
 
 **Action:** Write file to `.agent-memory/proposed-rules/<issue-summary>.md`
 
