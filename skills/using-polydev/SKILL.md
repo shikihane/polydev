@@ -1,21 +1,19 @@
 ---
 name: using-polydev
-description: "Use at conversation start when user mentions: parallel, multiple tasks/features, worktrees, or lists 2+ independent work items - determines which polydev skill to use"
+description: This skill should be used at conversation start when user mentions parallel, multiple tasks/features, worktrees, lists 2+ independent work items, or similar keywords - determines which polydev skill to use.
+version: 0.1.0
 ---
 
-<CRITICAL>
-If the user mentions ANY of these, you MUST check polydev skills:
+# Using Polydev Skills
 
+## When to Use This Skill
+
+Use polydev skills when the user mentions:
 - "parallel" / "simultaneously" / "at the same time"
 - "multiple features" / "multiple tasks"
 - Lists 2+ independent work items
 - "worktree" / "branch" (in context of parallel work)
 - "background" / "long-running command"
-
-This is NOT optional. If there's even a 10% chance polydev applies, CHECK IT.
-</CRITICAL>
-
-# Using Polydev Skills
 
 ## Script Path (Main Agent Must Follow)
 
@@ -74,17 +72,17 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 ---
 
-## Red Flags - STOP and Use Polydev
+## Red Flags - STOP and Check Polydev
 
-If you catch yourself thinking:
+If the main agent thinks:
 
 | Thought | Reality |
 |---------|---------|
-| "I'll just do these sequentially" | If independent, parallelize. Check polydev. |
-| "This is simple enough to do directly" | 2+ tasks = potential parallelism. Check. |
-| "I don't need the overhead" | Polydev saves time on multi-task work. |
-| "Let me explore first" | Run /polydev-brainstorm to explore properly. |
-| "I'll parallelize later" | Parallelize NOW if tasks are independent. |
+| "Execute these sequentially" | If independent, parallelize. Check polydev. |
+| "Simple enough to do directly" | 2+ tasks = potential parallelism. Check. |
+| "Don't need the overhead" | Polydev saves time on multi-task work. |
+| "Explore first" | Run /polydev-brainstorm to explore properly. |
+| "Parallelize later" | Parallelize NOW if tasks are independent. |
 
 **All of these mean: Check polydev skills first.**
 
