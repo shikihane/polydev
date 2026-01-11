@@ -23,8 +23,8 @@ source "$SCRIPT_DIR/terminal-backend.sh"
 NAME=""
 PROMPT=""
 REPORT_PATH=""
-CWD="$(pwd)"
-WORKSPACE="$(basename "$(pwd)")"
+CWD=""
+WORKSPACE=""
 MODEL="${CLAUDE_MODEL:-sonnet}"
 VERBOSE=false
 
@@ -64,9 +64,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ -z "$NAME" ] || [ -z "$PROMPT" ] || [ -z "$REPORT_PATH" ]; then
-  echo "error=Missing name, prompt, or report" >&2
-  echo "Usage: spawn-agent.sh <name> --prompt \"<task>\" --report <path> [--verbose]" >&2
+if [ -z "$NAME" ] || [ -z "$PROMPT" ] || [ -z "$REPORT_PATH" ] || [ -z "$CWD" ]; then
+  echo "error=Missing required parameter(s): name, prompt, report, or cwd" >&2
+  echo "Usage: spawn-agent.sh <name> --prompt \"<task>\" --report <path> --cwd <dir> [--verbose]" >&2
   exit 1
 fi
 
@@ -76,6 +76,11 @@ if [ ! -d "$CWD" ]; then
 fi
 
 CWD="$(cd "$CWD" && pwd)"
+
+# Derive workspace from CWD if not explicitly set
+if [ -z "$WORKSPACE" ]; then
+  WORKSPACE="$(basename "$CWD")"
+fi
 
 if [[ "$REPORT_PATH" != /* ]]; then
   REPORT_PATH="$CWD/$REPORT_PATH"
@@ -110,6 +115,9 @@ pane_id=$(tb_create_worktree_session "$ag_workspace" "$NAME" "$CWD" "")
 
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
 
+# Capture terminal state before starting Claude
+initial_content=$(tb_capture_content "$pane_id")
+
 # Start Claude
 if ! tb_send_command "$pane_id" "claude --dangerously-skip-permissions --model $MODEL" "true"; then
   echo "[E] error=Failed to start Claude" >&2
@@ -118,8 +126,8 @@ fi
 
 toon_log "claude_started" "model=$MODEL,pane_id=$pane_id"
 
-# Wait for Claude
-tb_wait_for_claude "$pane_id" 15
+# Wait for Claude to start (detects terminal content change, max 5s)
+tb_wait_for_claude "$pane_id" 5 "$initial_content"
 
 # Build agent prompt
 AGENT_PROMPT=""

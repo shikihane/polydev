@@ -276,13 +276,13 @@ except:
   # Git Bash often starts in MSYS installation dir or %USERPROFILE%
   # See: https://github.com/git-for-windows/git/issues/794
   # Explicitly cd to the target directory after bash starts
-  sleep 2  # Wait for bash prompt to initialize
+  sleep 0.5  # Wait for bash prompt to initialize
   printf 'cd "%s"' "$cwd" | wezterm cli send-text --pane-id "$pane_id"
-  sleep 2
+  sleep 0.3
   printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   sleep 0.3
   printf 'clear' | wezterm cli send-text --pane-id "$pane_id"
-  sleep 2
+  sleep 0.3
   printf '\r' | wezterm cli send-text --pane-id "$pane_id"
 
   # Return the numeric pane_id (not session_id)
@@ -305,7 +305,7 @@ _wezterm_send_command() {
   printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 2
+    sleep 0.3
     printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
@@ -319,7 +319,7 @@ _wezterm_send_multiline_text() {
   printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 2
+    sleep 0.3
     printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
@@ -531,33 +531,67 @@ tb_send_multiline_text() {
   esac
 }
 
-# Wait for Claude Code to start and be ready for input
-# Usage: tb_wait_for_claude <session_id> [timeout_seconds=30]
-# Returns: 0 if ready, 1 if timeout
-# Note: For freshly created sessions, consider using simple sleep instead
+# Wait for Claude to start accepting input
+# Usage: tb_wait_for_claude <pane_id> [timeout_seconds=5] [initial_content]
+# Returns: 0 if ready or timeout (proceed anyway), 1 if session died
+# Strategy: detect terminal content change from initial state
 tb_wait_for_claude() {
-  local session_id="$1"
-  local timeout="${2:-30}"
-  local elapsed=0
-  local interval=2
+  local pane_id="$1"
+  local timeout="${2:-5}"
+  local initial_content="${3:-}"
+  local start_time=$(date +%s)
 
-  echo "⏳ Waiting for Claude to start (timeout: ${timeout}s)..."
+  # If no initial content provided, just do a brief wait
+  if [ -z "$initial_content" ]; then
+    sleep 1
+    return 0
+  fi
 
-  while [ $elapsed -lt $timeout ]; do
-    if ! tb_is_session_alive "$session_id"; then
-      echo "❌ Session died during startup"
+  while true; do
+    local now=$(date +%s)
+    local elapsed=$((now - start_time))
+
+    if [ $elapsed -ge $timeout ]; then
+      return 0  # Timeout - proceed anyway
+    fi
+
+    if ! tb_is_session_alive "$pane_id"; then
+      echo "❌ Session died" >&2
       return 1
     fi
 
-    sleep $interval
-    elapsed=$((elapsed + interval))
-    echo -n "."
-  done
+    # Get current content
+    local current_content
+    case "$TB_BACKEND" in
+      wezterm)
+        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null | head -5)
+        ;;
+      tmux)
+        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null | head -5)
+        ;;
+    esac
 
-  echo ""
-  echo "⚠️  Timeout reached. Claude might still be starting..."
-  echo "   Proceeding anyway..."
-  return 0
+    # If content changed, Claude has started
+    if [ "$current_content" != "$initial_content" ]; then
+      return 0
+    fi
+
+    sleep 0.2
+  done
+}
+
+# Capture terminal content for change detection
+# Usage: tb_capture_content <pane_id>
+tb_capture_content() {
+  local pane_id="$1"
+  case "$TB_BACKEND" in
+    wezterm)
+      wezterm cli get-text --pane-id "$pane_id" 2>/dev/null | head -5
+      ;;
+    tmux)
+      _tmux capture-pane -t "$pane_id" -p 2>/dev/null | head -5
+      ;;
+  esac
 }
 
 # Get current backend
