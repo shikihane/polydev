@@ -159,13 +159,17 @@ echo "Updated pane_id to: $new_pane_id"
 echo ""
 echo "Starting Claude..."
 
+# Capture terminal state before starting Claude (for change detection)
+initial_content=$(tb_capture_content "$new_pane_id")
+
 if ! tb_send_command "$new_pane_id" "claude --dangerously-skip-permissions"; then
   echo "Failed to start Claude"
   echo "Pane ID: $new_pane_id"
   exit 1
 fi
 
-tb_wait_for_claude "$new_pane_id" 15
+# Wait for Claude to start (detects terminal content change, max 15s)
+tb_wait_for_claude "$new_pane_id" 15 "$initial_content"
 
 # Send the agent prompt
 if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then
