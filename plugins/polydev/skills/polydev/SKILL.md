@@ -119,8 +119,8 @@ CLEANUP ORDER VIOLATION - Will cause "Permission denied":
 ### Scenario A: Create Worktree + Claude Session
 **Script**: `spawn-session.sh`
 **Parameters**: `<workspace> <branch> <worktree-path> <plan-file> [verify] [fallback] [--verbose]`
-**Output**: TOON event log lines + final `session_id=...` line
-**Returns**: session_id (format: `wo:<workspace>:<branch>.0`)
+**Output**: TOON event log lines
+**Returns**: pane_id (numeric identifier for the terminal pane)
 
 **⚠️ WORKTREE PATH RULE - MUST FOLLOW:**
 ```
@@ -164,7 +164,7 @@ Rule: Use project name as workspace for all parallel tasks.
 
 ```bash
 # Output format (TOON):
-# worktree=.worktrees/feature,branch=feature,overall_status=in_progress,agent_status=active,last_update=2025-01-09T10:30:00Z,session_id=wo:ws:feature.0
+# worktree=.worktrees/feature,branch=feature,overall_status=in_progress,agent_status=active,last_update=2025-01-09T10:30:00Z,pane_id=5
 
 result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 ```
@@ -190,12 +190,11 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 
 ### Scenario E: Send Command to Any Session (SSH, REPL, etc.)
 **Script**: `send-to-session.sh`
-**Parameters**: `<session_id> "<command>" [--no-enter]`
-**session_id format**: `bg:xxx`, `wo:xxx`, `ag:xxx`
+**Parameters**: `<pane_id> "<command>" [--no-enter]`
 
 ```bash
-# Send command to SSH session
-"$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh.0 "docker ps"
+# Send command to SSH session (use pane_id from list-sessions.sh)
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps"
 ```
 
 ### Scenario F: Focus on a Session (Manual)
@@ -216,27 +215,29 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 
 ### Scenario H: Close/Terminate Session
 **Script**: `close-session.sh`
-**Parameters**: `<session_id>`
+**Parameters**: `<worktree_path>` or `--pane-id <pane_id>`
 **Output**: TOON event log
 
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" wo:myproject:feature-auth.0
-"$POLYDEV_SCRIPTS/close-session.sh" bg:bg-polydev:build.0
+# By worktree path (preferred for wo: sessions)
+"$POLYDEV_SCRIPTS/close-session.sh" .worktrees/feature-auth
+
+# By pane_id (for bg:/ag: sessions without worktree)
+"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
 ```
 
 ### Scenario I: Read Session Current Screen Content
 **Script**: `capture-screen.sh`
-**Parameters**: `--session <wo:session_id> --lines <N>` or `<worktree-path> [--lines N]`
-**Note**: `--session` parameter requires `wo:` prefix!
+**Parameters**: `<worktree_path> [--lines N]` or `--pane-id <pane_id> [--lines N]`
 
 ```bash
 # Output: Terminal screen content (no headers)
 
-# Via worktree path
+# Via worktree path (preferred for wo: sessions)
 "$POLYDEV_SCRIPTS/capture-screen.sh" .worktrees/auth --lines 50
 
-# Via session ID (must use wo: prefix)
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-polydev:build.0 --lines 50
+# Via pane_id (for bg:/ag: sessions without worktree)
+"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 50
 ```
 
 ### Scenario J: Cleanup Worktree (After Completion)
@@ -259,7 +260,7 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 
 **Step 1**: Close session (releases directory lock)
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" wo:myproject:feature-auth.0
+"$POLYDEV_SCRIPTS/close-session.sh" .worktrees/feature-auth
 ```
 
 **Step 2**: Verify session is closed
@@ -287,10 +288,10 @@ git branch -D feature-auth
 ### Scenario K: Start Background Command (No Sub-Claude)
 **Script**: `run-background.sh`
 **Parameters**: `<name> "<command>" [--cwd <dir>] [--verbose]`
-**Returns**: session_id (format: `bg:<workspace>:<name>.0`)
+**Returns**: pane_id (numeric identifier)
 
 ```bash
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 ```
 
 ### Scenario L: Start Investigation Agent
@@ -316,13 +317,17 @@ session_id=$("$POLYDEV_SCRIPTS/spawn-agent.sh" auth-research \
 | **Background Cmd** | run-background.sh | No | Terminal output analysis |
 | **Agent Investigation** | spawn-agent.sh | Yes | Report file + [AGENT_DONE] |
 
-### Session ID Format
+### Session ID Format (Human-Readable Only)
+
+**Note**: `session_id` is for human debugging only. Scripts use `pane_id` or `worktree_path`.
 
 ```
 wo:workspace:branch.0    # Parallel dev (worktree)
 bg:workspace:name.0      # Background cmd (background)
 ag:workspace:name.0      # Agent investigation (agent)
 ```
+
+Use `list-sessions.sh` to see both session_id (for humans) and pane_id (for scripts).
 
 ---
 

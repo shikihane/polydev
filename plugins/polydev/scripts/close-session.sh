@@ -49,9 +49,8 @@ if [ -z "$PANE_ID" ] && [ -n "$WORKTREE_PATH" ]; then
   meta_line=$(grep -A1 "^meta{" "$TASK_FILE" | tail -1 | tr -d ' ')
   PANE_ID=$(echo "$meta_line" | cut -d',' -f3)
   BRANCH=$(echo "$meta_line" | cut -d',' -f2)
-  WORKSPACE=$(echo "$meta_line" | cut -d',' -f1)
 
-  echo "[D] pane_id=$PANE_ID worktree=$WORKTREE_PATH branch=$BRANCH workspace=$WORKSPACE" >&2
+  echo "[D] pane_id=$PANE_ID worktree=$WORKTREE_PATH branch=$BRANCH" >&2
 fi
 
 if [ -z "$PANE_ID" ]; then

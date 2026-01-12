@@ -269,8 +269,8 @@ except:
     pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd")
   fi
 
-  # Set tab_title - this is how we identify the session later (no map file needed)
-  wezterm cli set-tab-title --pane-id "$pane_id" "$branch"
+  # Set tab_title - includes pane_id for easy identification
+  wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
 
   # Workaround for Windows Git Bash: --cwd may not work correctly
   # Git Bash often starts in MSYS installation dir or %USERPROFILE%

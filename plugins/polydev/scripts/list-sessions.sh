@@ -84,11 +84,18 @@ for p in panes:
 "
 }
 
+output=""
 case "$TB_BACKEND" in
   tmux)
-    _list_tmux_sessions "$WORKSPACE_FILTER"
+    output=$(_list_tmux_sessions "$WORKSPACE_FILTER")
     ;;
   wezterm)
-    _list_wezterm_sessions "$WORKSPACE_FILTER"
+    output=$(_list_wezterm_sessions "$WORKSPACE_FILTER")
     ;;
 esac
+
+if [ -n "$output" ]; then
+  echo "$output"
+else
+  echo "(No sessions found)" >&2
+fi
