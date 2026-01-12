@@ -183,8 +183,8 @@ if [ -n "$existing_pane_id" ] && [ "$existing_pane_id" != "PENDING_PANE_ID" ]; t
 fi
 
 # Create terminal session (now returns pane_id)
-PROJECT_NAME=$(basename "$(pwd)")
-TAB_NAME="${PROJECT_NAME}-${BRANCH_NAME}"
+# TAB_NAME uses branch name only; pane_id is appended by terminal-backend.sh
+TAB_NAME="$BRANCH_NAME"
 
 pane_id=$(tb_create_worktree_session "$WORKSPACE" "$TAB_NAME" "$WORKTREE_PATH" "$PLAN_FILE")
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"

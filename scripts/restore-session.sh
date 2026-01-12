@@ -124,8 +124,13 @@ echo "Auto-restarting session..."
 # Step 6: Create new session
 echo "Creating new terminal session..."
 
-PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "workspace")")
-WORKSPACE="${PROJECT_NAME}-parallel"
+# Use workspace from task.toon if valid, otherwise generate default
+if [ -n "$workspace" ] && [[ ! "$workspace" =~ ^\.worktrees/ ]]; then
+  WORKSPACE="$workspace"
+else
+  PROJECT_NAME=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "workspace")")
+  WORKSPACE="${PROJECT_NAME}-parallel"
+fi
 
 if [ ! -f "$PLAN_FILE" ]; then
   echo "Warning: PLAN.md not found in worktree"
