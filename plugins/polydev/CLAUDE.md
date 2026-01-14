@@ -179,6 +179,14 @@ echo "Backend: $(tb_get_backend)"
 - Always quote paths with spaces
 - Scripts handle path conversion automatically
 
+## Troubleshooting
+
+### WezTerm Cold Start Timeout
+
+After system boot, WezTerm's mux server may not be fully initialized, causing `wezterm cli list` and other commands to timeout or hang.
+
+**Solution**: Wait a few seconds and retry, or manually open a WezTerm window first to initialize the service.
+
 ## Shell Inline Python Escaping
 
 When passing shell variables to inline Python, use environment variables instead of string interpolation to avoid escaping issues with special characters (`/`, `'`, `"`):
