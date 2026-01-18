@@ -123,8 +123,14 @@ Based on feedback:
 
 When all tasks done:
 1. Run final verification (all tests, build, lint)
-2. Update task.toon -> `overall_status: completed`
-3. Output completion summary
+2. **Commit all changes (MANDATORY):**
+   ```bash
+   git add -A
+   git diff --cached --quiet || git commit -m "feat(<branch-name>): implementation complete"
+   ```
+   **Never skip this step** - uncommitted changes will be lost when worktree is removed.
+3. Update task.toon -> `overall_status: completed`
+4. Output completion summary
 
 ---
 
