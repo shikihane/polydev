@@ -7,7 +7,7 @@
 #   session_id=ag:ag-polydev:research.0,status=alive,pane_id=1,cwd=/path
 #   session_id=bg:bg-polydev:build.0,status=alive,pane_id=2,cwd=/path
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "$SCRIPT_DIR/terminal-backend.sh"
 
 if [ "$TB_BACKEND" != "wezterm" ]; then
