@@ -305,7 +305,7 @@ _wezterm_send_command() {
   printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 0.3
+    sleep 3
     printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
@@ -319,7 +319,7 @@ _wezterm_send_multiline_text() {
   printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 0.3
+    sleep 3
     printf '\r' | wezterm cli send-text --pane-id "$pane_id"
   fi
 }
