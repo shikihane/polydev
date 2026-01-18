@@ -86,10 +86,13 @@ _capture_wezterm() {
   local lines="$2"
 
   if [ -n "$lines" ]; then
-    # Get all content and extract last N lines
-    wezterm cli get-text --pane-id "$pane_id" --start-line -200 2>/dev/null | tail -n "$lines"
+    # Get last N lines from scrollback
+    wezterm cli get-text --pane-id "$pane_id" --start-line -"$lines" 2>/dev/null
   else
-    wezterm cli get-text --pane-id "$pane_id"
+    # Default: get last 100 lines (visible area + some scrollback)
+    # Note: without --start-line, wezterm only returns visible area
+    # which may miss bottom status line
+    wezterm cli get-text --pane-id "$pane_id" --start-line -100 2>/dev/null
   fi
 }
 
