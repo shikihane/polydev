@@ -204,6 +204,22 @@ After system boot, WezTerm's mux server may not be fully initialized, causing `w
 
 **Solution**: Wait a few seconds and retry, or manually open a WezTerm window first to initialize the service.
 
+### ⛔ NEVER Optimize: WezTerm Send Text Sleep Time
+
+**terminal-backend.sh 中的 `_wezterm_send_command` 和 `_wezterm_send_multiline_text` 函数里，发送回车键前的 sleep 时间绝对禁止优化！**
+
+```bash
+# ⛔ 绝对禁止修改这个 sleep 时间！
+if [ "$execute" = "true" ]; then
+    sleep 3  # ← 必须 >= 2 秒，否则回车键会失效！
+    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+fi
+```
+
+**原因**: Claude Code 需要足够时间处理大段文本输入。如果 sleep 时间 < 2 秒，回车键会在文本还没完全处理完时发送，导致命令不执行。
+
+**历史教训**: 2026-01-11 曾为"优化启动速度"将 `sleep 2` 改为 `sleep 0.3`，结果导致回车键功能完全失效。
+
 ## Shell Inline Python Escaping
 
 When passing shell variables to inline Python, use environment variables instead of string interpolation to avoid escaping issues with special characters (`/`, `'`, `"`):
