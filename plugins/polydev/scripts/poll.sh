@@ -11,7 +11,7 @@
 #   Needs attention:
 #     branch: reason
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 source "$SCRIPT_DIR/terminal-backend.sh"
 
 set +e  # poll needs to handle errors gracefully

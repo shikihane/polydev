@@ -19,10 +19,28 @@ Use polydev skills when the user mentions:
 
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
+### ⚠️ Windows Compatibility - CRITICAL
+
+**On Windows (Git Bash/MINGW), scripts MUST be executed using `bash -c "$(cat ...)"` pattern:**
+
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+
+# Define helper function for Windows compatibility
+run_polydev() {
+    local script="$1"
+    shift
+    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
+}
+
+# ✅ CORRECT - Use run_polydev helper (works on all platforms)
+run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
+
+# ❌ WRONG - Direct execution FAILS SILENTLY on Windows
+"$POLYDEV_SCRIPTS/spawn-session.sh" args...  # Silent failure!
 ```
+
+**Why this pattern?** Claude Code's Bash tool on Windows has an issue where direct script execution returns exit code 0 but produces no output and doesn't actually execute.
 
 ---
 
@@ -57,18 +75,27 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 ## Script Quick Reference (For Main Agent)
 
+**Always use `run_polydev` helper function (see above) for script execution.**
+
 | Scenario | Script | Parameters |
 |----------|--------|------------|
 | Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
 | Send to worktree | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
-| Send to any session | `send-to-session.sh` | `<session_id> "<cmd>"` |
-| Read screen output | `capture-screen.sh` | `--session <wo:id> --lines N` |
+| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>"` |
+| Read screen output | `capture-screen.sh` | `--pane-id <id> --lines N` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
-| Close session | `close-session.sh` | `<session_id>` |
+| Close session | `close-session.sh` | `<worktree_path>` or `--pane-id <id>` |
 | Start background command | `run-background.sh` | `<name> "<cmd>"` |
 | Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
+
+**Example calls:**
+```bash
+run_polydev spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
+run_polydev poll.sh .worktrees 10
+run_polydev list-sessions.sh
+```
 
 ---
 

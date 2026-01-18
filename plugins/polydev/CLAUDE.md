@@ -54,16 +54,31 @@ polydev/
 
 **All scripts must be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
+### ⚠️ Windows Script Execution - CRITICAL
+
+**On Windows (Git Bash/MINGW), scripts MUST be executed using `bash -c "$(cat ...)"` pattern:**
+
 ```bash
 # Set path variable first
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
-# Then call scripts
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
+# Define helper function for Windows compatibility
+run_polydev() {
+    local script="$1"
+    shift
+    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
+}
+
+# ✅ CORRECT - Use run_polydev helper (works on all platforms)
+run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
+run_polydev poll.sh .worktrees 10
+run_polydev list-sessions.sh
+
+# ❌ WRONG - Direct execution FAILS SILENTLY on Windows
+"$POLYDEV_SCRIPTS/spawn-session.sh" args...  # Returns 0 but doesn't execute!
 ```
 
-**Why?** `./scripts/` relative path fails when working outside the plugin directory.
+**Why?** Claude Code's Bash tool on Windows has an issue where direct script execution (`./script.sh` or `bash script.sh`) returns exit code 0 but produces no output and doesn't actually execute. The `bash -c "$(cat ...)"` pattern with `SCRIPT_DIR` env var reliably works.
 
 ### Workspace Parameter - CRITICAL
 
@@ -71,19 +86,21 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 ```bash
 # ❌ WRONG - Creates 3 separate windows
-spawn-session.sh project-ws1 feature/auth ...
-spawn-session.sh project-ws2 feature/api ...
-spawn-session.sh project-ws3 feature/ui ...
+run_polydev spawn-session.sh project-ws1 feature/auth ...
+run_polydev spawn-session.sh project-ws2 feature/api ...
+run_polydev spawn-session.sh project-ws3 feature/ui ...
 
 # ✅ CORRECT - Creates 1 window with 3 tabs
-spawn-session.sh my-project feature/auth ...
-spawn-session.sh my-project feature/api ...
-spawn-session.sh my-project feature/ui ...
+run_polydev spawn-session.sh my-project feature/auth ...
+run_polydev spawn-session.sh my-project feature/api ...
+run_polydev spawn-session.sh my-project feature/ui ...
 ```
 
 **Rule:** Use a consistent workspace name (e.g., project name) for all parallel tasks in the same project.
 
 ### Script Usage by Scenario
+
+**Always use `run_polydev` helper function for script execution (defined in Windows Script Execution section above).**
 
 **Core workflow:**
 | Scenario | Script | Parameters |

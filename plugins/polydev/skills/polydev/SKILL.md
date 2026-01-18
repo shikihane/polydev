@@ -51,13 +51,31 @@ Choose skill by prefix:
 
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
 
+### ⚠️ Windows Compatibility - CRITICAL
+
+**On Windows (Git Bash/MINGW), scripts MUST be executed using `bash -c "$(cat ...)"` pattern:**
+
 ```bash
 # Set script path variable (use plugin installation location)
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
-# Then call using the variable
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+# Define helper function for Windows compatibility
+run_polydev() {
+    local script="$1"
+    shift
+    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
+}
+
+# ✅ CORRECT - Use run_polydev helper (works on all platforms)
+run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
+run_polydev poll.sh .worktrees 10
+run_polydev list-sessions.sh
+
+# ❌ WRONG - Direct execution FAILS SILENTLY on Windows
+"$POLYDEV_SCRIPTS/spawn-session.sh" args...  # Silent failure!
 ```
+
+**Why this pattern?** Claude Code's Bash tool on Windows has an issue where direct script execution (`./script.sh` or `bash script.sh`) returns exit code 0 but produces no output and doesn't actually execute. The `bash -c "$(cat ...)"` pattern with `SCRIPT_DIR` env var reliably works.
 
 **Why?** `./scripts/` relative path breaks when leaving plugin directory.
 
@@ -138,22 +156,22 @@ worktree-path MUST be: .worktrees/<branch-name>
 workspace determines window grouping. Same workspace = same window with multiple tabs.
 
 ✅ CORRECT - All parallel tasks use SAME workspace name:
-   spawn-session.sh my-project feature/auth ...
-   spawn-session.sh my-project feature/api ...
-   spawn-session.sh my-project feature/ui ...
+   run_polydev spawn-session.sh my-project feature/auth ...
+   run_polydev spawn-session.sh my-project feature/api ...
+   run_polydev spawn-session.sh my-project feature/ui ...
    → Creates 1 window with 3 tabs
 
 ❌ WRONG - Different workspace names create separate windows:
-   spawn-session.sh ws1 feature/auth ...
-   spawn-session.sh ws2 feature/api ...
-   spawn-session.sh ws3 feature/ui ...
+   run_polydev spawn-session.sh ws1 feature/auth ...
+   run_polydev spawn-session.sh ws2 feature/api ...
+   run_polydev spawn-session.sh ws3 feature/ui ...
    → Creates 3 separate windows (BAD!)
 
 Rule: Use project name as workspace for all parallel tasks.
 ```
 
 ```bash
-"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
+run_polydev spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
 ```
 
 ### Scenario B: Monitor All Worktree Status (Must Call in Loop)
@@ -166,7 +184,7 @@ Rule: Use project name as workspace for all parallel tasks.
 # Output format (TOON):
 # worktree=.worktrees/feature,branch=feature,overall_status=in_progress,agent_status=active,last_update=2025-01-09T10:30:00Z,pane_id=5
 
-result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
+result=$(run_polydev poll.sh .worktrees 10)
 ```
 
 ### Scenario C: Restore Crashed Session
@@ -174,8 +192,8 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 **Parameters**: `<worktree-path> [--force]`
 
 ```bash
-"$POLYDEV_SCRIPTS/restore-session.sh" .worktrees/auth
-"$POLYDEV_SCRIPTS/restore-session.sh" .worktrees/auth --force  # Force restart
+run_polydev restore-session.sh .worktrees/auth
+run_polydev restore-session.sh .worktrees/auth --force  # Force restart
 ```
 
 ### Scenario D: Send Command to Worktree Session (Has task.toon)
@@ -184,8 +202,8 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 **Prerequisite**: Worktree must have task.toon file
 
 ```bash
-"$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "npm test"
-"$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "password" --no-enter
+run_polydev wo-send-command.sh .worktrees/auth "npm test"
+run_polydev wo-send-command.sh .worktrees/auth "password" --no-enter
 ```
 
 ### Scenario E: Send Command to Any Session (SSH, REPL, etc.)
@@ -194,7 +212,7 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 
 ```bash
 # Send command to SSH session (use pane_id from list-sessions.sh)
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps"
+run_polydev send-to-session.sh 5 "docker ps"
 ```
 
 ### Scenario F: Focus on a Session (Manual)
@@ -209,8 +227,8 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 # Output format (TOON):
 # session_id=wo:myproject:feature.0,status=alive,cwd=/path/to/worktree
 
-"$POLYDEV_SCRIPTS/list-sessions.sh"
-"$POLYDEV_SCRIPTS/list-sessions.sh" myproject
+run_polydev list-sessions.sh
+run_polydev list-sessions.sh myproject
 ```
 
 ### Scenario H: Close/Terminate Session
@@ -220,10 +238,10 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 
 ```bash
 # By worktree path (preferred for wo: sessions)
-"$POLYDEV_SCRIPTS/close-session.sh" .worktrees/feature-auth
+run_polydev close-session.sh .worktrees/feature-auth
 
 # By pane_id (for bg:/ag: sessions without worktree)
-"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
+run_polydev close-session.sh --pane-id 5
 ```
 
 ### Scenario I: Read Session Current Screen Content
@@ -234,10 +252,10 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 # Output: Terminal screen content (no headers)
 
 # Via worktree path (preferred for wo: sessions)
-"$POLYDEV_SCRIPTS/capture-screen.sh" .worktrees/auth --lines 50
+run_polydev capture-screen.sh .worktrees/auth --lines 50
 
 # Via pane_id (for bg:/ag: sessions without worktree)
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 50
+run_polydev capture-screen.sh --pane-id 5 --lines 50
 ```
 
 ### Scenario J: Cleanup Worktree (After Completion)
@@ -260,12 +278,12 @@ Use wezterm/tmux directly to focus on a session. This is a manual operation for 
 
 **Step 1**: Close session (releases directory lock)
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" .worktrees/feature-auth
+run_polydev close-session.sh .worktrees/feature-auth
 ```
 
 **Step 2**: Verify session is closed
 ```bash
-"$POLYDEV_SCRIPTS/list-sessions.sh"  # Should show "(No sessions found)" or not include your session
+run_polydev list-sessions.sh  # Should show "(No sessions found)" or not include your session
 ```
 
 **Step 3**: Ask user for confirmation before deleting worktree
@@ -291,7 +309,7 @@ git branch -D feature-auth
 **Returns**: pane_id (numeric identifier)
 
 ```bash
-pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$(run_polydev run-background.sh build "npm run build")
 ```
 
 ### Scenario L: Start Investigation Agent
@@ -301,7 +319,7 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 **Note**: `--cwd` is **required** - the script will fail without it.
 
 ```bash
-session_id=$("$POLYDEV_SCRIPTS/spawn-agent.sh" auth-research \
+session_id=$(run_polydev spawn-agent.sh auth-research \
   --prompt "Analyze authentication mechanism in project" \
   --report ./.agent-reports/auth.md \
   --cwd "$(git rev-parse --show-toplevel)")
@@ -336,9 +354,16 @@ Use `list-sessions.sh` to see both session_id (for humans) and pane_id (for scri
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
+# Define helper function for Windows compatibility
+run_polydev() {
+    local script="$1"
+    shift
+    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
+}
+
 # After starting all sessions, immediately enter monitoring loop - cannot skip!
 while branches_remaining; do
-  result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)  # Must call!
+  result=$(run_polydev poll.sh .worktrees 10)  # Must call!
 
   # Parse TOON output lines
   echo "$result" | while IFS=',' read -r key1 rest; do
@@ -351,7 +376,7 @@ while branches_remaining; do
   # agent_status: active, idle, crashed
 
   case "$agent_status" in
-    crashed) "$POLYDEV_SCRIPTS/restore-session.sh" "$worktree" --force ;;
+    crashed) run_polydev restore-session.sh "$worktree" --force ;;
     idle)    # Check if restart needed
   esac
 
@@ -427,9 +452,9 @@ Phase 6: Cleanup (Human Confirms)
 
 | Scenario | agent_status | Solution |
 |----------|--------------|----------|
-| **Session crashed** | crashed | `"$POLYDEV_SCRIPTS/restore-session.sh" <worktree> --force` |
-| **Claude stopped** | idle | `"$POLYDEV_SCRIPTS/restore-session.sh" <worktree>` |
-| **Claude stuck** | active (no update for long time) | `"$POLYDEV_SCRIPTS/restore-session.sh" <worktree> --force` |
+| **Session crashed** | crashed | `run_polydev restore-session.sh <worktree> --force` |
+| **Claude stopped** | idle | `run_polydev restore-session.sh <worktree>` |
+| **Claude stuck** | active (no update for long time) | `run_polydev restore-session.sh <worktree> --force` |
 
 ---
 
