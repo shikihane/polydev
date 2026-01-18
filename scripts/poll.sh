@@ -66,6 +66,7 @@ while true; do
     # Build summary
     icon="?"
     case "$overall_status" in
+      pending)     icon="." ;;
       in_progress) icon="I" ;;
       completed)   icon="C"; needs_attention=true ;;
       hil)         icon="H"; needs_attention=true ;;
@@ -76,6 +77,7 @@ while true; do
       cleanup_pending) icon="P"; needs_attention=true ;;
     esac
     case "$agent_status" in
+      pending) icon="." ;;
       idle)    icon="i"; needs_attention=true ;;
       crashed) icon="!"; needs_attention=true ;;
     esac
