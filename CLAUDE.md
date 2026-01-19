@@ -40,7 +40,9 @@ polydev/
 │   │
 │   │ # Background tasks
 │   ├── run-background.sh      # Background commands (no sub-Claude, returns pane_id)
-│   └── spawn-agent.sh         # Investigation agents (returns pane_id)
+│   ├── spawn-agent.sh         # Claude sub-agent with prompt (returns pane_id)
+│   ├── spawn-codex.sh         # Codex CLI session with prompt (returns pane_id)
+│   └── spawn-gemini.sh        # Gemini CLI session with prompt (returns pane_id)
 │   │
 │   │ # Cleanup
 │   └── cleanup-worktree.sh    # Clean up worktree + session
@@ -122,7 +124,9 @@ run_polydev spawn-session.sh my-project feature/ui ...
 | Scenario | Script | Parameters |
 |----------|--------|------------|
 | Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>]` |
-| Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
+| Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
+| Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
 **Cleanup:**
 | Scenario | Script | Parameters |

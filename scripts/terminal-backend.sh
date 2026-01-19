@@ -580,6 +580,92 @@ tb_wait_for_claude() {
   done
 }
 
+# Wait for Codex CLI to be ready
+# Usage: tb_wait_for_codex <pane_id> [timeout_seconds=15]
+# Returns: 0 if ready, 1 if timeout or session died
+# Ready marker: "context left" in status line
+tb_wait_for_codex() {
+  local pane_id="$1"
+  local timeout="${2:-15}"
+  local start_time=$(date +%s)
+
+  while true; do
+    local now=$(date +%s)
+    local elapsed=$((now - start_time))
+
+    if [ $elapsed -ge $timeout ]; then
+      echo "[W] Codex wait timeout after ${timeout}s" >&2
+      return 1
+    fi
+
+    if ! tb_is_session_alive "$pane_id"; then
+      echo "[E] Session died while waiting for Codex" >&2
+      return 1
+    fi
+
+    # Get current content
+    local current_content
+    case "$TB_BACKEND" in
+      wezterm)
+        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null)
+        ;;
+      tmux)
+        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null)
+        ;;
+    esac
+
+    # Check for Codex ready marker
+    if echo "$current_content" | grep -q "context left"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+}
+
+# Wait for Gemini CLI to be ready
+# Usage: tb_wait_for_gemini <pane_id> [timeout_seconds=15]
+# Returns: 0 if ready, 1 if timeout or session died
+# Ready marker: "Type your message" in input box
+tb_wait_for_gemini() {
+  local pane_id="$1"
+  local timeout="${2:-15}"
+  local start_time=$(date +%s)
+
+  while true; do
+    local now=$(date +%s)
+    local elapsed=$((now - start_time))
+
+    if [ $elapsed -ge $timeout ]; then
+      echo "[W] Gemini wait timeout after ${timeout}s" >&2
+      return 1
+    fi
+
+    if ! tb_is_session_alive "$pane_id"; then
+      echo "[E] Session died while waiting for Gemini" >&2
+      return 1
+    fi
+
+    # Get current content
+    local current_content
+    case "$TB_BACKEND" in
+      wezterm)
+        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null)
+        ;;
+      tmux)
+        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null)
+        ;;
+    esac
+
+    # Check for Gemini ready marker
+    if echo "$current_content" | grep -q "Type your message"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
+}
+
 # Capture terminal content for change detection
 # Usage: tb_capture_content <pane_id>
 tb_capture_content() {
