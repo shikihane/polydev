@@ -88,7 +88,9 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | List sessions | `list-sessions.sh` | `[workspace]` |
 | Close session | `close-session.sh` | `<worktree_path>` or `--pane-id <id>` |
 | Start background command | `run-background.sh` | `<name> "<cmd>"` |
-| Start investigation agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path>` |
+| Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
+| Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
 **Example calls:**
 ```bash
@@ -131,8 +133,8 @@ If the main agent thinks:
 4. Use `capture-screen.sh` to read output
 
 **User says "research X":**
-1. Read-only analysis? -> polydev:agent-investigator (via spawn-agent.sh)
-2. Need parallel research? -> Multiple agent-investigators
+1. Read-only analysis? -> Use spawn-agent.sh (Claude), spawn-codex.sh (Codex), or spawn-gemini.sh (Gemini)
+2. Need parallel research? -> Multiple agents with different AI backends
 
 ## Cost Control Reminder
 

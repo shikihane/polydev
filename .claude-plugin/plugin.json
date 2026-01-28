@@ -1,7 +1,7 @@
 {
   "name": "polydev",
   "description": "Parallel development orchestration with terminal-hosted background tasks and agent investigations",
-  "version": "1.3.12",
+  "version": "1.3.13",
   "author": {
     "name": "Heyang"
   },
