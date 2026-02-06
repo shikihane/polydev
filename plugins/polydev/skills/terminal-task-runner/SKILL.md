@@ -87,41 +87,39 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 ### Scenario A: Start Background Task
 **Script**: `run-background.sh`
 **Parameters**: `<name> "<command>" [--cwd <dir>]`
-**Returns**: session_id (format: `bg:<workspace>:<name>.0`)
+**Returns**: pane_id (numeric identifier for the terminal pane)
 
 ```bash
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
-# Returns: bg:bg-myproject:build.0
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+# Returns: numeric pane_id, e.g. 5
 ```
 
 ### Scenario B: Send Command to Existing Session (SSH, REPL, etc.)
 **Script**: `send-to-session.sh`
-**Parameters**: `<session_id> "<command>" [--no-enter]`
-**session_id format**: `bg:xxx`, `wo:xxx`, `ag:xxx`
+**Parameters**: `<pane_id> "<command>" [--no-enter]`
 
 ```bash
-# Send command to SSH session
-"$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh-remote.0 "docker ps"
+# Send command to SSH session (use pane_id from run-background.sh return value)
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps"
 
 # Send password (without pressing Enter)
-"$POLYDEV_SCRIPTS/send-to-session.sh" bg:bg-polydev:ssh-remote.0 "mypassword" --no-enter
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "mypassword" --no-enter
 ```
 
 ### Scenario C: Monitor Output
 **Script**: `capture-screen.sh`
-**Parameters**: `--session <wo:session_id> --lines <N>`
+**Parameters**: `--pane-id <pane_id> [--lines N]`
 
 ```bash
-# Convert bg: to wo: prefix for capture
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 50
+"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 50
 ```
 
 ### Scenario D: Close Task
 **Script**: `close-session.sh`
-**Parameters**: `<session_id>`
+**Parameters**: `--pane-id <pane_id>`
 
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" bg:bg-myproj:build.0
+"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
 ```
 
 ### Scenario E: List All Sessions
@@ -160,11 +158,11 @@ MUST clean up session when done
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # Start
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 
 # Monitor output periodically
 while true; do
-  output=$("$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30)
+  output=$("$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 30)
 
   if echo "$output" | grep -q "BUILD_SUCCESS\|completed\|passed"; then
     echo "Task completed"
@@ -180,7 +178,7 @@ while true; do
 done
 
 # Cleanup
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
+"$POLYDEV_SCRIPTS/close-session.sh" --pane-id "$pane_id"
 ```
 
 ### Workflow B: SSH Interactive Session
@@ -189,43 +187,38 @@ done
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 # 1. Start SSH connection
-session_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
 
 # 2. Wait for connection (may need password)
 sleep 3
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 20
+"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 20
 
 # 3. If password needed
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$session_id" "mypassword"
+"$POLYDEV_SCRIPTS/send-to-session.sh" "$pane_id" "mypassword"
 
 # 4. Send commands
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$session_id" "docker ps"
+"$POLYDEV_SCRIPTS/send-to-session.sh" "$pane_id" "docker ps"
 
 # 5. View results
 sleep 2
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session "${session_id/bg:/wo:}" --lines 30
+"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 30
 
 # 6. Close when done
-"$POLYDEV_SCRIPTS/close-session.sh" "$session_id"
+"$POLYDEV_SCRIPTS/close-session.sh" --pane-id "$pane_id"
 ```
 
 ---
 
-## Session ID Format
+## pane_id Format
 
-```
-bg:<workspace>:<name>.0
-|  |          |      |
-|  |          |      +-- pane index (always 0)
-|  |          +-- task name
-|  +-- workspace (default: bg-<current-dir-name>)
-+-- prefix (background task)
-```
+Scripts return and accept `pane_id` — the physical terminal identifier:
 
-**Prefix Conversion Rules**:
-- `capture-screen.sh` `--session` parameter requires `wo:` prefix
-- Other scripts accept original `bg:` prefix
-- Conversion method: `${session_id/bg:/wo:}`
+| Backend | Format | Example |
+|---------|--------|---------|
+| WezTerm | Numeric | `5` |
+| tmux | `session:window.pane` | `polydev:1.0` |
+
+**Note**: `list-sessions.sh` also outputs a human-readable `session_id` (e.g. `bg:workspace:name.0`) for debugging purposes. This is display-only — **never pass `session_id` to scripts**. Always use `pane_id`.
 
 ---
 
@@ -238,11 +231,11 @@ bg:<workspace>:<name>.0
 
 ### Cannot See Output
 ```bash
-"$POLYDEV_SCRIPTS/capture-screen.sh" --session wo:bg-myproj:build.0 --lines 100
+"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 100
 ```
 
 ### Session Stuck
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" bg:myproj:build.0
+"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
 "$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
 ```

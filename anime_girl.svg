@@ -1,0 +1,78 @@
+<svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Skin Gradient -->
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF0E0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFE0D0;stop-opacity:1" />
+    </linearGradient>
+    <!-- Hair Gradient -->
+    <linearGradient id="hairGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFB6C1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF69B4;stop-opacity:1" />
+    </linearGradient>
+    <!-- Eye Gradient -->
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#40E0D0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#008080;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Back Hair -->
+  <path d="M150,150 Q100,250 80,400 L420,400 Q400,250 350,150 Z" fill="url(#hairGrad)" stroke="#FF1493" stroke-width="2"/>
+
+  <!-- Face -->
+  <path d="M150,180 Q150,420 250,420 Q350,420 350,180 Q350,100 250,100 Q150,100 150,180 Z" fill="url(#skinGrad)" />
+
+  <!-- Bangs/Front Hair -->
+  <path d="M120,180 Q180,100 250,160 Q320,100 380,180 Q380,120 250,80 Q120,120 120,180" fill="url(#hairGrad)" stroke="#FF1493" stroke-width="2"/>
+  <path d="M250,160 Q260,200 280,180" fill="url(#hairGrad)" />
+  <path d="M250,160 Q240,200 220,180" fill="url(#hairGrad)" />
+
+  <!-- Blush -->
+  <ellipse cx="190" cy="300" rx="25" ry="15" fill="#FFB6C1" opacity="0.6" />
+  <ellipse cx="310" cy="300" rx="25" ry="15" fill="#FFB6C1" opacity="0.6" />
+
+  <!-- Left Eye -->
+  <g transform="translate(180, 250)">
+    <!-- Sclera -->
+    <ellipse cx="0" cy="0" rx="35" ry="45" fill="white" stroke="#333" stroke-width="2"/>
+    <!-- Iris -->
+    <ellipse cx="0" cy="5" rx="25" ry="35" fill="url(#eyeGrad)" />
+    <!-- Pupil -->
+    <circle cx="0" cy="5" r="10" fill="#004040" />
+    <!-- Highlights -->
+    <circle cx="-10" cy="-15" r="8" fill="white" opacity="0.9"/>
+    <circle cx="10" cy="15" r="4" fill="white" opacity="0.7"/>
+    <!-- Eyelashes -->
+    <path d="M-35,-20 Q0,-50 35,-20" stroke="#333" stroke-width="4" fill="none"/>
+    <path d="M35,-20 L45,-25" stroke="#333" stroke-width="3" />
+  </g>
+
+  <!-- Right Eye -->
+  <g transform="translate(320, 250)">
+    <!-- Sclera -->
+    <ellipse cx="0" cy="0" rx="35" ry="45" fill="white" stroke="#333" stroke-width="2"/>
+    <!-- Iris -->
+    <ellipse cx="0" cy="5" rx="25" ry="35" fill="url(#eyeGrad)" />
+    <!-- Pupil -->
+    <circle cx="0" cy="5" r="10" fill="#004040" />
+    <!-- Highlights -->
+    <circle cx="-10" cy="-15" r="8" fill="white" opacity="0.9"/>
+    <circle cx="10" cy="15" r="4" fill="white" opacity="0.7"/>
+    <!-- Eyelashes -->
+    <path d="M-35,-20 Q0,-50 35,-20" stroke="#333" stroke-width="4" fill="none"/>
+    <path d="M35,-20 L45,-25" stroke="#333" stroke-width="3" />
+  </g>
+
+  <!-- Nose -->
+  <path d="M250,310 L245,320" stroke="#D2B48C" stroke-width="2" fill="none"/>
+
+  <!-- Mouth -->
+  <path d="M235,350 Q250,360 265,350" stroke="#CC6666" stroke-width="2" fill="none"/>
+
+  <!-- Hair Accessories (Bow) -->
+  <path d="M250,80 L220,50 L220,110 Z" fill="#FF4500" />
+  <path d="M250,80 L280,50 L280,110 Z" fill="#FF4500" />
+  <circle cx="250" cy="80" r="10" fill="#FF6347" />
+
+</svg>
