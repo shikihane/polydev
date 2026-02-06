@@ -319,7 +319,7 @@ pane_id=$(run_polydev run-background.sh build "npm run build")
 **Note**: `--cwd` is **required** - the script will fail without it.
 
 ```bash
-session_id=$(run_polydev spawn-agent.sh auth-research \
+pane_id=$(run_polydev spawn-agent.sh auth-research \
   --prompt "Analyze authentication mechanism in project" \
   --report ./.agent-reports/auth.md \
   --cwd "$(git rev-parse --show-toplevel)")

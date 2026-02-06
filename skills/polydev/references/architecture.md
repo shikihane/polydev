@@ -73,10 +73,10 @@ The backend is automatically detected based on the environment.
 | `poll.sh` | Monitor status | `<worktrees-dir> <timeout>` |
 | `restore-session.sh` | Recover crashed session | `<worktree-path> [--force]` |
 | `wo-send-command.sh` | Send to worktree | `<worktree-path> "<cmd>"` |
-| `send-to-session.sh` | Send to any session | `<session_id> "<cmd>"` |
-| `capture-screen.sh` | Read output | `--session <id> --lines N` |
+| `send-to-session.sh` | Send to any session | `<pane_id> "<cmd>"` |
+| `capture-screen.sh` | Read output | `--pane-id <id> --lines N` |
 | `list-sessions.sh` | List active | `[workspace]` |
-| `close-session.sh` | Terminate | `<session_id>` |
+| `close-session.sh` | Terminate | `<worktree_path>` or `--pane-id <id>` |
 | `run-background.sh` | Background command | `<name> "<cmd>"` |
 | `spawn-agent.sh` | Investigation agent | `<name> --prompt "<task>" --report <path>` |
 
