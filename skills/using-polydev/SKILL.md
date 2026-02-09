@@ -19,28 +19,11 @@ Use polydev skills when the user mentions:
 
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
-### ⚠️ Windows Compatibility - CRITICAL
-
-**On Windows (Git Bash/MINGW), scripts MUST be executed using `bash -c "$(cat ...)"` pattern:**
-
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
-# Define helper function for Windows compatibility
-run_polydev() {
-    local script="$1"
-    shift
-    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
-}
-
-# ✅ CORRECT - Use run_polydev helper (works on all platforms)
-run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
-
-# ❌ WRONG - Direct execution FAILS SILENTLY on Windows
-"$POLYDEV_SCRIPTS/spawn-session.sh" args...  # Silent failure!
+"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 ```
-
-**Why this pattern?** Claude Code's Bash tool on Windows has an issue where direct script execution returns exit code 0 but produces no output and doesn't actually execute.
 
 ---
 
@@ -75,7 +58,7 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 ## Script Quick Reference (For Main Agent)
 
-**Always use `run_polydev` helper function (see above) for script execution.**
+**All scripts must be called via `$POLYDEV_SCRIPTS` variable.**
 
 | Scenario | Script | Parameters |
 |----------|--------|------------|
@@ -94,9 +77,9 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 **Example calls:**
 ```bash
-run_polydev spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
-run_polydev poll.sh .worktrees 10
-run_polydev list-sessions.sh
+"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
+"$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
+"$POLYDEV_SCRIPTS/list-sessions.sh"
 ```
 
 ---

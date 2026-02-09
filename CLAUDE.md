@@ -56,31 +56,21 @@ polydev/
 
 **All scripts must be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
 
-### ⚠️ Windows Script Execution - CRITICAL
+### Windows Script Execution Fallback
 
-**On Windows (Git Bash/MINGW), scripts MUST be executed using `bash -c "$(cat ...)"` pattern:**
+在某些 Claude Code CLI 版本中，Windows (Git Bash/MINGW) 上直接执行脚本可能出现静默失败（返回 exit code 0 但无输出）。**如果遇到脚本执行无输出的情况**，可使用 `bash -c "$(cat ...)"` 模式作为回退方案：
 
 ```bash
-# Set path variable first
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
-# Define helper function for Windows compatibility
-run_polydev() {
-    local script="$1"
-    shift
-    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
-}
+# 正常方式（优先使用）
+"$POLYDEV_SCRIPTS/list-sessions.sh"
 
-# ✅ CORRECT - Use run_polydev helper (works on all platforms)
-run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
-run_polydev poll.sh .worktrees 10
-run_polydev list-sessions.sh
-
-# ❌ WRONG - Direct execution FAILS SILENTLY on Windows
-"$POLYDEV_SCRIPTS/spawn-session.sh" args...  # Returns 0 but doesn't execute!
+# 回退方式（仅当上面无输出时使用）
+SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh")"
 ```
 
-**Why?** Claude Code's Bash tool on Windows has an issue where direct script execution (`./script.sh` or `bash script.sh`) returns exit code 0 but produces no output and doesn't actually execute. The `bash -c "$(cat ...)"` pattern with `SCRIPT_DIR` env var reliably works.
+**注意**: 这是 Claude Code CLI 工具的已知 bug，在较新版本中已修复。正常情况下直接执行即可。
 
 ### Workspace Parameter - CRITICAL
 
@@ -88,21 +78,21 @@ run_polydev list-sessions.sh
 
 ```bash
 # ❌ WRONG - Creates 3 separate windows
-run_polydev spawn-session.sh project-ws1 feature/auth ...
-run_polydev spawn-session.sh project-ws2 feature/api ...
-run_polydev spawn-session.sh project-ws3 feature/ui ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" project-ws1 feature/auth ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" project-ws2 feature/api ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" project-ws3 feature/ui ...
 
 # ✅ CORRECT - Creates 1 window with 3 tabs
-run_polydev spawn-session.sh my-project feature/auth ...
-run_polydev spawn-session.sh my-project feature/api ...
-run_polydev spawn-session.sh my-project feature/ui ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" my-project feature/auth ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" my-project feature/api ...
+"$POLYDEV_SCRIPTS/spawn-session.sh" my-project feature/ui ...
 ```
 
 **Rule:** Use a consistent workspace name (e.g., project name) for all parallel tasks in the same project.
 
 ### Script Usage by Scenario
 
-**Always use `run_polydev` helper function for script execution (defined in Windows Script Execution section above).**
+**All scripts must be called via `$POLYDEV_SCRIPTS` variable.**
 
 **Core workflow:**
 | Scenario | Script | Parameters |
@@ -215,14 +205,22 @@ After system boot, WezTerm's mux server may not be fully initialized, causing `w
 ```bash
 # ⛔ 绝对禁止修改这个 sleep 时间！
 if [ "$execute" = "true" ]; then
-    sleep 3  # ← 必须 >= 2 秒，否则回车键会失效！
-    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+    sleep 2  # ← 必须 >= 2 秒，否则回车键会失效！
+    printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
 fi
 ```
 
 **原因**: Claude Code 需要足够时间处理大段文本输入。如果 sleep 时间 < 2 秒，回车键会在文本还没完全处理完时发送，导致命令不执行。
 
 **历史教训**: 2026-01-11 曾为"优化启动速度"将 `sleep 2` 改为 `sleep 0.3`，结果导致回车键功能完全失效。
+
+### ⛔ NEVER Remove: WezTerm --no-paste Flag
+
+**所有 `wezterm cli send-text` 调用必须带 `--no-paste` 标志！**
+
+**原因**: `wezterm cli send-text` 默认使用 bracketed paste 模式，发送的文本被 `ESC[200~...ESC[201~` 包裹。如果目标 pane 的 shell（bash/readline/zsh）启用了 bracketed paste mode，`\r` 会被当作粘贴的字面文本而非回车键，导致命令不执行。
+
+**历史教训**: 2026-02-09 发现 `send-to-session.sh` 发送回车无效，根因就是缺少 `--no-paste`。
 
 ## Shell Inline Python Escaping
 
