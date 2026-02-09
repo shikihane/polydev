@@ -166,21 +166,12 @@ When used with polydev parallel execution:
 
 ## Execution via Polydev
 
-**Main agent spawns worktree with (using Windows-compatible pattern):**
+**Main agent spawns worktree with:**
 ```bash
 POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
-# Define helper function for Windows compatibility
-run_polydev() {
-    local script="$1"
-    shift
-    SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/$script")" -- "$@"
-}
-
-run_polydev spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
+"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 ```
-
-**Note:** Direct script execution (`"$POLYDEV_SCRIPTS/spawn-session.sh" args`) fails silently on Windows. Always use the `run_polydev` helper.
 
 **Sub-agent (worktree-executor) then:**
 1. Reads PLAN.md

@@ -276,14 +276,14 @@ except:
   # Git Bash often starts in MSYS installation dir or %USERPROFILE%
   # See: https://github.com/git-for-windows/git/issues/794
   # Explicitly cd to the target directory after bash starts
-  sleep 0.5  # Wait for bash prompt to initialize
-  printf 'cd "%s"' "$cwd" | wezterm cli send-text --pane-id "$pane_id"
-  sleep 0.3
-  printf '\r' | wezterm cli send-text --pane-id "$pane_id"
-  sleep 0.3
-  printf 'clear' | wezterm cli send-text --pane-id "$pane_id"
-  sleep 0.3
-  printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+  sleep 2  # Wait for bash prompt to initialize
+  printf 'cd "%s"' "$cwd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  sleep 2
+  printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  sleep 2
+  printf 'clear' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  sleep 2
+  printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
 
   # Return the numeric pane_id (not session_id)
   echo "$pane_id"
@@ -301,12 +301,12 @@ _wezterm_send_command() {
   local command="$2"
   local execute="${3:-true}"
 
-  # Send text first
-  printf '%s' "$command" | wezterm cli send-text --pane-id "$pane_id"
+  # Send text first (--no-paste: avoid bracketed paste swallowing control chars)
+  printf '%s' "$command" | wezterm cli send-text --no-paste --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 3
-    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+    sleep 2
+    printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
   fi
 }
 
@@ -316,11 +316,12 @@ _wezterm_send_multiline_text() {
   local execute="${3:-true}"
 
   # Send text first, then send Enter separately after delay
-  printf '%s' "$text" | wezterm cli send-text --pane-id "$pane_id"
+  # --no-paste: avoid bracketed paste swallowing control chars
+  printf '%s' "$text" | wezterm cli send-text --no-paste --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
-    sleep 3
-    printf '\r' | wezterm cli send-text --pane-id "$pane_id"
+    sleep 2
+    printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
   fi
 }
 
