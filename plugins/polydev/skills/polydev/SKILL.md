@@ -178,21 +178,23 @@ result=$("$POLYDEV_SCRIPTS/poll.sh" .worktrees 10)
 
 ### Scenario D: Send Command to Worktree Session (Has task.toon)
 **Script**: `wo-send-command.sh`
-**Parameters**: `<worktree-path> "<command>" [--no-enter]`
+**Parameters**: `<worktree-path> "<command>" [--no-enter] [--peek N]`
 **Prerequisite**: Worktree must have task.toon file
 
 ```bash
 "$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "npm test"
 "$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "password" --no-enter
+"$POLYDEV_SCRIPTS/wo-send-command.sh" .worktrees/auth "npm test" --peek 5
 ```
 
 ### Scenario E: Send Command to Any Session (SSH, REPL, etc.)
 **Script**: `send-to-session.sh`
-**Parameters**: `<pane_id> "<command>" [--no-enter]`
+**Parameters**: `<pane_id> "<command>" [--no-enter] [--peek N]`
 
 ```bash
 # Send command to SSH session (use pane_id from list-sessions.sh)
 "$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps"
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
 ```
 
 ### Scenario F: Focus on a Session (Manual)
@@ -285,16 +287,17 @@ git branch -D feature-auth
 
 ### Scenario K: Start Background Command (No Sub-Claude)
 **Script**: `run-background.sh`
-**Parameters**: `<name> "<command>" [--cwd <dir>] [--verbose]`
+**Parameters**: `<name> "<command>" [--cwd <dir>] [--verbose] [--peek N]`
 **Returns**: pane_id (numeric identifier)
 
 ```bash
 pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 ```
 
 ### Scenario L: Start Investigation Agent
 **Script**: `spawn-agent.sh`
-**Parameters**: `<name> --prompt "<task>" --report <report-path> --cwd <project-dir>`
+**Parameters**: `<name> --prompt "<task>" --report <report-path> --cwd <project-dir> [--peek N]`
 
 **Note**: `--cwd` is **required** - the script will fail without it.
 
@@ -303,6 +306,26 @@ pane_id=$("$POLYDEV_SCRIPTS/spawn-agent.sh" auth-research \
   --prompt "Analyze authentication mechanism in project" \
   --report ./.agent-reports/auth.md \
   --cwd "$(git rev-parse --show-toplevel)")
+
+# With auto-screenshot after 5 seconds
+pane_id=$("$POLYDEV_SCRIPTS/spawn-agent.sh" auth-research \
+  --prompt "Analyze authentication mechanism in project" \
+  --report ./.agent-reports/auth.md \
+  --cwd "$(git rev-parse --show-toplevel)" \
+  --peek 5)
+```
+
+### --peek: 执行后自动截屏
+
+所有返回 pane_id 的脚本均支持 `--peek N` 选项:
+- `--peek 0`: 立即截屏
+- `--peek 5`: 等 5 秒后截屏
+- 不传: 不截屏
+
+示例:
+```bash
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
+"$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
 ```
 
 ---

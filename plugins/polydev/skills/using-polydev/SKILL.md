@@ -65,13 +65,13 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
-| Send to worktree | `wo-send-command.sh` | `<worktree-path> "<cmd>"` |
-| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>"` |
+| Send to worktree | `wo-send-command.sh` | `<worktree-path> "<cmd>" [--peek N]` |
+| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` |
 | Read screen output | `capture-screen.sh` | `--pane-id <id> --lines N` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
 | Close session | `close-session.sh` | `<worktree_path>` or `--pane-id <id>` |
-| Start background command | `run-background.sh` | `<name> "<cmd>"` |
-| Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
+| Start background command | `run-background.sh` | `<name> "<cmd>" [--peek N]` |
+| Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir> [--peek N]` |
 | Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 | Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
@@ -80,6 +80,19 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 "$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
 "$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
 "$POLYDEV_SCRIPTS/list-sessions.sh"
+```
+
+### --peek: 执行后自动截屏
+
+所有返回 pane_id 的脚本均支持 `--peek N` 选项:
+- `--peek 0`: 立即截屏
+- `--peek 5`: 等 5 秒后截屏
+- 不传: 不截屏
+
+示例:
+```bash
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
+"$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
 ```
 
 ---

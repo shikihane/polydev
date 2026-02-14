@@ -22,6 +22,7 @@ COMMAND=""
 CWD="$(pwd)"
 WORKSPACE="$(basename "$(pwd)")"
 VERBOSE=false
+PEEK_DELAY=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -37,6 +38,10 @@ while [[ $# -gt 0 ]]; do
     --verbose)
       VERBOSE=true
       shift
+      ;;
+    --peek)
+      PEEK_DELAY="$2"
+      shift 2
       ;;
     *)
       if [ -z "$NAME" ]; then
@@ -106,3 +111,7 @@ if $VERBOSE; then
 fi
 
 echo "$pane_id"
+
+if [ -n "$PEEK_DELAY" ]; then
+  tb_peek "$pane_id" "$PEEK_DELAY"
+fi
