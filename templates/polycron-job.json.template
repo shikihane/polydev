@@ -1,0 +1,11 @@
+{
+  "id": "{{JOB_ID}}",
+  "schedule": "{{SCHEDULE}}",
+  "type": "{{TYPE}}",
+  "prompt": "{{PROMPT}}",
+  "report_path": "{{REPORT_PATH}}",
+  "cwd": "{{CWD}}",
+  "model": "{{MODEL}}",
+  "created": "{{CREATED}}",
+  "enabled": true
+}
