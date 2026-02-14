@@ -51,6 +51,7 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | `polydev:polydev` | Ready to execute parallel tasks | Main Agent |
 | `polydev:writing-plans` | Need detailed implementation plans | Main Agent |
 | `polydev:terminal-task-runner` | Long-running commands (builds, tests, servers, SSH) | Main Agent |
+| `polydev:polycron` | Schedule Claude agents to run at specific times | Main Agent |
 | `polydev:worktree-executor` | Execute in isolated worktree | Sub-Agent only |
 | `polydev:agent-investigator` | Read-only research tasks | Sub-Agent only |
 
@@ -74,6 +75,10 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 | Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
 | Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 | Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Add scheduled task | `polycron-add.sh` | `<job-id> --schedule "..." --prompt "..." --cwd <dir>` |
+| Remove scheduled task | `polycron-remove.sh` | `<job-id>` |
+| List scheduled tasks | `polycron-list.sh` | `[--all\|--enabled\|--disabled]` |
+| View task history | `polycron-history.sh` | `[job-id] [--last N]` |
 
 **Example calls:**
 ```bash
@@ -118,6 +123,12 @@ If the main agent thinks:
 **User says "research X":**
 1. Read-only analysis? -> Use spawn-agent.sh (Claude), spawn-codex.sh (Codex), or spawn-gemini.sh (Gemini)
 2. Need parallel research? -> Multiple agents with different AI backends
+
+**User says "schedule a task" or "run at specific time":**
+1. Use polydev:polycron skill
+2. Use `polycron-add.sh` to schedule
+3. Use `polycron-list.sh` to view scheduled tasks
+4. Use `polycron-history.sh` to check execution history
 
 ## Cost Control Reminder
 

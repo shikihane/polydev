@@ -22,6 +22,7 @@ polydev/
 │   ├── writing-plans/         # Implementation plan generation
 │   ├── worktree-executor/     # Sub-agent execution in worktrees
 │   ├── terminal-task-runner/  # Background command hosting
+│   ├── polycron/              # Scheduled task automation
 │   └── agent-investigator/    # Read-only investigation agents
 ├── scripts/                   # Shell scripts (MUST use via $POLYDEV_SCRIPTS)
 │   │
@@ -43,6 +44,13 @@ polydev/
 │   ├── spawn-agent.sh         # Claude sub-agent with prompt (returns pane_id)
 │   ├── spawn-codex.sh         # Codex CLI session with prompt (returns pane_id)
 │   └── spawn-gemini.sh        # Gemini CLI session with prompt (returns pane_id)
+│   │
+│   │ # Scheduled tasks
+│   ├── polycron-add.sh        # Register scheduled task
+│   ├── polycron-remove.sh     # Remove scheduled task
+│   ├── polycron-list.sh       # List scheduled tasks
+│   ├── polycron-history.sh    # View trigger history
+│   └── polycron-trigger.sh    # OS scheduler entry point (internal)
 │   │
 │   │ # Cleanup
 │   └── cleanup-worktree.sh    # Clean up worktree + session
@@ -118,6 +126,14 @@ SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh"
 | Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 | Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
+**Scheduled tasks:**
+| Scenario | Script | Parameters |
+|----------|--------|------------|
+| Add scheduled task | `polycron-add.sh` | `<job-id> --schedule "..." --prompt "..." --cwd <dir>` |
+| Remove scheduled task | `polycron-remove.sh` | `<job-id>` |
+| List scheduled tasks | `polycron-list.sh` | `[--all\|--enabled\|--disabled]` |
+| View task history | `polycron-history.sh` | `[job-id] [--last N]` |
+
 **Cleanup:**
 | Scenario | Script | Parameters |
 |----------|--------|------------|
@@ -164,6 +180,40 @@ pane_id 是主要标识符，格式因后端而异：
 6. **Cleanup** - Human confirms before deletion
 
 **Skill selection:** Use `polydev:using-polydev` to determine which skill/command to use.
+
+## Scheduled Tasks (polycron)
+
+Polycron enables scheduling Claude agents to run at specific times using OS-level schedulers:
+- **Linux/macOS**: crontab
+- **Windows**: schtasks
+
+**Data storage**: `~/.polydev/cron/jobs/` (job definitions), `~/.polydev/cron/history.jsonl` (trigger log)
+
+**Common operations**:
+```bash
+# Add daily task
+"$POLYDEV_SCRIPTS/polycron-add.sh" daily-report \
+  --schedule "0 9 * * *" \
+  --prompt "Generate daily metrics report" \
+  --cwd /path/to/project
+
+# Add one-time task
+"$POLYDEV_SCRIPTS/polycron-add.sh" deploy \
+  --at "2026-02-15 14:00" \
+  --prompt "Deploy to production" \
+  --cwd /path/to/app
+
+# List all jobs
+"$POLYDEV_SCRIPTS/polycron-list.sh"
+
+# View history
+"$POLYDEV_SCRIPTS/polycron-history.sh" --last 10
+
+# Remove job
+"$POLYDEV_SCRIPTS/polycron-remove.sh" daily-report
+```
+
+**How it works**: OS scheduler triggers `polycron-trigger.sh` → spawns Claude agent via `spawn-agent.sh` → logs to history.
 
 ## Testing Scripts
 
