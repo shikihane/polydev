@@ -86,17 +86,20 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 
 ### Scenario A: Start Background Task
 **Script**: `run-background.sh`
-**Parameters**: `<name> "<command>" [--cwd <dir>]`
+**Parameters**: `<name> "<command>" [--cwd <dir>] [--peek N]`
 **Returns**: pane_id (numeric identifier for the terminal pane)
 
 ```bash
 pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 # Returns: numeric pane_id, e.g. 5
+
+# With auto-screenshot after 10 seconds
+pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 ```
 
 ### Scenario B: Send Command to Existing Session (SSH, REPL, etc.)
 **Script**: `send-to-session.sh`
-**Parameters**: `<pane_id> "<command>" [--no-enter]`
+**Parameters**: `<pane_id> "<command>" [--no-enter] [--peek N]`
 
 ```bash
 # Send command to SSH session (use pane_id from run-background.sh return value)
@@ -104,6 +107,9 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 
 # Send password (without pressing Enter)
 "$POLYDEV_SCRIPTS/send-to-session.sh" 5 "mypassword" --no-enter
+
+# Send command and auto-screenshot after 3 seconds
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
 ```
 
 ### Scenario C: Monitor Output
@@ -129,6 +135,19 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
 ```bash
 "$POLYDEV_SCRIPTS/list-sessions.sh"
 "$POLYDEV_SCRIPTS/list-sessions.sh" myproject
+```
+
+### --peek: 执行后自动截屏
+
+所有返回 pane_id 的脚本均支持 `--peek N` 选项:
+- `--peek 0`: 立即截屏
+- `--peek 5`: 等 5 秒后截屏
+- 不传: 不截屏
+
+示例:
+```bash
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
+"$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
 ```
 
 ---

@@ -696,3 +696,16 @@ tb_get_socket() {
     echo ""
   fi
 }
+
+# tb_peek - 等待后截屏
+# 用法: tb_peek <pane_id> <delay_seconds> [lines]
+tb_peek() {
+  local pane_id="$1"
+  local delay="$2"
+  local lines="${3:-50}"
+  if [ "$delay" -gt 0 ] 2>/dev/null; then
+    sleep "$delay"
+  fi
+  echo "---PEEK---"
+  "$SCRIPT_DIR/capture-screen.sh" --pane-id "$pane_id" --lines "$lines"
+}

@@ -17,12 +17,17 @@ source "$SCRIPT_DIR/terminal-backend.sh"
 PANE_ID=""
 COMMAND=""
 EXECUTE="true"
+PEEK_DELAY=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-enter)
       EXECUTE="false"
       shift
+      ;;
+    --peek)
+      PEEK_DELAY="$2"
+      shift 2
       ;;
     *)
       if [ -z "$PANE_ID" ]; then
@@ -51,4 +56,8 @@ if tb_send_command "$PANE_ID" "$COMMAND" "$EXECUTE"; then
 else
   echo "[E] error=Failed to send command,pane_id=$PANE_ID" >&2
   exit 1
+fi
+
+if [ -n "$PEEK_DELAY" ]; then
+  tb_peek "$PANE_ID" "$PEEK_DELAY"
 fi
