@@ -52,12 +52,16 @@ Choose skill by prefix:
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
+# 自动由 SessionStart hook 写入，无需手动设置路径
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 "$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
 "$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
 "$POLYDEV_SCRIPTS/list-sessions.sh"
 ```
+
+> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
+> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
 
 ---
 
@@ -355,7 +359,7 @@ Use `list-sessions.sh` to see both session_id (for humans) and pane_id (for scri
 ## Poll Loop - Must Monitor Continuously After Starting
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 # After starting all sessions, immediately enter monitoring loop - cannot skip!
 while branches_remaining; do

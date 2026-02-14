@@ -22,6 +22,12 @@ to_unix_path() {
   echo "$path"
 }
 
+# 写入 scripts 路径到固定位置，供后续快速引用
+PLUGIN_ROOT="$(to_unix_path "$CLAUDE_PLUGIN_ROOT")"
+POLYDEV_HOME="$HOME/.polydev"
+mkdir -p "$POLYDEV_HOME"
+echo "${PLUGIN_ROOT}/scripts" > "$POLYDEV_HOME/scripts-path"
+
 PROJECT_DIR="$(to_unix_path "$CLAUDE_PROJECT_DIR")"
 TASK_FILE="$PROJECT_DIR/task.toon"
 
