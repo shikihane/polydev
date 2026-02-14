@@ -61,7 +61,8 @@ polydev/
 在某些 Claude Code CLI 版本中，Windows (Git Bash/MINGW) 上直接执行脚本可能出现静默失败（返回 exit code 0 但无输出）。**如果遇到脚本执行无输出的情况**，可使用 `bash -c "$(cat ...)"` 模式作为回退方案：
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
+# 自动由 SessionStart hook 写入，无需手动设置路径
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 # 正常方式（优先使用）
 "$POLYDEV_SCRIPTS/list-sessions.sh"
@@ -69,6 +70,9 @@ POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
 # 回退方式（仅当上面无输出时使用）
 SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh")"
 ```
+
+> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
+> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
 
 **注意**: 这是 Claude Code CLI 工具的已知 bug，在较新版本中已修复。正常情况下直接执行即可。
 
