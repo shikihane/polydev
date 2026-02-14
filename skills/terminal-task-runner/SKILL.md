@@ -53,21 +53,15 @@ Choose skill by prefix:
 **All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
 
 ```bash
-# Set path variable before calling any script
-POLYDEV_SCRIPTS="$(dirname "$(dirname "$(realpath "${BASH_SOURCE[0]:-$0}")")")/scripts"
-# Or if in skill context, use skill base directory:
-# POLYDEV_SCRIPTS="<skill-base-dir>/../scripts"
+# 自动由 SessionStart hook 写入，无需手动设置路径
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 # Then call scripts using the variable
 "$POLYDEV_SCRIPTS/run-background.sh" <name> "<command>"
 ```
 
-**When called from Claude Code**: Use the plugin installation path
-```bash
-# Plugin path example (based on actual installation location)
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
-```
+> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
+> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
 
 ---
 
@@ -155,7 +149,7 @@ MUST clean up session when done
 ### Workflow A: Build Task (Monitor Output)
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 # Start
 pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
@@ -184,7 +178,7 @@ done
 ### Workflow B: SSH Interactive Session
 
 ```bash
-POLYDEV_SCRIPTS="/path/to/polydev/plugins/polydev/scripts"
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 
 # 1. Start SSH connection
 pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
