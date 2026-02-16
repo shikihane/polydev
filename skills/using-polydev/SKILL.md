@@ -1,7 +1,7 @@
 ---
 name: using-polydev
 description: This skill should be used at conversation start when user mentions parallel, multiple tasks/features, worktrees, lists 2+ independent work items, or similar keywords - determines which polydev skill to use.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Using Polydev Skills
@@ -15,19 +15,30 @@ Use polydev skills when the user mentions:
 - "worktree" / "branch" (in context of parallel work)
 - "background" / "long-running command"
 
-## Script Path (Main Agent Must Follow)
+## Script Path Detection
 
-**All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use `./scripts/`**
+**At the start of this session, read the polydev scripts path:**
 
 ```bash
-# 自动由 SessionStart hook 写入，无需手动设置路径
-POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
-
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+cat ~/.polydev/scripts-path
+# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.4.0/scripts
 ```
 
-> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
-> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
+**Remember the full absolute path from the output above, then use it directly in all commands.**
+
+Example:
+```bash
+# ✓ CORRECT - Use full path directly
+/path/to/polydev/scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
+
+# ✗ WRONG - Do not use variables
+"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
+
+# ✗ WRONG - Do not use relative paths
+./scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
+```
+
+> **Note**: If `~/.polydev/scripts-path` doesn't exist, polydev is not installed.
 
 ---
 
@@ -63,7 +74,7 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 ## Script Quick Reference (For Main Agent)
 
-**All scripts must be called via `$POLYDEV_SCRIPTS` variable.**
+**All scripts must be called via full absolute path (read from `~/.polydev/scripts-path`).**
 
 | Scenario | Script | Parameters |
 |----------|--------|------------|
@@ -86,9 +97,9 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 **Example calls:**
 ```bash
-"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
-"$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+/path/to/polydev/scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
+/path/to/polydev/scripts/poll.sh .worktrees 10
+/path/to/polydev/scripts/list-sessions.sh
 ```
 
 ### --peek: 执行后自动截屏
@@ -100,8 +111,8 @@ Running background command? --YES--> Use polydev:terminal-task-runner skill
 
 示例:
 ```bash
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
+/path/to/polydev/scripts/send-to-session.sh 5 "docker ps" --peek 3
+/path/to/polydev/scripts/run-background.sh build "npm test" --peek 10
 ```
 
 ---

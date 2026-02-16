@@ -1,7 +1,7 @@
 ---
 name: writing-plans
 description: This skill should be used when creating detailed implementation plans for polydev parallel tasks - generates step-by-step PLAN.md files.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Writing Implementation Plans
@@ -154,7 +154,7 @@ When used with polydev parallel execution:
 1. Plan is copied to worktree as `PLAN.md`
 2. worktree-executor reads and executes the plan
 3. Status updates written to `task.toon`
-4. Main agent monitors via poll.sh (using `$POLYDEV_SCRIPTS/poll.sh`)
+4. Main agent monitors via poll.sh (using full absolute path from `~/.polydev/scripts-path`)
 
 **Plan location in worktree:**
 ```
@@ -168,14 +168,12 @@ When used with polydev parallel execution:
 
 **Main agent spawns worktree with:**
 ```bash
-# 自动由 SessionStart hook 写入，无需手动设置路径
-POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
-
-"$POLYDEV_SCRIPTS/spawn-session.sh" <workspace> <branch> <worktree-path> <plan-file>
+# Read scripts path once at session start: cat ~/.polydev/scripts-path
+# Then use the full absolute path directly:
+/path/to/polydev/scripts/spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>
 ```
 
-> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
-> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
+> **Note**: If `~/.polydev/scripts-path` doesn't exist, polydev is not installed.
 
 **Sub-agent (worktree-executor) then:**
 1. Reads PLAN.md

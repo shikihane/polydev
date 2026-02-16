@@ -1,7 +1,7 @@
 ---
 name: polycron
 description: Scheduled task automation - Schedule Claude agents to run at specific times using OS-level schedulers (crontab/schtasks). Supports single-run and recurring tasks with full CRUD operations.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Polycron - Scheduled Task Automation
@@ -32,17 +32,27 @@ When a scheduled time arrives, the OS triggers `polycron-trigger.sh`, which spaw
 
 ---
 
-## Script Path
+## Script Path Detection
 
-**All scripts MUST be called via `$POLYDEV_SCRIPTS` variable.**
+**At the start of this session, read the polydev scripts path:**
 
 ```bash
-# Set path variable
-POLYDEV_SCRIPTS="<plugin-base-dir>/scripts"
+cat ~/.polydev/scripts-path
+# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.4.0/scripts
+```
 
-# Call scripts
+**Remember the full absolute path from the output above, then use it directly in all commands.**
+
+Example:
+```bash
+# ✓ CORRECT - Use full path directly
+/path/to/polydev/scripts/polycron-add.sh daily-report --schedule "0 9 * * *" --prompt "Generate report" --cwd /path/to/project
+
+# ✗ WRONG - Do not use variables
 "$POLYDEV_SCRIPTS/polycron-add.sh" ...
 ```
+
+> **Note**: If `~/.polydev/scripts-path` doesn't exist, polydev is not installed.
 
 ---
 
@@ -55,7 +65,7 @@ POLYDEV_SCRIPTS="<plugin-base-dir>/scripts"
 **Syntax**:
 ```bash
 # Recurring task (cron schedule)
-"$POLYDEV_SCRIPTS/polycron-add.sh" <job-id> \
+/path/to/polydev/scripts/polycron-add.sh <job-id> \
   --schedule "0 9 * * *" \
   --prompt "Daily report generation" \
   --cwd /path/to/project \
@@ -64,7 +74,7 @@ POLYDEV_SCRIPTS="<plugin-base-dir>/scripts"
   [--report /path/to/report.md]
 
 # Single-run task (specific date/time)
-"$POLYDEV_SCRIPTS/polycron-add.sh" <job-id> \
+/path/to/polydev/scripts/polycron-add.sh <job-id> \
   --at "2026-02-15 10:00" \
   --prompt "Deploy to production" \
   --cwd /path/to/project \
@@ -121,7 +131,7 @@ POLYDEV_SCRIPTS="<plugin-base-dir>/scripts"
 
 **Syntax**:
 ```bash
-"$POLYDEV_SCRIPTS/polycron-remove.sh" <job-id>
+/path/to/polydev/scripts/polycron-remove.sh <job-id>
 ```
 
 Removes the job from OS scheduler and deletes the job definition file.
@@ -134,7 +144,7 @@ Removes the job from OS scheduler and deletes the job definition file.
 
 **Syntax**:
 ```bash
-"$POLYDEV_SCRIPTS/polycron-list.sh" [--all|--enabled|--disabled]
+/path/to/polydev/scripts/polycron-list.sh [--all|--enabled|--disabled]
 ```
 
 **Filters**:
@@ -157,7 +167,7 @@ jobs{id,schedule,type,enabled,prompt_summary,cwd}:
 
 **Syntax**:
 ```bash
-"$POLYDEV_SCRIPTS/polycron-history.sh" [job-id] [--last N]
+/path/to/polydev/scripts/polycron-history.sh [job-id] [--last N]
 ```
 
 **Parameters**:
@@ -200,7 +210,7 @@ history{job_id,triggered_at,pane_id,status}:
 
 ### Daily Reports
 ```bash
-"$POLYDEV_SCRIPTS/polycron-add.sh" daily-metrics \
+/path/to/polydev/scripts/polycron-add.sh daily-metrics \
   --schedule "0 9 * * *" \
   --prompt "Generate daily metrics report from logs" \
   --cwd /home/user/analytics \
@@ -209,7 +219,7 @@ history{job_id,triggered_at,pane_id,status}:
 
 ### Weekly Cleanup
 ```bash
-"$POLYDEV_SCRIPTS/polycron-add.sh" weekly-cleanup \
+/path/to/polydev/scripts/polycron-add.sh weekly-cleanup \
   --schedule "0 2 * * 0" \
   --prompt "Clean up old logs and temporary files" \
   --cwd /home/user/project
@@ -217,7 +227,7 @@ history{job_id,triggered_at,pane_id,status}:
 
 ### One-Time Deployment
 ```bash
-"$POLYDEV_SCRIPTS/polycron-add.sh" prod-deploy \
+/path/to/polydev/scripts/polycron-add.sh prod-deploy \
   --at "2026-02-15 14:00" \
   --prompt "Deploy version 2.0 to production" \
   --cwd /home/user/app \
@@ -230,17 +240,17 @@ history{job_id,triggered_at,pane_id,status}:
 
 ### Check Job Status
 ```bash
-"$POLYDEV_SCRIPTS/polycron-list.sh" --enabled
+/path/to/polydev/scripts/polycron-list.sh --enabled
 ```
 
 ### View Recent Triggers
 ```bash
-"$POLYDEV_SCRIPTS/polycron-history.sh" --last 10
+/path/to/polydev/scripts/polycron-history.sh --last 10
 ```
 
 ### Check Specific Job History
 ```bash
-"$POLYDEV_SCRIPTS/polycron-history.sh" daily-metrics --last 5
+/path/to/polydev/scripts/polycron-history.sh daily-metrics --last 5
 ```
 
 ---
@@ -260,7 +270,7 @@ schtasks /Query /TN "polydev-*"
 
 **Check job is enabled**:
 ```bash
-"$POLYDEV_SCRIPTS/polycron-list.sh" --enabled
+/path/to/polydev/scripts/polycron-list.sh --enabled
 ```
 
 ### View Agent Output
@@ -270,7 +280,7 @@ Agent output is saved to the report path specified in the job definition (defaul
 ### Manual Trigger (Testing)
 
 ```bash
-"$POLYDEV_SCRIPTS/polycron-trigger.sh" <job-id>
+/path/to/polydev/scripts/polycron-trigger.sh <job-id>
 ```
 
 ---

@@ -1,7 +1,7 @@
 ---
 name: terminal-task-runner
 description: This skill should be used when running commands that take >30 seconds (builds, tests, servers) - hosts in terminal session for monitoring and recovery.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Terminal Task Runner
@@ -48,20 +48,30 @@ Choose skill by prefix:
 
 ---
 
-## Script Path
+## Script Path Detection
 
-**All scripts MUST be called via `$POLYDEV_SCRIPTS` variable. NEVER use relative path `./scripts/`**
+**At the start of this session, read the polydev scripts path:**
 
 ```bash
-# 自动由 SessionStart hook 写入，无需手动设置路径
-POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
-
-# Then call scripts using the variable
-"$POLYDEV_SCRIPTS/run-background.sh" <name> "<command>"
+cat ~/.polydev/scripts-path
+# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.4.0/scripts
 ```
 
-> 如果 `~/.polydev/scripts-path` 不存在，说明 hook 未执行。手动设置:
-> `POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"`
+**Remember the full absolute path from the output above, then use it directly in all commands.**
+
+Example:
+```bash
+# ✓ CORRECT - Use full path directly
+/path/to/polydev/scripts/run-background.sh build "npm run build"
+
+# ✗ WRONG - Do not use variables
+"$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
+
+# ✗ WRONG - Do not use relative paths
+./scripts/run-background.sh build "npm run build"
+```
+
+> **Note**: If `~/.polydev/scripts-path` doesn't exist, polydev is not installed.
 
 ---
 
@@ -84,11 +94,11 @@ POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 **Returns**: pane_id (numeric identifier for the terminal pane)
 
 ```bash
-pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$(/path/to/polydev/scripts/run-background.sh build "npm run build")
 # Returns: numeric pane_id, e.g. 5
 
 # With auto-screenshot after 10 seconds
-pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
+pane_id=$(/path/to/polydev/scripts/run-background.sh build "npm run build" --peek 10)
 ```
 
 ### Scenario B: Send Command to Existing Session (SSH, REPL, etc.)
@@ -97,13 +107,13 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 
 ```bash
 # Send command to SSH session (use pane_id from run-background.sh return value)
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps"
+/path/to/polydev/scripts/send-to-session.sh 5 "docker ps"
 
 # Send password (without pressing Enter)
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "mypassword" --no-enter
+/path/to/polydev/scripts/send-to-session.sh 5 "mypassword" --no-enter
 
 # Send command and auto-screenshot after 3 seconds
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
+/path/to/polydev/scripts/send-to-session.sh 5 "docker ps" --peek 3
 ```
 
 ### Scenario C: Monitor Output
@@ -111,7 +121,7 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 **Parameters**: `--pane-id <pane_id> [--lines N]`
 
 ```bash
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 50
+/path/to/polydev/scripts/capture-screen.sh --pane-id 5 --lines 50
 ```
 
 ### Scenario D: Close Task
@@ -119,7 +129,7 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 **Parameters**: `--pane-id <pane_id>`
 
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
+/path/to/polydev/scripts/close-session.sh --pane-id 5
 ```
 
 ### Scenario E: List All Sessions
@@ -127,8 +137,8 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 **Parameters**: `[workspace]` (optional filter)
 
 ```bash
-"$POLYDEV_SCRIPTS/list-sessions.sh"
-"$POLYDEV_SCRIPTS/list-sessions.sh" myproject
+/path/to/polydev/scripts/list-sessions.sh
+/path/to/polydev/scripts/list-sessions.sh myproject
 ```
 
 ### --peek: 执行后自动截屏
@@ -140,8 +150,8 @@ pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build" --peek 10)
 
 示例:
 ```bash
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
+/path/to/polydev/scripts/send-to-session.sh 5 "docker ps" --peek 3
+/path/to/polydev/scripts/run-background.sh build "npm test" --peek 10
 ```
 
 ---
@@ -156,7 +166,7 @@ DO NOT use nohup
 DO NOT call tmux/wezterm commands directly
 DO NOT use wrong script (e.g., wo-send-command.sh for bg: session - it's for wo: only)
 
-MUST call scripts via $POLYDEV_SCRIPTS variable
+MUST use full absolute path to call scripts (read from ~/.polydev/scripts-path)
 MUST monitor task status
 MUST clean up session when done
 ```
@@ -168,14 +178,12 @@ MUST clean up session when done
 ### Workflow A: Build Task (Monitor Output)
 
 ```bash
-POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
-
 # Start
-pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" build "npm run build")
+pane_id=$(/path/to/polydev/scripts/run-background.sh build "npm run build")
 
 # Monitor output periodically
 while true; do
-  output=$("$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 30)
+  output=$(/path/to/polydev/scripts/capture-screen.sh --pane-id "$pane_id" --lines 30)
 
   if echo "$output" | grep -q "BUILD_SUCCESS\|completed\|passed"; then
     echo "Task completed"
@@ -191,33 +199,31 @@ while true; do
 done
 
 # Cleanup
-"$POLYDEV_SCRIPTS/close-session.sh" --pane-id "$pane_id"
+/path/to/polydev/scripts/close-session.sh --pane-id "$pane_id"
 ```
 
 ### Workflow B: SSH Interactive Session
 
 ```bash
-POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
-
 # 1. Start SSH connection
-pane_id=$("$POLYDEV_SCRIPTS/run-background.sh" ssh-server "ssh user@host")
+pane_id=$(/path/to/polydev/scripts/run-background.sh ssh-server "ssh user@host")
 
 # 2. Wait for connection (may need password)
 sleep 3
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 20
+/path/to/polydev/scripts/capture-screen.sh --pane-id "$pane_id" --lines 20
 
 # 3. If password needed
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$pane_id" "mypassword"
+/path/to/polydev/scripts/send-to-session.sh "$pane_id" "mypassword"
 
 # 4. Send commands
-"$POLYDEV_SCRIPTS/send-to-session.sh" "$pane_id" "docker ps"
+/path/to/polydev/scripts/send-to-session.sh "$pane_id" "docker ps"
 
 # 5. View results
 sleep 2
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id "$pane_id" --lines 30
+/path/to/polydev/scripts/capture-screen.sh --pane-id "$pane_id" --lines 30
 
 # 6. Close when done
-"$POLYDEV_SCRIPTS/close-session.sh" --pane-id "$pane_id"
+/path/to/polydev/scripts/close-session.sh --pane-id "$pane_id"
 ```
 
 ---
@@ -239,16 +245,16 @@ Scripts return and accept `pane_id` — the physical terminal identifier:
 
 ### Command Not Executed
 ```bash
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+/path/to/polydev/scripts/list-sessions.sh
 ```
 
 ### Cannot See Output
 ```bash
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 100
+/path/to/polydev/scripts/capture-screen.sh --pane-id 5 --lines 100
 ```
 
 ### Session Stuck
 ```bash
-"$POLYDEV_SCRIPTS/close-session.sh" --pane-id 5
-"$POLYDEV_SCRIPTS/run-background.sh" build "npm run build"
+/path/to/polydev/scripts/close-session.sh --pane-id 5
+/path/to/polydev/scripts/run-background.sh build "npm run build"
 ```
