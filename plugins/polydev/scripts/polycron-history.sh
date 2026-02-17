@@ -41,37 +41,21 @@ echo "[I] event=listing_history,job_id=${JOB_ID:-all},limit=$LAST_N"
 # Read and filter history
 echo "history{job_id,triggered_at,pane_id,status}:"
 
-$PYTHON -c "
-import sys, json
+# Extract fields from JSONL using shell
+_jsonl_val() { echo "$1" | sed "s/.*\"$2\":\"\([^\"]*\)\".*/\1/"; }
 
-job_filter = '$JOB_ID'
-limit = int('$LAST_N')
-
-entries = []
-with open('$HISTORY_FILE') as f:
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            entry = json.loads(line)
-            # Apply job filter if specified
-            if job_filter and entry.get('job_id') != job_filter:
-                continue
-            entries.append(entry)
-        except json.JSONDecodeError:
-            continue
-
-# Sort by triggered_at descending (most recent first)
-entries.sort(key=lambda x: x.get('triggered_at', ''), reverse=True)
-
-# Limit output
-entries = entries[:limit]
-
-for entry in entries:
-    job_id = entry.get('job_id', '')
-    triggered_at = entry.get('triggered_at', '')
-    pane_id = entry.get('pane_id', '')
-    status = entry.get('status', '')
-    print(f'  {job_id},{triggered_at},{pane_id},{status}')
-"
+# Read, filter, and format entries
+{
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    j_id=$(_jsonl_val "$line" job_id)
+    # Apply job filter
+    if [ -n "$JOB_ID" ] && [ "$j_id" != "$JOB_ID" ]; then
+      continue
+    fi
+    j_at=$(_jsonl_val "$line" triggered_at)
+    j_pane=$(_jsonl_val "$line" pane_id)
+    j_status=$(_jsonl_val "$line" status)
+    echo "  ${j_at}|${j_id},${j_at},${j_pane},${j_status}"
+  done < "$HISTORY_FILE"
+} | sort -t'|' -k1 -r | head -n "$LAST_N" | sed 's/^[^|]*|//'
