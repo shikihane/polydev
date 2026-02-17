@@ -47,6 +47,9 @@ _tb_detect_python() {
   fi
 
   export TB_PYTHON
+  # Alias for scripts that use $PYTHON (polycron-*, get-pane-id.sh)
+  PYTHON="$TB_PYTHON"
+  export PYTHON
 }
 
 # =============================================================================
@@ -168,9 +171,10 @@ _tmux_send_multiline_text() {
   rm -f "$tmp_file"
 
   if [ "$execute" = "true" ]; then
-    # Wait for Claude Code to process the pasted text before sending Enter
+    # Wait for Claude Code to process the pasted text before submitting
     sleep 2
-    _tmux send-keys -t "$TARGET" C-m
+    # Claude Code multiline mode: C-j submits, C-m just inserts newline
+    _tmux send-keys -t "$TARGET" C-j
   fi
 }
 
@@ -563,14 +567,7 @@ tb_wait_for_claude() {
 
     # Get current content
     local current_content
-    case "$TB_BACKEND" in
-      wezterm)
-        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null | head -5)
-        ;;
-      tmux)
-        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null | head -5)
-        ;;
-    esac
+    current_content=$(_tb_capture_pane "$pane_id")
 
     # If content changed, Claude has started
     if [ "$current_content" != "$initial_content" ]; then
@@ -579,6 +576,20 @@ tb_wait_for_claude() {
 
     sleep 0.2
   done
+}
+
+# Helper: capture pane content with proper session_id parsing
+_tb_capture_pane() {
+  local pane_id="$1"
+  case "$TB_BACKEND" in
+    wezterm)
+      wezterm cli get-text --pane-id "$pane_id" 2>/dev/null
+      ;;
+    tmux)
+      _parse_session_id "$pane_id"
+      _tmux capture-pane -t "$TARGET" -p 2>/dev/null
+      ;;
+  esac
 }
 
 # Wait for Codex CLI to be ready
@@ -604,16 +615,8 @@ tb_wait_for_codex() {
       return 1
     fi
 
-    # Get current content
     local current_content
-    case "$TB_BACKEND" in
-      wezterm)
-        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null)
-        ;;
-      tmux)
-        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null)
-        ;;
-    esac
+    current_content=$(_tb_capture_pane "$pane_id")
 
     # Check for Codex ready marker
     if echo "$current_content" | grep -q "context left"; then
@@ -647,16 +650,8 @@ tb_wait_for_gemini() {
       return 1
     fi
 
-    # Get current content
     local current_content
-    case "$TB_BACKEND" in
-      wezterm)
-        current_content=$(wezterm cli get-text --pane-id "$pane_id" 2>/dev/null)
-        ;;
-      tmux)
-        current_content=$(_tmux capture-pane -t "$pane_id" -p 2>/dev/null)
-        ;;
-    esac
+    current_content=$(_tb_capture_pane "$pane_id")
 
     # Check for Gemini ready marker
     if echo "$current_content" | grep -q "Type your message"; then
@@ -676,7 +671,8 @@ tb_capture_content() {
       wezterm cli get-text --pane-id "$pane_id" 2>/dev/null | head -5
       ;;
     tmux)
-      _tmux capture-pane -t "$pane_id" -p 2>/dev/null | head -5
+      _parse_session_id "$pane_id"
+      _tmux capture-pane -t "$TARGET" -p 2>/dev/null | head -5
       ;;
   esac
 }

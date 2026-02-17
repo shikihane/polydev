@@ -1,6 +1,6 @@
 #!/bin/bash
 # polycron-trigger.sh <job-id>
-# OS scheduler calls this script when a job is due
+# Sends prompt to pre-created agent pane
 
 set -e
 
@@ -23,27 +23,65 @@ if [ ! -f "$JOB_FILE" ]; then
   exit 1
 fi
 
+# Helper: extract JSON values
+_json_val() {
+  grep "\"$1\"" "$JOB_FILE" | head -1 | sed 's/.*: *"\(.*\)".*/\1/'
+}
+_json_bool() {
+  grep "\"$1\"" "$JOB_FILE" | head -1 | sed 's/.*: *\(true\|false\).*/\1/'
+}
+
 # Read job configuration
-ENABLED=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('enabled', False))")
-if [ "$ENABLED" != "True" ]; then
+ENABLED=$(_json_bool enabled)
+if [ "$ENABLED" != "true" ]; then
   echo "[W] Job $JOB_ID is disabled, skipping" >&2
   exit 0
 fi
 
-JOB_TYPE=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('type', 'cron'))")
-PROMPT=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('prompt', ''))")
-REPORT_PATH=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('report_path', ''))")
-CWD=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('cwd', ''))")
-MODEL=$(cat "$JOB_FILE" | $PYTHON -c "import sys,json; print(json.load(sys.stdin).get('model', 'sonnet'))")
+JOB_TYPE=$(_json_val type)
+PROMPT=$(_json_val prompt)
+REPORT_PATH=$(_json_val report_path)
+PANE_ID=$(_json_val pane_id)
 
-# Spawn agent
-echo "[I] event=polycron_triggered,job_id=$JOB_ID,type=$JOB_TYPE"
+[ -z "$JOB_TYPE" ] && JOB_TYPE="cron"
 
-PANE_ID=$("$SCRIPT_DIR/spawn-agent.sh" "$JOB_ID" \
-  --prompt "$PROMPT" \
-  --report "$REPORT_PATH" \
-  --cwd "$CWD" \
-  --model "$MODEL" | tail -1)
+if [ -z "$PANE_ID" ]; then
+  echo "[E] No pane_id in job file" >&2
+  exit 1
+fi
+
+echo "[I] event=polycron_triggered,job_id=$JOB_ID,type=$JOB_TYPE,pane_id=$PANE_ID"
+
+# Build agent prompt
+AGENT_PROMPT="You are an investigation agent. Your task:
+
+$PROMPT
+
+## Requirements
+
+1. Investigate thoroughly using available tools
+2. Write your findings to: $REPORT_PATH
+3. When complete, output this EXACT marker:
+
+\`\`\`
+[AGENT_DONE]
+report: $REPORT_PATH
+timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+summary: <20字以内摘要>
+\`\`\`
+
+Start now."
+
+# Send prompt to agent pane
+TMPFILE="/tmp/polycron_prompt_$$"
+printf '%s' "$AGENT_PROMPT" > "$TMPFILE"
+tmux -S "$TB_SOCKET" load-buffer "$TMPFILE"
+tmux -S "$TB_SOCKET" paste-buffer -t "$PANE_ID"
+rm -f "$TMPFILE"
+
+# Submit with C-m (Enter)
+sleep 2
+tmux -S "$TB_SOCKET" send-keys -t "$PANE_ID" C-m
 
 TRIGGERED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -51,16 +89,11 @@ TRIGGERED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 mkdir -p "$CRON_DIR"
 echo "{\"job_id\":\"$JOB_ID\",\"triggered_at\":\"$TRIGGERED_AT\",\"pane_id\":\"$PANE_ID\",\"status\":\"started\"}" >> "$HISTORY_FILE"
 
-echo "[I] event=agent_spawned,job_id=$JOB_ID,pane_id=$PANE_ID"
+echo "[I] event=prompt_sent,job_id=$JOB_ID,pane_id=$PANE_ID"
 
 # Disable single-run jobs
 if [ "$JOB_TYPE" = "once" ]; then
-  cat "$JOB_FILE" | $PYTHON -c "
-import sys, json
-data = json.load(sys.stdin)
-data['enabled'] = False
-print(json.dumps(data, indent=2))
-" > "$JOB_FILE.tmp"
+  sed 's/"enabled": *true/"enabled": false/' "$JOB_FILE" > "$JOB_FILE.tmp"
   mv "$JOB_FILE.tmp" "$JOB_FILE"
   echo "[I] event=job_disabled,job_id=$JOB_ID,reason=single_run_completed"
 fi

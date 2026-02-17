@@ -53,27 +53,31 @@ for job_file in "$JOBS_DIR"/*.json; do
     continue
   fi
 
-  # Extract job data
-  JOB_DATA=$($PYTHON -c "
-import sys, json
-with open('$job_file') as f:
-    data = json.load(f)
-    enabled = data.get('enabled', False)
-    filter_type = '$FILTER'
+  # Extract job data using shell
+  _jv() { grep "\"$1\"" "$job_file" | head -1 | sed 's/.*: *"\(.*\)".*/\1/'; }
+  _jb() { grep "\"$1\"" "$job_file" | head -1 | sed 's/.*: *\(true\|false\).*/\1/'; }
 
-    # Apply filter
-    if filter_type == 'enabled' and not enabled:
-        sys.exit(0)
-    if filter_type == 'disabled' and enabled:
-        sys.exit(0)
+  j_enabled=$(_jb enabled)
 
-    # Truncate prompt for summary
-    prompt = data.get('prompt', '')
-    prompt_summary = prompt[:50] + '...' if len(prompt) > 50 else prompt
-    prompt_summary = prompt_summary.replace(',', ';')  # Avoid TOON delimiter issues
+  # Apply filter
+  if [ "$FILTER" = "enabled" ] && [ "$j_enabled" != "true" ]; then
+    continue
+  fi
+  if [ "$FILTER" = "disabled" ] && [ "$j_enabled" = "true" ]; then
+    continue
+  fi
 
-    print(f\"{data.get('id', '')},{data.get('schedule', '')},{data.get('type', '')},{enabled},{prompt_summary},{data.get('cwd', '')}\")
-" 2>/dev/null || true)
+  j_id=$(_jv id)
+  j_schedule=$(_jv schedule)
+  j_type=$(_jv type)
+  j_cwd=$(_jv cwd)
+  j_prompt=$(_jv prompt)
+  # Truncate prompt and replace commas
+  j_prompt=$(printf '%.50s' "$j_prompt")
+  j_prompt=$(echo "$j_prompt" | tr ',' ';')
+  [ ${#j_prompt} -ge 50 ] 2>/dev/null && j_prompt="${j_prompt}..."
+
+  JOB_DATA="${j_id},${j_schedule},${j_type},${j_enabled},${j_prompt},${j_cwd}"
 
   if [ -n "$JOB_DATA" ]; then
     echo "  $JOB_DATA"
