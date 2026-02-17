@@ -38,7 +38,7 @@ When a scheduled time arrives, the OS triggers `polycron-trigger.sh`, which spaw
 
 ```bash
 cat ~/.polydev/scripts-path
-# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.4.0/scripts
+# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.5.0/scripts
 ```
 
 **Remember the full absolute path from the output above, then use it directly in all commands.**
