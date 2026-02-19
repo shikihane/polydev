@@ -139,8 +139,8 @@ if [ -z "$CLAUDE_BIN" ]; then
   exit 1
 fi
 
-# Start Claude
-if ! tb_send_command "$pane_id" "$CLAUDE_BIN --dangerously-skip-permissions --model $MODEL" "true"; then
+# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
+if ! tb_send_command "$pane_id" "unset CLAUDECODE && $CLAUDE_BIN --dangerously-skip-permissions --model $MODEL" "true"; then
   echo "[E] error=Failed to start Claude" >&2
   exit 1
 fi

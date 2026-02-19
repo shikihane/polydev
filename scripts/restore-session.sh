@@ -167,7 +167,8 @@ echo "Starting Claude..."
 # Capture terminal state before starting Claude (for change detection)
 initial_content=$(tb_capture_content "$new_pane_id")
 
-if ! tb_send_command "$new_pane_id" "claude --dangerously-skip-permissions"; then
+# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
+if ! tb_send_command "$new_pane_id" "unset CLAUDECODE && claude --dangerously-skip-permissions"; then
   echo "Failed to start Claude"
   echo "Pane ID: $new_pane_id"
   exit 1

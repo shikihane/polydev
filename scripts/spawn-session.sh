@@ -197,8 +197,8 @@ else
   sed_inplace "s|PENDING_PANE_ID|$pane_id|" "$TASK_FILE"
 fi
 
-# Start Claude (using pane_id directly)
-if ! tb_send_command "$pane_id" "claude --dangerously-skip-permissions --model $CLAUDE_MODEL"; then
+# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
+if ! tb_send_command "$pane_id" "unset CLAUDECODE && claude --dangerously-skip-permissions --model $CLAUDE_MODEL"; then
   toon_error "Failed to start Claude"
   echo "Pane ID: $pane_id" >&2
   exit 1

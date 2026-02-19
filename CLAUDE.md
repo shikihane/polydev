@@ -265,6 +265,36 @@ After system boot, WezTerm's mux server may not be fully initialized, causing `w
 
 **Solution**: Wait a few seconds and retry, or manually open a WezTerm window first to initialize the service.
 
+### Nested Session Detection (Claude Code 2.1.39+)
+
+**Background**: Claude Code now blocks nested sessions to prevent crashes from shared runtime resources.
+
+**Error Message**:
+```
+Error: Claude Code cannot be launched inside another Claude Code session.
+Nested sessions share runtime resources and will crash all active sessions.
+To bypass this check, unset the CLAUDECODE environment variable.
+```
+
+**Polydev Solution**: All spawn scripts (`spawn-session.sh`, `spawn-agent.sh`, `restore-session.sh`) unset `CLAUDECODE` before launching Claude:
+
+```bash
+unset CLAUDECODE && claude --dangerously-skip-permissions --model $MODEL
+```
+
+**Why This Is Safe**:
+- Polydev spawns Claude instances in **completely isolated terminal sessions** (tmux panes / WezTerm tabs)
+- This is the official recommended pattern: "use separate terminals/worktrees"
+- The `CLAUDECODE` check cannot distinguish between unsafe (same shell) and safe (isolated terminal) scenarios
+
+**Potential Risks**:
+- If terminal isolation fails, sessions may conflict ("talking over each other")
+- Monitor `task.toon` status for anomalies (unexpected state changes, corrupted data)
+
+**References**:
+- GitHub Issue #25803: Nested session check blocks non-interactive subcommands
+- GitHub Issue #25434: Session docs missing nested-Claude launch guard behavior
+
 ### ⛔ NEVER Optimize: WezTerm Send Text Sleep Time
 
 **terminal-backend.sh 中的 `_wezterm_send_command` 和 `_wezterm_send_multiline_text` 函数里，发送回车键前的 sleep 时间绝对禁止优化！**
