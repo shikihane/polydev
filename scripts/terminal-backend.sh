@@ -276,16 +276,31 @@ except:
   # Set tab_title - includes pane_id for easy identification
   wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
 
-  # Detect shell type via wezterm cli list (more reliable than prompt detection)
+  # Detect shell type: 3-layer detection
+  # Layer 1: POLYDEV_PANE_SHELL env override (user can force a shell type)
+  # Layer 2: wezterm cli list title (process name, reliable on default configs)
+  # Layer 3: Platform fallback (Windows→powershell, others→bash)
   sleep 2  # Wait for shell to initialize
-  local shell_type="bash"
-  local pane_title
-  pane_title=$(wezterm cli list --format json 2>/dev/null | \
-    $PYTHON -c "import sys,json;[print(p.get('title','')) for p in json.load(sys.stdin) if p.get('pane_id')==$pane_id]" 2>/dev/null) || pane_title=""
-  if echo "$pane_title" | grep -qiE 'pwsh|powershell'; then
-    shell_type="powershell"
-  elif echo "$pane_title" | grep -qiE 'cmd\.exe'; then
-    shell_type="cmd"
+  local shell_type=""
+  if [ -n "${POLYDEV_PANE_SHELL:-}" ]; then
+    shell_type="$POLYDEV_PANE_SHELL"
+  else
+    local pane_title
+    pane_title=$(wezterm cli list --format json 2>/dev/null | \
+      $PYTHON -c "import sys,json;[print(p.get('title','')) for p in json.load(sys.stdin) if p.get('pane_id')==$pane_id]" 2>/dev/null) || pane_title=""
+    if echo "$pane_title" | grep -qiE 'pwsh|powershell'; then
+      shell_type="powershell"
+    elif echo "$pane_title" | grep -qiE 'cmd\.exe'; then
+      shell_type="cmd"
+    elif echo "$pane_title" | grep -qiE 'bash|MINGW|MSYS|zsh'; then
+      shell_type="bash"
+    else
+      # Platform fallback: WezTerm defaults to PowerShell on Windows
+      case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) shell_type="powershell" ;;
+        *) shell_type="bash" ;;
+      esac
+    fi
   fi
   # Store shell type in temp file keyed by pane_id
   local shell_type_dir="${TMPDIR:-/tmp}/polydev-shell-types"

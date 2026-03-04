@@ -299,13 +299,19 @@ unset CLAUDECODE && claude --dangerously-skip-permissions --model $MODEL
 
 WezTerm 在 Windows 上默认打开 PowerShell，在其他平台可能打开 bash。polydev 通过自动检测 pane 的 shell 类型来适配命令语法。
 
-**实现机制**:
-1. `_wezterm_create_session()` 创建 pane 后，捕获初始屏幕输出
-2. 检测 `PS C:\` 等 PowerShell 提示符特征 → 标记为 `powershell`，否则 `bash`
-3. Shell 类型存储在 `$TMPDIR/polydev-shell-types/<pane_id>`
-4. `tb_launch_claude()` 根据 shell 类型自动选择语法：
-   - bash: `unset CLAUDECODE && claude ...`
-   - PowerShell: `Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; claude ...`
+**三层检测机制**:
+1. **环境变量覆盖**: `POLYDEV_PANE_SHELL=bash|powershell|cmd` 强制指定，跳过检测
+2. **进程标题匹配**: `wezterm cli list --format json` 的 `title` 字段匹配 shell 进程名
+   - `pwsh|powershell` → powershell
+   - `cmd.exe` → cmd
+   - `bash|MINGW|MSYS|zsh` → bash
+3. **平台回退**: 标题无法匹配时，Windows → powershell（WezTerm 默认），其他 → bash
+
+Shell 类型存储在 `$TMPDIR/polydev-shell-types/<pane_id>`。
+`tb_launch_claude()` 根据 shell 类型自动选择语法：
+- bash: `unset CLAUDECODE && claude ...`
+- PowerShell: `Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; claude ...`
+- PowerShell 下使用 `claude` 命令名（而非 Git Bash 完整路径），路径用 `cygpath -w` 转换
 
 **使用 `tb_launch_claude()` 的脚本**: `spawn-agent.sh`、`spawn-session.sh`、`restore-session.sh`。
 **不要直接用 `tb_send_command()` 发送 `unset CLAUDECODE && ...`**，因为这在 PowerShell 中会失败。
