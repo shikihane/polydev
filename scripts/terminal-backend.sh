@@ -276,11 +276,23 @@ except:
   # Set tab_title - includes pane_id for easy identification
   wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
 
+  # Detect shell type and store for later use
+  sleep 2  # Wait for shell prompt to initialize
+  local screen_output
+  screen_output=$(wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 3 2>/dev/null) || screen_output=""
+  local shell_type="bash"
+  if echo "$screen_output" | grep -qiE 'PS [A-Z]:\\|PowerShell|pwsh'; then
+    shell_type="powershell"
+  fi
+  # Store shell type in temp file keyed by pane_id
+  local shell_type_dir="${TMPDIR:-/tmp}/polydev-shell-types"
+  mkdir -p "$shell_type_dir"
+  echo "$shell_type" > "$shell_type_dir/$pane_id"
+
   # Workaround for Windows Git Bash: --cwd may not work correctly
   # Git Bash often starts in MSYS installation dir or %USERPROFILE%
   # See: https://github.com/git-for-windows/git/issues/794
-  # Explicitly cd to the target directory after bash starts
-  sleep 2  # Wait for bash prompt to initialize
+  # Explicitly cd to the target directory after shell starts
   printf 'cd "%s"' "$cwd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
   printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
@@ -298,6 +310,49 @@ _wezterm_is_alive() {
 
   # Try to get pane info - if succeeds, pane is alive
   wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 0 &>/dev/null
+}
+
+# ─── Shell Detection (cross-shell support) ───
+
+# Get the detected shell type for a WezTerm pane
+# Returns: "powershell" or "bash"
+_wezterm_get_pane_shell() {
+  local pane_id="$1"
+  local shell_type_file="${TMPDIR:-/tmp}/polydev-shell-types/$pane_id"
+  if [ -f "$shell_type_file" ]; then
+    cat "$shell_type_file"
+  else
+    echo "bash"  # default fallback
+  fi
+}
+
+# Launch Claude CLI in a pane, adapting syntax to the pane's shell (bash or PowerShell)
+# Usage: tb_launch_claude <pane_id> <claude_bin> <model> [extra_args...]
+tb_launch_claude() {
+  local pane_id="$1"
+  local claude_bin="$2"
+  local model="$3"
+  shift 3
+  local extra_args="$*"
+
+  local backend
+  backend=$(tb_get_backend)
+
+  if [ "$backend" = "wezterm" ]; then
+    local shell_type
+    shell_type=$(_wezterm_get_pane_shell "$pane_id")
+    local cmd
+    if [ "$shell_type" = "powershell" ]; then
+      # PowerShell syntax: Remove-Item instead of unset, semicolon instead of &&
+      cmd="Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; $claude_bin --dangerously-skip-permissions --model $model $extra_args"
+    else
+      cmd="unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args"
+    fi
+    _wezterm_send_command "$pane_id" "$cmd" "true"
+  else
+    # tmux: always bash
+    _tmux_send_command "$pane_id" "unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args" "true"
+  fi
 }
 
 _wezterm_send_command() {

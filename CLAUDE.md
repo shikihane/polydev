@@ -295,6 +295,23 @@ unset CLAUDECODE && claude --dangerously-skip-permissions --model $MODEL
 - GitHub Issue #25803: Nested session check blocks non-interactive subcommands
 - GitHub Issue #25434: Session docs missing nested-Claude launch guard behavior
 
+### WezTerm 跨 Shell 支持（PowerShell / Bash 自动检测）
+
+WezTerm 在 Windows 上默认打开 PowerShell，在其他平台可能打开 bash。polydev 通过自动检测 pane 的 shell 类型来适配命令语法。
+
+**实现机制**:
+1. `_wezterm_create_session()` 创建 pane 后，捕获初始屏幕输出
+2. 检测 `PS C:\` 等 PowerShell 提示符特征 → 标记为 `powershell`，否则 `bash`
+3. Shell 类型存储在 `$TMPDIR/polydev-shell-types/<pane_id>`
+4. `tb_launch_claude()` 根据 shell 类型自动选择语法：
+   - bash: `unset CLAUDECODE && claude ...`
+   - PowerShell: `Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; claude ...`
+
+**需要使用 `tb_launch_claude()` 的脚本**: `spawn-agent.sh`、`spawn-session.sh`、`restore-session.sh`。
+**不要直接用 `tb_send_command()` 发送 `unset CLAUDECODE && ...`**，因为这在 PowerShell 中会失败。
+
+**待完成**: `spawn-session.sh`、`restore-session.sh`、`spawn-codex.sh`、`spawn-gemini.sh` 也需要改用 `tb_launch_claude()`。
+
 ### ⛔ NEVER Optimize: WezTerm Send Text Sleep Time
 
 **terminal-backend.sh 中的 `_wezterm_send_command` 和 `_wezterm_send_multiline_text` 函数里，发送回车键前的 sleep 时间绝对禁止优化！**

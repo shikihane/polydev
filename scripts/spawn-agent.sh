@@ -139,8 +139,8 @@ if [ -z "$CLAUDE_BIN" ]; then
   exit 1
 fi
 
-# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
-if ! tb_send_command "$pane_id" "unset CLAUDECODE && $CLAUDE_BIN --dangerously-skip-permissions --model $MODEL" "true"; then
+# Start Claude (auto-detects shell: bash uses 'unset', PowerShell uses 'Remove-Item Env:')
+if ! tb_launch_claude "$pane_id" "$CLAUDE_BIN" "$MODEL"; then
   echo "[E] error=Failed to start Claude" >&2
   exit 1
 fi
