@@ -276,28 +276,35 @@ except:
   # Set tab_title - includes pane_id for easy identification
   wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
 
-  # Detect shell type and store for later use
-  sleep 2  # Wait for shell prompt to initialize
-  local screen_output
-  screen_output=$(wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 3 2>/dev/null) || screen_output=""
+  # Detect shell type via wezterm cli list (more reliable than prompt detection)
+  sleep 2  # Wait for shell to initialize
   local shell_type="bash"
-  if echo "$screen_output" | grep -qiE 'PS [A-Z]:\\|PowerShell|pwsh'; then
+  local pane_title
+  pane_title=$(wezterm cli list --format json 2>/dev/null | \
+    $PYTHON -c "import sys,json;[print(p.get('title','')) for p in json.load(sys.stdin) if p.get('pane_id')==$pane_id]" 2>/dev/null) || pane_title=""
+  if echo "$pane_title" | grep -qiE 'pwsh|powershell'; then
     shell_type="powershell"
+  elif echo "$pane_title" | grep -qiE 'cmd\.exe'; then
+    shell_type="cmd"
   fi
   # Store shell type in temp file keyed by pane_id
   local shell_type_dir="${TMPDIR:-/tmp}/polydev-shell-types"
   mkdir -p "$shell_type_dir"
   echo "$shell_type" > "$shell_type_dir/$pane_id"
 
-  # Workaround for Windows Git Bash: --cwd may not work correctly
-  # Git Bash often starts in MSYS installation dir or %USERPROFILE%
-  # See: https://github.com/git-for-windows/git/issues/794
   # Explicitly cd to the target directory after shell starts
-  printf 'cd "%s"' "$cwd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  # Git Bash paths (/c/...) are invalid in PowerShell, convert with cygpath
+  local cd_path="$cwd"
+  local clear_cmd="clear"
+  if [ "$shell_type" = "powershell" ] || [ "$shell_type" = "cmd" ]; then
+    cd_path=$(cygpath -w "$cwd" 2>/dev/null || echo "$cwd")
+    clear_cmd="cls"
+  fi
+  printf 'cd "%s"' "$cd_path" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
   printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
-  printf 'clear' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  printf '%s' "$clear_cmd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
   printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
 
@@ -344,7 +351,10 @@ tb_launch_claude() {
     local cmd
     if [ "$shell_type" = "powershell" ]; then
       # PowerShell syntax: Remove-Item instead of unset, semicolon instead of &&
-      cmd="Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; $claude_bin --dangerously-skip-permissions --model $model $extra_args"
+      # Use basename only — Git Bash paths (/c/...) are invalid in PowerShell
+      local ps_bin
+      ps_bin=$(basename "$claude_bin" .cmd)
+      cmd="Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; $ps_bin --dangerously-skip-permissions --model $model $extra_args"
     else
       cmd="unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args"
     fi
