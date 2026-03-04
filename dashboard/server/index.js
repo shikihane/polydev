@@ -1,0 +1,102 @@
+// server/index.js
+import express from 'express';
+import cors from 'cors';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { listSessions, listTasks, capturePane, isPaneAlive } from './shell.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const app = express();
+const PORT = process.env.PORT || 3120;
+
+app.use(cors());
+
+// Serve built frontend in production
+const distPath = resolve(__dirname, '..', 'dist');
+if (existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+
+// ─── REST Endpoints ───
+
+app.get('/api/sessions', async (req, res) => {
+  try {
+    const sessions = await listSessions();
+    res.json({ sessions });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/tasks', async (req, res) => {
+  try {
+    // Look for .worktrees in current working directory
+    const worktreesDir = req.query.dir || resolve(process.cwd(), '.worktrees');
+    const tasks = await listTasks(worktreesDir);
+    res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── SSE Endpoint ───
+
+app.get('/api/stream/capture/:paneId', async (req, res) => {
+  const { paneId } = req.params;
+  const interval = Math.max(1, Math.min(30, parseInt(req.query.interval, 10) || 3));
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  let lastContent = '';
+  let alive = true;
+
+  const capture = async () => {
+    if (!alive) return;
+    try {
+      const isAlive = await isPaneAlive(paneId);
+      if (!isAlive) {
+        res.write(`event: dead\ndata: ${JSON.stringify({ paneId })}\n\n`);
+        alive = false;
+        clearInterval(timer);
+        res.end();
+        return;
+      }
+      const lines = await capturePane(paneId);
+      const content = lines.join('\n');
+      // Only push if content changed
+      if (content !== lastContent) {
+        lastContent = content;
+        const data = JSON.stringify({ paneId, lines, timestamp: new Date().toISOString() });
+        res.write(`event: capture\ndata: ${data}\n\n`);
+      }
+    } catch (err) {
+      res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+    }
+  };
+
+  // Initial capture immediately
+  await capture();
+  const timer = setInterval(capture, interval * 1000);
+
+  // Cleanup on disconnect
+  req.on('close', () => {
+    alive = false;
+    clearInterval(timer);
+  });
+});
+
+// Fallback: serve index.html for SPA routing
+if (existsSync(distPath)) {
+  app.get('*', (req, res) => {
+    res.sendFile(resolve(distPath, 'index.html'));
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(`Polydev Dashboard API running on http://localhost:${PORT}`);
+});
