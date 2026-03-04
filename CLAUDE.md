@@ -307,10 +307,10 @@ WezTerm 在 Windows 上默认打开 PowerShell，在其他平台可能打开 bas
    - bash: `unset CLAUDECODE && claude ...`
    - PowerShell: `Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; claude ...`
 
-**需要使用 `tb_launch_claude()` 的脚本**: `spawn-agent.sh`、`spawn-session.sh`、`restore-session.sh`。
+**使用 `tb_launch_claude()` 的脚本**: `spawn-agent.sh`、`spawn-session.sh`、`restore-session.sh`。
 **不要直接用 `tb_send_command()` 发送 `unset CLAUDECODE && ...`**，因为这在 PowerShell 中会失败。
 
-**待完成**: `spawn-session.sh`、`restore-session.sh`、`spawn-codex.sh`、`spawn-gemini.sh` 也需要改用 `tb_launch_claude()`。
+**注意**: `spawn-codex.sh` 和 `spawn-gemini.sh` 不需要改动，因为它们不需要 `unset CLAUDECODE`，且命令本身跨 shell 兼容。
 
 ### ⛔ NEVER Optimize: WezTerm Send Text Sleep Time
 

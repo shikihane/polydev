@@ -167,8 +167,25 @@ echo "Starting Claude..."
 # Capture terminal state before starting Claude (for change detection)
 initial_content=$(tb_capture_content "$new_pane_id")
 
-# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
-if ! tb_send_command "$new_pane_id" "unset CLAUDECODE && claude --dangerously-skip-permissions"; then
+# Find claude binary
+CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+if [ -z "$CLAUDE_BIN" ]; then
+  for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
+    if [ -x "$candidate" ]; then
+      CLAUDE_BIN="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$CLAUDE_BIN" ]; then
+  echo "Error: claude binary not found"
+  exit 1
+fi
+
+CLAUDE_MODEL="${CLAUDE_MODEL:-sonnet}"
+
+# Start Claude (auto-detects shell: bash uses 'unset', PowerShell uses 'Remove-Item Env:')
+if ! tb_launch_claude "$new_pane_id" "$CLAUDE_BIN" "$CLAUDE_MODEL"; then
   echo "Failed to start Claude"
   echo "Pane ID: $new_pane_id"
   exit 1

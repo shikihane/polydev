@@ -197,8 +197,23 @@ else
   sed_inplace "s|PENDING_PANE_ID|$pane_id|" "$TASK_FILE"
 fi
 
-# Start Claude (unset CLAUDECODE to allow nested sessions in isolated terminals)
-if ! tb_send_command "$pane_id" "unset CLAUDECODE && claude --dangerously-skip-permissions --model $CLAUDE_MODEL"; then
+# Find claude binary (may not be in PATH for cron-spawned sessions)
+CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+if [ -z "$CLAUDE_BIN" ]; then
+  for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
+    if [ -x "$candidate" ]; then
+      CLAUDE_BIN="$candidate"
+      break
+    fi
+  done
+fi
+if [ -z "$CLAUDE_BIN" ]; then
+  toon_error "claude binary not found"
+  exit 1
+fi
+
+# Start Claude (auto-detects shell: bash uses 'unset', PowerShell uses 'Remove-Item Env:')
+if ! tb_launch_claude "$pane_id" "$CLAUDE_BIN" "$CLAUDE_MODEL"; then
   toon_error "Failed to start Claude"
   echo "Pane ID: $pane_id" >&2
   exit 1
