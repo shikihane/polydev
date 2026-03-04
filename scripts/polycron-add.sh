@@ -102,17 +102,7 @@ mkdir -p "$(dirname "$REPORT_PATH")"
 # Pre-create agent pane with Claude ready
 echo "[I] event=creating_agent_pane,job_id=$JOB_ID"
 
-# Find claude binary
-CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
-if [ -z "$CLAUDE_BIN" ]; then
-  for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
-    if [ -x "$candidate" ]; then
-      CLAUDE_BIN="$candidate"
-      break
-    fi
-  done
-fi
-if [ -z "$CLAUDE_BIN" ]; then
+if ! tb_find_claude_bin; then
   echo "[E] claude binary not found" >&2
   exit 1
 fi

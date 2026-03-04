@@ -123,18 +123,7 @@ toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
 # Capture terminal state before starting Claude
 initial_content=$(tb_capture_content "$pane_id")
 
-# Find claude binary (may not be in PATH for cron-spawned sessions)
-CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
-if [ -z "$CLAUDE_BIN" ]; then
-  # Common install locations
-  for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
-    if [ -x "$candidate" ]; then
-      CLAUDE_BIN="$candidate"
-      break
-    fi
-  done
-fi
-if [ -z "$CLAUDE_BIN" ]; then
+if ! tb_find_claude_bin; then
   echo "[E] error=claude binary not found" >&2
   exit 1
 fi

@@ -334,6 +334,29 @@ _wezterm_is_alive() {
   wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 0 &>/dev/null
 }
 
+# ─── Claude Binary Detection ───
+
+# Find the claude CLI binary, searching PATH and common install locations.
+# Usage: tb_find_claude_bin
+# Sets: CLAUDE_BIN (exported)
+# Returns: 0 if found, 1 if not found
+tb_find_claude_bin() {
+  CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+  if [ -z "$CLAUDE_BIN" ]; then
+    for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
+      if [ -x "$candidate" ]; then
+        CLAUDE_BIN="$candidate"
+        break
+      fi
+    done
+  fi
+  if [ -z "$CLAUDE_BIN" ]; then
+    return 1
+  fi
+  export CLAUDE_BIN
+  return 0
+}
+
 # ─── Shell Detection (cross-shell support) ───
 
 # Get the detected shell type for a WezTerm pane
@@ -357,27 +380,25 @@ tb_launch_claude() {
   shift 3
   local extra_args="$*"
 
-  local backend
-  backend=$(tb_get_backend)
-
-  if [ "$backend" = "wezterm" ]; then
+  # Build the launch command based on shell type
+  local cmd
+  if [ "$TB_BACKEND" = "wezterm" ]; then
     local shell_type
     shell_type=$(_wezterm_get_pane_shell "$pane_id")
-    local cmd
     if [ "$shell_type" = "powershell" ]; then
-      # PowerShell syntax: Remove-Item instead of unset, semicolon instead of &&
-      # Use basename only — Git Bash paths (/c/...) are invalid in PowerShell
+      # PowerShell: Remove-Item instead of unset, basename only (Git Bash paths invalid)
       local ps_bin
       ps_bin=$(basename "$claude_bin" .cmd)
       cmd="Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; $ps_bin --dangerously-skip-permissions --model $model $extra_args"
-    else
-      cmd="unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args"
     fi
-    _wezterm_send_command "$pane_id" "$cmd" "true"
-  else
-    # tmux: always bash
-    _tmux_send_command "$pane_id" "unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args" "true"
   fi
+
+  # Default: bash syntax (used by tmux and wezterm-bash)
+  if [ -z "$cmd" ]; then
+    cmd="unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args"
+  fi
+
+  tb_send_command "$pane_id" "$cmd" "true"
 }
 
 _wezterm_send_command() {
@@ -394,19 +415,10 @@ _wezterm_send_command() {
   fi
 }
 
+# _wezterm_send_multiline_text is identical to _wezterm_send_command
+# (both send text via --no-paste and optionally press Enter)
 _wezterm_send_multiline_text() {
-  local pane_id="$1"
-  local text="$2"
-  local execute="${3:-true}"
-
-  # Send text first, then send Enter separately after delay
-  # --no-paste: avoid bracketed paste swallowing control chars
-  printf '%s' "$text" | wezterm cli send-text --no-paste --pane-id "$pane_id"
-
-  if [ "$execute" = "true" ]; then
-    sleep 2
-    printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
-  fi
+  _wezterm_send_command "$@"
 }
 
 _wezterm_focus_session() {
@@ -672,13 +684,14 @@ _tb_capture_pane() {
   esac
 }
 
-# Wait for Codex CLI to be ready
-# Usage: tb_wait_for_codex <pane_id> [timeout_seconds=15]
-# Returns: 0 if ready, 1 if timeout or session died
-# Ready marker: "context left" in status line
-tb_wait_for_codex() {
-  local pane_id="$1"
-  local timeout="${2:-15}"
+# Wait for a CLI tool to be ready by polling for a marker string in the pane.
+# Usage: _tb_wait_for_marker <tool_name> <pane_id> <marker_pattern> [timeout_seconds=15]
+# Returns: 0 if marker found, 1 if timeout or session died
+_tb_wait_for_marker() {
+  local tool_name="$1"
+  local pane_id="$2"
+  local marker="$3"
+  local timeout="${4:-15}"
   local start_time=$(date +%s)
 
   while true; do
@@ -686,75 +699,44 @@ tb_wait_for_codex() {
     local elapsed=$((now - start_time))
 
     if [ $elapsed -ge $timeout ]; then
-      echo "[W] Codex wait timeout after ${timeout}s" >&2
+      echo "[W] $tool_name wait timeout after ${timeout}s" >&2
       return 1
     fi
 
     if ! tb_is_session_alive "$pane_id"; then
-      echo "[E] Session died while waiting for Codex" >&2
+      echo "[E] Session died while waiting for $tool_name" >&2
       return 1
     fi
 
     local current_content
     current_content=$(_tb_capture_pane "$pane_id")
 
-    # Check for Codex ready marker
-    if echo "$current_content" | grep -q "context left"; then
+    if echo "$current_content" | grep -q "$marker"; then
       return 0
     fi
 
     sleep 0.5
   done
+}
+
+# Wait for Codex CLI to be ready
+# Usage: tb_wait_for_codex <pane_id> [timeout_seconds=15]
+# Returns: 0 if ready, 1 if timeout or session died
+tb_wait_for_codex() {
+  _tb_wait_for_marker "Codex" "$1" "context left" "${2:-15}"
 }
 
 # Wait for Gemini CLI to be ready
 # Usage: tb_wait_for_gemini <pane_id> [timeout_seconds=15]
 # Returns: 0 if ready, 1 if timeout or session died
-# Ready marker: "Type your message" in input box
 tb_wait_for_gemini() {
-  local pane_id="$1"
-  local timeout="${2:-15}"
-  local start_time=$(date +%s)
-
-  while true; do
-    local now=$(date +%s)
-    local elapsed=$((now - start_time))
-
-    if [ $elapsed -ge $timeout ]; then
-      echo "[W] Gemini wait timeout after ${timeout}s" >&2
-      return 1
-    fi
-
-    if ! tb_is_session_alive "$pane_id"; then
-      echo "[E] Session died while waiting for Gemini" >&2
-      return 1
-    fi
-
-    local current_content
-    current_content=$(_tb_capture_pane "$pane_id")
-
-    # Check for Gemini ready marker
-    if echo "$current_content" | grep -q "Type your message"; then
-      return 0
-    fi
-
-    sleep 0.5
-  done
+  _tb_wait_for_marker "Gemini" "$1" "Type your message" "${2:-15}"
 }
 
-# Capture terminal content for change detection
+# Capture terminal content for change detection (first 5 lines)
 # Usage: tb_capture_content <pane_id>
 tb_capture_content() {
-  local pane_id="$1"
-  case "$TB_BACKEND" in
-    wezterm)
-      wezterm cli get-text --pane-id "$pane_id" 2>/dev/null | head -5
-      ;;
-    tmux)
-      _parse_session_id "$pane_id"
-      _tmux capture-pane -t "$TARGET" -p 2>/dev/null | head -5
-      ;;
-  esac
+  _tb_capture_pane "$1" | head -5
 }
 
 # Get current backend
