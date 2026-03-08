@@ -146,6 +146,24 @@ export async function capturePane(paneId, lines = 50) {
   return raw.split('\n');
 }
 
+export async function killPane(paneId) {
+  const scripts = await getScriptsPath();
+  await run(`bash "${scripts}/close-session.sh" --pane-id ${paneId}`, { timeout: 15000 });
+}
+
+export async function closePane(paneId) {
+  const backend = getBackend();
+  try {
+    if (backend === 'wezterm') {
+      await runArgs('wezterm', ['cli', 'kill-pane', '--pane-id', String(paneId)]);
+    } else {
+      await runArgs('tmux', ['-S', '/tmp/polydev.sock', 'kill-pane', '-t', String(paneId)]);
+    }
+  } catch {
+    // pane may already be gone, that's fine
+  }
+}
+
 export async function isPaneAlive(paneId) {
   const backend = getBackend();
   try {

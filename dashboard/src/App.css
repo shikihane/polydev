@@ -159,6 +159,49 @@ body {
 .dot.completed { background: #58a6ff; }
 .dot.ended { background: #8b949e; }
 
+.card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kill-btn {
+  font-size: 12px;
+  color: #f85149;
+  background: none;
+  border: 1px solid #f8514933;
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.kill-btn:hover {
+  background: #3d1214;
+  border-color: #f85149;
+}
+
+.kill-btn:disabled,
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.close-btn {
+  font-size: 12px;
+  color: #8b949e;
+  background: none;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  color: #f85149;
+  background: #3d1214;
+  border-color: #f85149;
+}
+
 .toggle-btn {
   font-size: 12px;
   color: #58a6ff;

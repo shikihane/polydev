@@ -4,13 +4,14 @@ import cors from 'cors';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { listSessions, listTasks, capturePane, isPaneAlive, isValidPaneId } from './shell.js';
+import { listSessions, listTasks, capturePane, isPaneAlive, isValidPaneId, killPane, closePane } from './shell.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3120;
 
 app.use(cors());
+app.use(express.json());
 
 // Serve built frontend in production
 const distPath = resolve(__dirname, '..', 'dist');
@@ -35,6 +36,34 @@ app.get('/api/tasks', async (req, res) => {
     const worktreesDir = req.query.dir || resolve(process.cwd(), '.worktrees');
     const tasks = await listTasks(worktreesDir);
     res.json({ tasks });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/kill/:paneId', async (req, res) => {
+  const { paneId } = req.params;
+  if (!isValidPaneId(paneId)) {
+    res.status(400).json({ error: 'Invalid paneId format' });
+    return;
+  }
+  try {
+    await killPane(paneId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/close/:paneId', async (req, res) => {
+  const { paneId } = req.params;
+  if (!isValidPaneId(paneId)) {
+    res.status(400).json({ error: 'Invalid paneId format' });
+    return;
+  }
+  try {
+    await closePane(paneId);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

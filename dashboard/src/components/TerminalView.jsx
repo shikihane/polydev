@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-export default function TerminalView({ paneId, interval }) {
+export default function TerminalView({ paneId, interval, onLines, onDead }) {
   const [lines, setLines] = useState([]);
   const [dead, setDead] = useState(false);
   const containerRef = useRef(null);
@@ -15,10 +15,12 @@ export default function TerminalView({ paneId, interval }) {
     es.addEventListener('capture', (e) => {
       const data = JSON.parse(e.data);
       setLines(data.lines);
+      onLines?.(data.lines);
     });
 
     es.addEventListener('dead', () => {
       setDead(true);
+      onDead?.();
       es.close();
     });
 
