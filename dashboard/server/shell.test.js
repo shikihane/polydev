@@ -1,6 +1,6 @@
 // server/shell.test.js
 import { describe, it, expect } from 'vitest';
-import { parseSessionsToon, parseTaskToon } from './shell.js';
+import { parseSessionsToon, parseTaskToon, isValidPaneId } from './shell.js';
 
 describe('parseSessionsToon', () => {
   it('parses single TOON line', () => {
@@ -31,6 +31,12 @@ describe('parseSessionsToon', () => {
     expect(parseSessionsToon('')).toEqual([]);
     expect(parseSessionsToon('(No sessions found)')).toEqual([]);
   });
+
+  it('preserves tmux pane_id format', () => {
+    const input = 'session_id=wo:proj:main.0,status=alive,cwd=/home/user/proj,pane_id=%3';
+    const result = parseSessionsToon(input);
+    expect(result[0].paneId).toBe('%3');
+  });
 });
 
 describe('parseTaskToon', () => {
@@ -57,5 +63,40 @@ last_update: 2026-03-04T10:30:00Z`;
       blockingReason: '',
       lastUpdate: '2026-03-04T10:30:00Z',
     });
+  });
+});
+
+describe('isValidPaneId', () => {
+  it('accepts numeric pane ids', () => {
+    expect(isValidPaneId('5')).toBe(true);
+    expect(isValidPaneId('123')).toBe(true);
+  });
+
+  it('accepts tmux percent-prefixed pane ids', () => {
+    expect(isValidPaneId('%0')).toBe(true);
+    expect(isValidPaneId('%42')).toBe(true);
+  });
+
+  it('accepts tmux session:window.pane format', () => {
+    expect(isValidPaneId('polydev:1.0')).toBe(true);
+    expect(isValidPaneId('my-session:0.1')).toBe(true);
+  });
+
+  it('rejects shell metacharacters', () => {
+    expect(isValidPaneId('5; rm -rf /')).toBe(false);
+    expect(isValidPaneId('$(whoami)')).toBe(false);
+    expect(isValidPaneId('`id`')).toBe(false);
+    expect(isValidPaneId('5 && echo pwned')).toBe(false);
+    expect(isValidPaneId('5|cat /etc/passwd')).toBe(false);
+  });
+
+  it('rejects non-string input', () => {
+    expect(isValidPaneId(null)).toBe(false);
+    expect(isValidPaneId(undefined)).toBe(false);
+    expect(isValidPaneId(42)).toBe(false);
+  });
+
+  it('rejects empty string', () => {
+    expect(isValidPaneId('')).toBe(false);
   });
 });

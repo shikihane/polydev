@@ -3,14 +3,35 @@ import { timeAgo } from '../utils.js';
 
 export default function Dashboard({ sessions, tasks, error, lastRefresh }) {
   // Merge sessions and tasks by paneId
-  const items = sessions.map((s) => {
+  const matchedTaskPaneIds = new Set();
+  const sessionItems = sessions.map((s) => {
     const task = tasks.find((t) => t.paneId === s.paneId);
+    if (task) matchedTaskPaneIds.add(task.paneId);
     return { ...s, task };
   });
 
-  // Count active
+  // Tasks whose pane is gone (completed/failed) show as orphaned
+  const orphanedItems = tasks
+    .filter((t) => !matchedTaskPaneIds.has(t.paneId))
+    .map((t) => ({
+      sessionId: `orphan:${t.paneId}`,
+      type: 'wo',
+      name: t.branch || t.worktree || 'Unknown',
+      status: 'ended',
+      cwd: t.worktree || '',
+      paneId: t.paneId,
+      task: t,
+      orphaned: true,
+    }));
+
+  const items = [...sessionItems, ...orphanedItems];
+
+  // Count active — only tasks with a live session count as running
   const aliveCount = sessions.filter((s) => s.status === 'alive').length;
-  const taskRunning = tasks.filter((t) => t.overallStatus === 'in_progress').length;
+  const taskRunning = tasks.filter(
+    (t) => t.overallStatus === 'in_progress' && matchedTaskPaneIds.has(t.paneId)
+  ).length;
+  const endedCount = orphanedItems.length;
 
   return (
     <div className="dashboard">
@@ -40,6 +61,12 @@ export default function Dashboard({ sessions, tasks, error, lastRefresh }) {
           <strong>{sessions.length}</strong>
           Total Sessions
         </div>
+        {endedCount > 0 && (
+          <div className="summary-item">
+            <strong>{endedCount}</strong>
+            Ended Tasks
+          </div>
+        )}
       </div>
 
       <div className="card-list">

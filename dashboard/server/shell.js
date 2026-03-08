@@ -1,7 +1,8 @@
 // server/shell.js
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ─── Parsers ───
 
@@ -67,6 +68,19 @@ function run(cmd, options = {}) {
   });
 }
 
+function runArgs(cmd, args, options = {}) {
+  return new Promise((res, reject) => {
+    execFile(cmd, args, { encoding: 'utf-8', timeout: 10000, ...options }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(stderr || err.message));
+      res(stdout);
+    });
+  });
+}
+
+export function isValidPaneId(paneId) {
+  return typeof paneId === 'string' && /^[\w%.:@-]+$/.test(paneId);
+}
+
 /**
  * Locate the polydev scripts directory.
  * Reads from ~/.polydev/scripts-path (set by SessionStart hook).
@@ -81,7 +95,7 @@ export async function getScriptsPath() {
     _scriptsPath = stored.trim();
   } catch {
     // Fallback: relative to this file → ../../scripts
-    _scriptsPath = resolve(new URL('.', import.meta.url).pathname, '..', '..', 'scripts');
+    _scriptsPath = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'scripts');
   }
   return _scriptsPath;
 }
@@ -119,17 +133,16 @@ export async function listTasks(worktreesDir) {
 
 export async function capturePane(paneId, lines = 50) {
   const backend = getBackend();
-  let cmd;
+  let raw;
   if (backend === 'wezterm') {
-    cmd = `wezterm cli get-text --pane-id ${paneId} --start-line -${lines}`;
+    raw = await runArgs('wezterm', [
+      'cli', 'get-text', '--pane-id', String(paneId), '--start-line', String(-lines),
+    ]);
   } else {
-    // tmux: paneId is session_id like "wo:workspace:branch.0"
-    // Parse to tmux target format
-    const stripped = paneId.replace(/^(wo|bg|ag):/, '');
-    const [session, windowPane] = stripped.split(':');
-    cmd = `tmux -S /tmp/polydev.sock capture-pane -t "${session}:${windowPane}" -p -S -${lines}`;
+    raw = await runArgs('tmux', [
+      '-S', '/tmp/polydev.sock', 'capture-pane', '-t', String(paneId), '-p', '-S', String(-lines),
+    ]);
   }
-  const raw = await run(cmd);
   return raw.split('\n');
 }
 
@@ -137,11 +150,13 @@ export async function isPaneAlive(paneId) {
   const backend = getBackend();
   try {
     if (backend === 'wezterm') {
-      await run(`wezterm cli get-text --pane-id ${paneId} --start-line 0 --end-line 0`);
+      await runArgs('wezterm', [
+        'cli', 'get-text', '--pane-id', String(paneId), '--start-line', '0', '--end-line', '0',
+      ]);
     } else {
-      const stripped = paneId.replace(/^(wo|bg|ag):/, '');
-      const [session, windowPane] = stripped.split(':');
-      await run(`tmux -S /tmp/polydev.sock list-panes -t "${session}:${windowPane}"`);
+      await runArgs('tmux', [
+        '-S', '/tmp/polydev.sock', 'list-panes', '-t', String(paneId),
+      ]);
     }
     return true;
   } catch {

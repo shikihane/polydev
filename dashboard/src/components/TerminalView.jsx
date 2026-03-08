@@ -9,7 +9,7 @@ export default function TerminalView({ paneId, interval }) {
     setLines([]);
     setDead(false);
 
-    const url = `/api/stream/capture/${paneId}?interval=${interval}`;
+    const url = `/api/stream/capture/${encodeURIComponent(paneId)}?interval=${interval}`;
     const es = new EventSource(url);
 
     es.addEventListener('capture', (e) => {

@@ -4,7 +4,7 @@ import cors from 'cors';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { listSessions, listTasks, capturePane, isPaneAlive } from './shell.js';
+import { listSessions, listTasks, capturePane, isPaneAlive, isValidPaneId } from './shell.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -44,6 +44,12 @@ app.get('/api/tasks', async (req, res) => {
 
 app.get('/api/stream/capture/:paneId', async (req, res) => {
   const { paneId } = req.params;
+
+  if (!isValidPaneId(paneId)) {
+    res.status(400).json({ error: 'Invalid paneId format' });
+    return;
+  }
+
   const interval = Math.max(1, Math.min(30, parseInt(req.query.interval, 10) || 3));
 
   res.writeHead(200, {
@@ -54,6 +60,7 @@ app.get('/api/stream/capture/:paneId', async (req, res) => {
 
   let lastContent = '';
   let alive = true;
+  let timer;
 
   const capture = async () => {
     if (!alive) return;
@@ -62,13 +69,12 @@ app.get('/api/stream/capture/:paneId', async (req, res) => {
       if (!isAlive) {
         res.write(`event: dead\ndata: ${JSON.stringify({ paneId })}\n\n`);
         alive = false;
-        clearInterval(timer);
+        clearTimeout(timer);
         res.end();
         return;
       }
       const lines = await capturePane(paneId);
       const content = lines.join('\n');
-      // Only push if content changed
       if (content !== lastContent) {
         lastContent = content;
         const data = JSON.stringify({ paneId, lines, timestamp: new Date().toISOString() });
@@ -79,14 +85,20 @@ app.get('/api/stream/capture/:paneId', async (req, res) => {
     }
   };
 
-  // Initial capture immediately
   await capture();
-  const timer = setInterval(capture, interval * 1000);
 
-  // Cleanup on disconnect
+  const scheduleNext = () => {
+    if (!alive) return;
+    timer = setTimeout(async () => {
+      await capture();
+      scheduleNext();
+    }, interval * 1000);
+  };
+  scheduleNext();
+
   req.on('close', () => {
     alive = false;
-    clearInterval(timer);
+    clearTimeout(timer);
   });
 });
 

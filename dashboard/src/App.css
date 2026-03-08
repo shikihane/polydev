@@ -90,6 +90,15 @@ body {
   border-color: #388bfd;
 }
 
+.task-card.orphaned {
+  opacity: 0.7;
+  border-color: #30363d;
+}
+
+.task-card.orphaned:hover {
+  border-color: #30363d;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -116,6 +125,7 @@ body {
 .card-type.wo { background: #1f3a2f; color: #3fb950; }
 .card-type.bg { background: #2a1f3a; color: #a371f7; }
 .card-type.ag { background: #1f2d3a; color: #58a6ff; }
+.card-type.ended { background: #1f2d3a; color: #8b949e; }
 
 .card-name {
   font-size: 15px;
@@ -147,6 +157,7 @@ body {
 .dot.idle, .dot.pending { background: #d29922; }
 .dot.crashed, .dot.dead { background: #f85149; }
 .dot.completed { background: #58a6ff; }
+.dot.ended { background: #8b949e; }
 
 .toggle-btn {
   font-size: 12px;
