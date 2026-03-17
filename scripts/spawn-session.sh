@@ -211,7 +211,10 @@ fi
 
 toon_log "claude_started" "model=$CLAUDE_MODEL,pane_id=$pane_id"
 
-sleep 2
+# Wait for Claude Code to fully start (welcome screen + input prompt).
+# Fixed sleep is unreliable — Claude takes 5-10s to boot on Windows.
+# "bypass permissions" appears in status bar when Claude is ready for input.
+_tb_wait_for_marker "Claude Code" "$pane_id" "bypass permissions" 30 || true
 
 # Send agent prompt (using pane_id directly)
 if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then

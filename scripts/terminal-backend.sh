@@ -268,9 +268,9 @@ except:
   rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
-    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd")
+    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" | tr -d '\r')
   else
-    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd")
+    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" | tr -d '\r')
   fi
 
   # Set tab_title - includes pane_id for easy identification
@@ -315,13 +315,14 @@ except:
     cd_path=$(cygpath -w "$cwd" 2>/dev/null || echo "$cwd")
     clear_cmd="cls"
   fi
+  # Send cd command (separate text + Enter calls; positional arg for \r)
   printf 'cd "%s"' "$cd_path" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
-  printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
   sleep 2
   printf '%s' "$clear_cmd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
-  printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
 
   # Return the numeric pane_id (not session_id)
   echo "$pane_id"
@@ -363,11 +364,17 @@ tb_find_claude_bin() {
 # Returns: "powershell" or "bash"
 _wezterm_get_pane_shell() {
   local pane_id="$1"
+  # Strip \r that wezterm cli may return on Windows
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
   local shell_type_file="${TMPDIR:-/tmp}/polydev-shell-types/$pane_id"
   if [ -f "$shell_type_file" ]; then
     cat "$shell_type_file"
   else
-    echo "bash"  # default fallback
+    # Platform-aware fallback: WezTerm defaults to PowerShell on Windows
+    case "$(uname -s)" in
+      MINGW*|MSYS*|CYGWIN*) echo "powershell" ;;
+      *) echo "bash" ;;
+    esac
   fi
 }
 
@@ -379,6 +386,9 @@ tb_launch_claude() {
   local model="$3"
   shift 3
   local extra_args="$*"
+
+  # Strip \r that wezterm cli may return on Windows
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
 
   # Build the launch command based on shell type
   local cmd
@@ -406,19 +416,53 @@ _wezterm_send_command() {
   local command="$2"
   local execute="${3:-true}"
 
-  # Send text first (--no-paste: avoid bracketed paste swallowing control chars)
+  # Strip \r that wezterm cli may return on Windows
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
+
+  # IMPORTANT: text and Enter MUST be sent as separate send-text calls.
+  # Combined (printf '%s\r') does NOT work for TUI apps like Claude Code:
+  # the TUI processes the combined buffer as one chunk and ignores the trailing \r.
   printf '%s' "$command" | wezterm cli send-text --no-paste --pane-id "$pane_id"
 
   if [ "$execute" = "true" ]; then
+    # ⛔ sleep >= 2s: target app needs time to process text before Enter
     sleep 2
-    printf '\r' | wezterm cli send-text --no-paste --pane-id "$pane_id"
+    # Send \r as positional argument (not via stdin pipe).
+    # Piping single-byte \r is unreliable on Windows Git Bash — the byte can
+    # be swallowed by MSYS pipe text-mode translation or wezterm's stdin handling.
+    wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
   fi
 }
 
-# _wezterm_send_multiline_text is identical to _wezterm_send_command
-# (both send text via --no-paste and optionally press Enter)
+# Send multiline text to a pane and submit.
+# For WezTerm, multiline paste + submit is unreliable: neither \r (Enter) nor
+# \n (Ctrl+J) via send-text reliably triggers submit in Claude Code multiline mode.
+# Workaround: write text to a temp file, then send a short single-line command
+# instructing Claude to read and follow the file.
 _wezterm_send_multiline_text() {
-  _wezterm_send_command "$@"
+  local pane_id="$1"
+  local text="$2"
+  local execute="${3:-true}"
+
+  # Strip \r that wezterm cli may return on Windows
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
+
+  # If text has no newlines, just use single-line send
+  if ! printf '%s' "$text" | grep -q $'\n'; then
+    _wezterm_send_command "$pane_id" "$text" "$execute"
+    return $?
+  fi
+
+  # Multiline: write to temp file, send short command to read it
+  local prompt_file="${TMPDIR:-/tmp}/polydev-prompt-${pane_id}.md"
+  printf '%s' "$text" > "$prompt_file"
+
+  if [ "$execute" = "true" ]; then
+    # Convert to Windows path (Git Bash paths invalid in Claude Code's Read tool)
+    local win_path
+    win_path=$(cygpath -w "$prompt_file" 2>/dev/null || echo "$prompt_file")
+    _wezterm_send_command "$pane_id" "Read ${win_path} and follow all instructions in it" "true"
+  fi
 }
 
 _wezterm_focus_session() {
