@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Investigator"
+  short_description: "Write read-only investigation reports"
+  default_prompt: "Use $agent-investigator to investigate the codebase and write a report."

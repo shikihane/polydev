@@ -1,0 +1,4 @@
+interface:
+  display_name: "Worktree Executor"
+  short_description: "Execute PLAN.md in a worktree"
+  default_prompt: "Use $worktree-executor to execute PLAN.md and update task.toon."

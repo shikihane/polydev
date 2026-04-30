@@ -1,92 +1,85 @@
 # Polydev Architecture
 
-## Overview
+Polydev orchestrates Git worktrees and terminal-hosted coding agents. The core model is agent-neutral and should stay usable from Codex CLI, Cursor, OpenCode, Claude Code, Gemini CLI, and future adapters.
 
-Polydev enables parallel development by orchestrating Git worktrees and terminal sessions. The architecture separates concerns between:
+## Design Principles
 
-- **Main Agent**: Coordinates work, monitors status, handles blockers
-- **Sub-Agents**: Execute tasks in isolated worktrees
-- **Terminal Backend**: Abstracts tmux/wezterm differences
-
-## Directory Structure
-
-```
-project/
-├── .worktrees/              # Git worktrees
-│   ├── feature-auth/
-│   ├── feature-api/
-│   └── feature-ui/
-├── PLAN.md                  # Main plan (optional)
-├── task.toon                # Status file (main agent only)
-└── .agent-reports/          # Investigation reports
-```
+- Windows-first: WezTerm on Windows is a first-class path.
+- Semi-automated: sessions remain visible, inspectable, interruptible, and recoverable.
+- Adapter boundary: provider-specific launch commands, model flags, prompt wrappers, and environment variables stay in launcher scripts.
 
 ## Session Types
 
-| Type | Prefix | Git Required | Sub-Claude | Purpose |
-|------|--------|--------------|------------|---------|
-| Worktree | `wo:` | Yes | Yes | Parallel development |
-| Background | `bg:` | No | No | Long-running commands |
-| Agent | `ag:` | No | Yes | Read-only research |
+| Type | Prefix | Git required | Agent process | Purpose |
+| --- | --- | --- | --- | --- |
+| Worktree | `wo:` | yes | yes | Parallel implementation |
+| Background | `bg:` | no | no | Long-running commands, SSH, REPLs |
+| Investigation | `ag:` | no | yes | Read-only research and reports |
 
 ## Status Communication
 
-### task.toon Format
+Worktree sessions communicate through `task.toon`:
 
 ```toon
 overall_status=in_progress
 agent_status=active
 blocking_reason=
-last_update=2025-01-09T10:30:00Z
+last_update=2026-04-30T10:30:00Z
 session_id=wo:myproject:feature.0
+pane_id=5
 ```
 
-### Status Values
+`overall_status` values:
 
-**overall_status:**
-- `pending` - Assigned, not started
-- `in_progress` - Branch agent working
-- `completed` - Branch done, awaiting verification
-- `blocked` - Needs help (main agent might solve)
-- `hil` - Human intervention required
-- `merged` - Merge successful
+- `pending`: assigned, not started
+- `in_progress`: branch agent working
+- `completed`: branch done, awaiting verification
+- `blocked`: main agent may resolve
+- `hil`: human intervention required
+- `merged`: merge successful
 
-**agent_status:**
-- `active` - Claude active
-- `idle` - Claude unexpectedly stopped
-- `crashed` - Process does not exist
+`agent_status` values:
+
+- `active`: agent process appears active
+- `idle`: agent unexpectedly stopped
+- `crashed`: process no longer exists
 
 ## Terminal Backend
 
-Polydev abstracts terminal session management:
-
-- **Linux/macOS**: Uses tmux with socket at `/tmp/polydev.sock`
-- **Windows**: Uses WezTerm
-
-The backend is automatically detected based on the environment.
+| Platform | Backend | Notes |
+| --- | --- | --- |
+| Windows | WezTerm | First-class target; pane ids are numeric |
+| Linux/macOS | tmux | Uses isolated socket at `/tmp/polydev.sock` |
 
 ## Script Reference
 
+Call every script through `$POLYDEV_SCRIPTS`.
+
 | Script | Purpose | Parameters |
-|--------|---------|------------|
-| `spawn-session.sh` | Create worktree + Claude | `<workspace> <branch> <worktree-path> <plan-file>` |
-| `poll.sh` | Monitor status | `<worktrees-dir> <timeout>` |
-| `restore-session.sh` | Recover crashed session | `<worktree-path> [--force]` |
-| `wo-send-command.sh` | Send to worktree | `<worktree-path> "<cmd>"` |
-| `send-to-session.sh` | Send to any session | `<pane_id> "<cmd>"` |
-| `capture-screen.sh` | Read output | `--pane-id <id> --lines N` |
-| `list-sessions.sh` | List active | `[workspace]` |
-| `close-session.sh` | Terminate | `<worktree_path>` or `--pane-id <id>` |
-| `run-background.sh` | Background command | `<name> "<cmd>"` |
-| `spawn-agent.sh` | Investigation agent | `<name> --prompt "<task>" --report <path>` |
+| --- | --- | --- |
+| `spawn-session.sh` | Create worktree-backed agent session | `<workspace> <branch> <worktree-path> <plan-file>` |
+| `poll.sh` | Monitor worktree status | `<worktrees-dir> <timeout>` |
+| `restore-session.sh` | Recover worktree session | `<worktree-path> [--force]` |
+| `wo-send-command.sh` | Send to worktree session | `<worktree-path> "<cmd>" [--peek N]` |
+| `send-to-session.sh` | Send to any pane | `<pane_id> "<cmd>" [--peek N]` |
+| `capture-screen.sh` | Read terminal output | `<worktree-path>` or `--pane-id <id>` |
+| `list-sessions.sh` | List sessions | `[workspace]` |
+| `close-session.sh` | Terminate session | `<worktree_path>` or `--pane-id <id>` |
+| `run-background.sh` | Background command | `<name> "<cmd>" [--cwd <dir>]` |
+| `spawn-agent.sh` | Claude Code adapter | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
+| `spawn-codex.sh` | Codex CLI adapter | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| `spawn-gemini.sh` | Gemini CLI adapter | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
-## Cleanup Order
+## Recovery and Cleanup
 
-**Critical:** Follow this exact order to avoid "Permission denied" errors:
+Use `capture-screen.sh` to inspect, `restore-session.sh` to recover worktree sessions, and `send-to-session.sh` or `wo-send-command.sh` to intervene.
 
-1. `close-session.sh` - Close terminal (releases directory lock)
-2. `list-sessions.sh` - Verify session is gone
-3. `git worktree remove` - Delete worktree
-4. `git branch -D` - Delete branch (optional)
+Cleanup order:
 
-**Never skip step 1!** Direct `rm -rf` is forbidden.
+1. `close-session.sh`
+2. `list-sessions.sh` to verify closure
+3. `git worktree remove`
+4. `git worktree prune`
+5. Optional branch deletion after human confirmation
+
+Never remove `.worktrees/...` with direct filesystem deletion.

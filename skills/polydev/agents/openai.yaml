@@ -1,0 +1,4 @@
+interface:
+  display_name: "Polydev"
+  short_description: "Run parallel agent worktrees"
+  default_prompt: "Use $polydev to run these independent implementation tasks in parallel worktrees."

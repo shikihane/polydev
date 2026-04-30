@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Polydev"
+  short_description: "Choose the right Polydev workflow"
+  default_prompt: "Use $using-polydev to choose the right Polydev workflow for this task."

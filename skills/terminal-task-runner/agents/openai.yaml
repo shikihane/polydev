@@ -1,0 +1,4 @@
+interface:
+  display_name: "Terminal Task Runner"
+  short_description: "Host long terminal tasks visibly"
+  default_prompt: "Use $terminal-task-runner to run and monitor this long terminal command."

@@ -1,187 +1,96 @@
 ---
 name: using-polydev
-description: This skill should be used at conversation start when user mentions parallel, multiple tasks/features, worktrees, lists 2+ independent work items, or similar keywords - determines which polydev skill to use.
-version: 0.1.1
+description: "Use when a user mentions parallel work, multiple independent tasks, worktrees, background commands, long-running sessions, SSH, scheduled agent runs, or Polydev workflow selection"
 ---
 
 # Using Polydev Skills
 
-## When to Use This Skill
+Polydev is a Windows-first, agent-neutral orchestration layer for terminal-hosted coding agents. It should work through thin adapters for Codex CLI, Cursor, OpenCode, Claude Code, Gemini CLI, and similar tools.
 
-Use polydev skills when the user mentions:
-- "parallel" / "simultaneously" / "at the same time"
-- "multiple features" / "multiple tasks"
-- Lists 2+ independent work items
-- "worktree" / "branch" (in context of parallel work)
-- "background" / "long-running command"
+Use this skill to select the right Polydev workflow before launching sessions or scheduling work.
 
-## Script Path Detection
+## Design Rules
 
-**At the start of this session, read the polydev scripts path:**
+- Treat Windows and WezTerm as first-class targets, not compatibility fallback.
+- Prefer semi-automation: keep sessions visible, inspectable, interruptible, and recoverable.
+- Use Polydev scripts instead of direct tmux/WezTerm commands.
+- Call scripts through `$POLYDEV_SCRIPTS`, never `./scripts/...`.
+- Keep provider-specific commands, model flags, and environment handling inside adapter scripts.
+
+## Script Path
+
+Use `$POLYDEV_SCRIPTS` for every script call:
 
 ```bash
-cat ~/.polydev/scripts-path
-# Example output: /home/user/.claude/plugins/cache/polydev-marketplace/polydev/1.5.0/scripts
+"$POLYDEV_SCRIPTS/list-sessions.sh"
+"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature-auth .worktrees/feature-auth PLAN.md
 ```
 
-**Remember the full absolute path from the output above, then use it directly in all commands.**
+If `$POLYDEV_SCRIPTS` is not set, initialize it from the hook-written path:
 
-Example:
 ```bash
-# ✓ CORRECT - Use full path directly
-/path/to/polydev/scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
-
-# ✗ WRONG - Do not use variables
-"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature/auth .worktrees/feature-auth PLAN.md
-
-# ✗ WRONG - Do not use relative paths
-./scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 ```
 
-> **Note**: If `~/.polydev/scripts-path` doesn't exist, polydev is not installed.
+On Windows/Git Bash, if a script exits with code 0 but prints no output, use the fallback form:
 
----
-
-## Skill Selection Flow
-
-```
-User message received
-    |
-Contains parallel/multiple keywords?
-    | YES
-Is it complex/unclear? --YES--> Run /polydev-brainstorm
-    | NO
-Ready to execute? --YES--> Use polydev:polydev skill
-    |
-Need detailed plans? --YES--> Use polydev:writing-plans skill
-    |
-Running background command? --YES--> Use polydev:terminal-task-runner skill
-```
-
-## Available Skills
-
-| Skill | When to Use | Who Uses |
-|-------|-------------|----------|
-| `/polydev-brainstorm` | Complex/unclear requirements, need to decompose | Main Agent |
-| `polydev:polydev` | Ready to execute parallel tasks | Main Agent |
-| `polydev:writing-plans` | Need detailed implementation plans | Main Agent |
-| `polydev:terminal-task-runner` | Long-running commands (builds, tests, servers, SSH) | Main Agent |
-| `polydev:polycron` | Schedule Claude agents to run at specific times | Main Agent |
-| `polydev:worktree-executor` | Execute in isolated worktree | Sub-Agent only |
-| `polydev:agent-investigator` | Read-only research tasks | Sub-Agent only |
-
----
-
-## Script Quick Reference (For Main Agent)
-
-**All scripts must be called via full absolute path (read from `~/.polydev/scripts-path`).**
-
-| Scenario | Script | Parameters |
-|----------|--------|------------|
-| Create worktree + Claude | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
-| Monitor status | `poll.sh` | `<worktrees-dir> <timeout>` |
-| Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
-| Send to worktree | `wo-send-command.sh` | `<worktree-path> "<cmd>" [--peek N]` |
-| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` |
-| Read screen output | `capture-screen.sh` | `--pane-id <id> --lines N` |
-| List sessions | `list-sessions.sh` | `[workspace]` |
-| Close session | `close-session.sh` | `<worktree_path>` or `--pane-id <id>` |
-| Start background command | `run-background.sh` | `<name> "<cmd>" [--peek N]` |
-| Start Claude sub-agent | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir> [--peek N]` |
-| Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
-| Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
-| Add scheduled task | `polycron-add.sh` | `<job-id> --schedule "..." --prompt "..." --cwd <dir>` |
-| Remove scheduled task | `polycron-remove.sh` | `<job-id>` |
-| List scheduled tasks | `polycron-list.sh` | `[--all\|--enabled\|--disabled]` |
-| View task history | `polycron-history.sh` | `[job-id] [--last N]` |
-
-**Example calls:**
 ```bash
-/path/to/polydev/scripts/spawn-session.sh myproject feature/auth .worktrees/feature-auth PLAN.md
-/path/to/polydev/scripts/poll.sh .worktrees 10
-/path/to/polydev/scripts/list-sessions.sh
+POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
+SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh")"
 ```
 
-### --peek: 执行后自动截屏
+## Skill Selection
 
-所有返回 pane_id 的脚本均支持 `--peek N` 选项:
-- `--peek 0`: 立即截屏
-- `--peek 5`: 等 5 秒后截屏
-- 不传: 不截屏
+| Need | Use |
+| --- | --- |
+| Complex or unclear parallel request | `/polydev-brainstorm` |
+| Detailed task plan or `PLAN.md` | `polydev:writing-plans` |
+| 2+ independent implementation branches | `polydev:polydev` |
+| Long build, test, server, SSH, REPL | `polydev:terminal-task-runner` |
+| Scheduled or recurring agent session | `polydev:polycron` |
+| Worktree execution agent | `polydev:worktree-executor` |
+| Read-only investigation agent | `polydev:agent-investigator` |
 
-示例:
+Prefix convention:
+
+- `wo:` worktree development, requires Git, uses `polydev`
+- `bg:` background terminal task, no Git required, uses `terminal-task-runner`
+- `ag:` investigation agent, no Git required, uses `agent-investigator`
+
+## Script Quick Reference
+
+| Scenario | Script |
+| --- | --- |
+| Create worktree-backed agent session | `spawn-session.sh <workspace> <branch> <worktree-path> <plan-file>` |
+| Monitor worktree status | `poll.sh <worktrees-dir> <timeout>` |
+| Restore worktree session | `restore-session.sh <worktree-path> [--force]` |
+| Send to worktree session | `wo-send-command.sh <worktree-path> "<cmd>" [--peek N]` |
+| Send to any pane | `send-to-session.sh <pane_id> "<cmd>" [--peek N]` |
+| Capture screen | `capture-screen.sh <worktree-path>` or `--pane-id <id>` |
+| List sessions | `list-sessions.sh [workspace]` |
+| Close session | `close-session.sh <worktree-path>` or `--pane-id <id>` |
+| Background command | `run-background.sh <name> "<cmd>" [--cwd <dir>] [--peek N]` |
+| Claude Code adapter | `spawn-agent.sh <name> --prompt "<task>" --report <path> --cwd <dir>` |
+| Codex CLI adapter | `spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Gemini CLI adapter | `spawn-gemini.sh <name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Add scheduled job | `polycron-add.sh <job-id> --schedule "..." --prompt "..." --cwd <dir>` |
+
+Example calls:
+
 ```bash
-/path/to/polydev/scripts/send-to-session.sh 5 "docker ps" --peek 3
-/path/to/polydev/scripts/run-background.sh build "npm test" --peek 10
+"$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature-auth .worktrees/feature-auth PLAN.md
+"$POLYDEV_SCRIPTS/poll.sh" .worktrees 10
+"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
 ```
 
----
+## Decision Guide
 
-## Red Flags - STOP and Check Polydev
+- User gives 2+ independent code tasks: plan with `writing-plans`, then execute with `polydev`.
+- User gives one long command, dev server, test run, SSH, or REPL: use `terminal-task-runner`.
+- User asks for read-only research: start an investigation through the available adapter script.
+- User asks for a future or recurring run: use `polycron`.
+- User wants direct control or a terminal is stuck: use `list-sessions.sh`, `capture-screen.sh`, `send-to-session.sh`, `restore-session.sh`, and `close-session.sh`.
 
-If the main agent thinks:
+## Cost Controls
 
-| Thought | Reality |
-|---------|---------|
-| "Execute these sequentially" | If independent, parallelize. Check polydev. |
-| "Simple enough to do directly" | 2+ tasks = potential parallelism. Check. |
-| "Don't need the overhead" | Polydev saves time on multi-task work. |
-| "Explore first" | Run /polydev-brainstorm to explore properly. |
-| "Parallelize later" | Parallelize NOW if tasks are independent. |
-
-**All of these mean: Check polydev skills first.**
-
-## Quick Decision Guide
-
-**User says "implement X, Y, and Z":**
-1. Are X, Y, Z independent? -> polydev:polydev
-2. Need clarification? -> /polydev-brainstorm
-3. Need detailed plans? -> polydev:writing-plans first
-
-**User says "run this build/test":**
-1. Will it take > 30 seconds? -> polydev:terminal-task-runner
-2. Need to monitor output? -> polydev:terminal-task-runner
-
-**User says "SSH to server and run commands":**
-1. Use polydev:terminal-task-runner
-2. Use `run-background.sh` to start SSH
-3. Use `send-to-session.sh` to send subsequent commands
-4. Use `capture-screen.sh` to read output
-
-**User says "research X":**
-1. Read-only analysis? -> Use spawn-agent.sh (Claude), spawn-codex.sh (Codex), or spawn-gemini.sh (Gemini)
-2. Need parallel research? -> Multiple agents with different AI backends
-
-**User says "schedule a task" or "run at specific time":**
-1. Use polydev:polycron skill
-2. Use `polycron-add.sh` to schedule
-3. Use `polycron-list.sh` to view scheduled tasks
-4. Use `polycron-history.sh` to check execution history
-
-## Cost Control Reminder
-
-**Sub-agents MUST use `model: "sonnet"`** unless user explicitly requests otherwise.
-
-```javascript
-// Correct
-Task({ prompt: "...", subagent_type: "general-purpose", model: "sonnet" })
-
-// Wrong - will bankrupt user
-Task({ prompt: "...", subagent_type: "general-purpose" })
-```
-
-## Integration
-
-This skill is the entry point. After determining which skill to use:
-
-```
-using-polydev (this skill)
-    |
-/polydev-brainstorm (if complex)
-    |
-polydev:writing-plans (if need plans)
-    |
-polydev:polydev (execution)
-    |
-polydev:worktree-executor (per-branch, sub-agent)
-```
+Cost controls are adapter-specific. Claude Code `Task` sub-agents should specify `model: "sonnet"` unless the user requests a different model. Do not apply that rule globally to Codex, Cursor, OpenCode, Gemini CLI, or future adapters.
