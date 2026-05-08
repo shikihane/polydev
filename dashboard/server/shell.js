@@ -38,6 +38,46 @@ export function parseSessionsToon(raw) {
     });
 }
 
+function normalizeWezTermCwd(cwd) {
+  if (!cwd) return '';
+  if (cwd.startsWith('file://')) {
+    try {
+      return decodeURIComponent(new URL(cwd).pathname).replace(/^\/([A-Za-z]:)/, '$1');
+    } catch {
+      return cwd.replace(/^file:\/\//, '');
+    }
+  }
+  return cwd;
+}
+
+export function parseWezTermSessions(rawJson) {
+  if (!rawJson) return [];
+  let panes;
+  try {
+    panes = JSON.parse(rawJson);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(panes)) return [];
+
+  return panes
+    .filter((pane) => pane && pane.pane_id !== undefined && pane.pane_id !== null)
+    .map((pane) => {
+      const paneId = String(pane.pane_id);
+      const workspace = pane.workspace || '';
+      const rawName = pane.tab_title || pane.title || paneId;
+      const name = rawName.replace(new RegExp(`\\s*\\[${paneId}\\]$`), '');
+      return {
+        sessionId: paneId,
+        type: workspace.startsWith('ag-') ? 'ag' : 'wo',
+        name,
+        status: 'alive',
+        cwd: normalizeWezTermCwd(pane.cwd || ''),
+        paneId,
+      };
+    });
+}
+
 export function parseTaskToon(content) {
   const metaMatch = content.match(/^meta\{[^}]*\}:\s*\n\s*(.+)$/m);
   const metaParts = metaMatch ? metaMatch[1].split(',') : [];
@@ -111,7 +151,12 @@ export function getBackend() {
 
 export async function listSessions() {
   const scripts = await getScriptsPath();
-  const raw = await run(`bash "${scripts}/list-sessions.sh"`);
+  let raw;
+  if (getBackend() === 'wezterm') {
+    raw = await runArgs('wezterm', ['cli', 'list', '--format', 'json']);
+    return parseWezTermSessions(raw);
+  }
+  raw = await run(`bash "${scripts}/list-sessions.sh"`);
   return parseSessionsToon(raw);
 }
 
@@ -147,6 +192,13 @@ export async function capturePane(paneId, lines = 50) {
 }
 
 export async function killPane(paneId) {
+  if (!isValidPaneId(String(paneId))) {
+    throw new Error('Invalid pane id');
+  }
+  if (getBackend() === 'wezterm') {
+    await runArgs('wezterm', ['cli', 'kill-pane', '--pane-id', String(paneId)], { timeout: 15000 });
+    return;
+  }
   const scripts = await getScriptsPath();
   await run(`bash "${scripts}/close-session.sh" --pane-id ${paneId}`, { timeout: 15000 });
 }

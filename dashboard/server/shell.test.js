@@ -1,6 +1,6 @@
 // server/shell.test.js
 import { describe, it, expect } from 'vitest';
-import { parseSessionsToon, parseTaskToon, isValidPaneId } from './shell.js';
+import { parseSessionsToon, parseTaskToon, parseWezTermSessions, isValidPaneId } from './shell.js';
 
 describe('parseSessionsToon', () => {
   it('parses single TOON line', () => {
@@ -36,6 +36,49 @@ describe('parseSessionsToon', () => {
     const input = 'session_id=wo:proj:main.0,status=alive,cwd=/home/user/proj,pane_id=%3';
     const result = parseSessionsToon(input);
     expect(result[0].paneId).toBe('%3');
+  });
+});
+
+describe('parseWezTermSessions', () => {
+  it('converts WezTerm panes to dashboard sessions', () => {
+    const raw = JSON.stringify([
+      {
+        pane_id: 5,
+        workspace: 'polydev',
+        tab_title: 'feature-auth [5]',
+        cwd: 'file://E:/repo/.worktrees/auth',
+      },
+      {
+        pane_id: 7,
+        workspace: 'ag-polydev',
+        tab_title: 'research [7]',
+        cwd: 'file://E:/repo',
+      },
+    ]);
+
+    expect(parseWezTermSessions(raw)).toEqual([
+      {
+        sessionId: '5',
+        type: 'wo',
+        name: 'feature-auth',
+        status: 'alive',
+        cwd: 'E:/repo/.worktrees/auth',
+        paneId: '5',
+      },
+      {
+        sessionId: '7',
+        type: 'ag',
+        name: 'research',
+        status: 'alive',
+        cwd: 'E:/repo',
+        paneId: '7',
+      },
+    ]);
+  });
+
+  it('handles empty or malformed WezTerm JSON safely', () => {
+    expect(parseWezTermSessions('')).toEqual([]);
+    expect(parseWezTermSessions('not json')).toEqual([]);
   });
 });
 
