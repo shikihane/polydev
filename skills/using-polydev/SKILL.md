@@ -14,7 +14,7 @@ Use this skill to select the right Polydev workflow before launching sessions or
 - Treat Windows and WezTerm as first-class targets, not compatibility fallback.
 - Prefer semi-automation: keep sessions visible, inspectable, interruptible, and recoverable.
 - Use Polydev scripts instead of direct tmux/WezTerm commands.
-- Call scripts through `$POLYDEV_SCRIPTS`, never `./scripts/...`.
+- Call bash scripts through `$POLYDEV_SCRIPTS` and Windows PowerShell scripts through `$env:POLYDEV_SCRIPTS`, never `./scripts/...`.
 - Keep provider-specific commands, model flags, and environment handling inside adapter scripts.
 
 ## Script Path
@@ -37,6 +37,13 @@ On Windows/Git Bash, if a script exits with code 0 but prints no output, use the
 ```bash
 POLYDEV_SCRIPTS=$(cat ~/.polydev/scripts-path)
 SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh")"
+```
+
+Windows Codex adapter scripts are native PowerShell 7 scripts:
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" myproject codex-auth .worktrees/codex-auth docs/plans/auth.md
 ```
 
 ## Skill Selection
@@ -71,7 +78,9 @@ Prefix convention:
 | Close session | `close-session.sh <worktree-path>` or `--pane-id <id>` |
 | Background command | `run-background.sh <name> "<cmd>" [--cwd <dir>] [--peek N]` |
 | Claude Code adapter | `spawn-agent.sh <name> --prompt "<task>" --report <path> --cwd <dir>` |
-| Codex CLI adapter | `spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Codex CLI bash adapter | `spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Codex CLI Windows investigation | `start-codex-investigation.ps1 <name> -Prompt "<task>" -Cwd <dir> [-Output <path>]` |
+| Codex CLI Windows worktree | `start-codex-worktree.ps1 <workspace> <branch> <worktree-path> <plan-file>` |
 | Gemini CLI adapter | `spawn-gemini.sh <name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 | Add scheduled job | `polycron-add.sh <job-id> --schedule "..." --prompt "..." --cwd <dir>` |
 
@@ -88,9 +97,10 @@ Example calls:
 - User gives 2+ independent code tasks: plan with `writing-plans`, then execute with `polydev`.
 - User gives one long command, dev server, test run, SSH, or REPL: use `terminal-task-runner`.
 - User asks for read-only research: start an investigation through the available adapter script.
+- On Windows with Codex CLI, prefer `start-codex-investigation.ps1` for `ag:` and `start-codex-worktree.ps1` for `wo:`.
 - User asks for a future or recurring run: use `polycron`.
 - User wants direct control or a terminal is stuck: use `list-sessions.sh`, `capture-screen.sh`, `send-to-session.sh`, `restore-session.sh`, and `close-session.sh`.
 
 ## Cost Controls
 
-Cost controls are adapter-specific. Claude Code `Task` sub-agents should specify `model: "sonnet"` unless the user requests a different model. Do not apply that rule globally to Codex, Cursor, OpenCode, Gemini CLI, or future adapters.
+Cost controls are adapter-specific. Claude Code `Task` sub-agents should specify `model: "sonnet"` unless the user requests a different model. Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-request`; use dangerous bypass only when explicitly requested. Do not apply one provider's rule globally to Codex, Cursor, OpenCode, Gemini CLI, or future adapters.

@@ -25,6 +25,7 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 - At least one supported coding agent, such as Codex CLI, Cursor, OpenCode, Claude Code, or Gemini CLI
 - tmux on Linux/macOS, or WezTerm on Windows
 - Bash-compatible shell for the scripts
+- PowerShell 7 (`pwsh`) for Windows-native Codex adapter scripts
 - Python available as `python` on Windows
 
 ## Repository Layout
@@ -64,6 +65,13 @@ Call scripts through that variable:
 "$POLYDEV_SCRIPTS/list-sessions.sh"
 ```
 
+On Windows PowerShell, call Windows-native Codex adapter scripts through `$env:POLYDEV_SCRIPTS`:
+
+```powershell
+$env:POLYDEV_SCRIPTS = "E:\Heyang3\polydev\scripts"
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
+```
+
 ## Typical Workflow
 
 1. Decompose the work with `/polydev-brainstorm`.
@@ -76,7 +84,7 @@ Call scripts through that variable:
 
 ## Common Scripts
 
-All scripts should be called through `$POLYDEV_SCRIPTS`.
+Bash scripts should be called through `$POLYDEV_SCRIPTS`.
 
 ```bash
 # List active terminal sessions
@@ -97,6 +105,24 @@ All scripts should be called through `$POLYDEV_SCRIPTS`.
 # Clean up a worktree and session
 "$POLYDEV_SCRIPTS/cleanup-worktree.sh" ../worktrees/auth
 ```
+
+## Provider Adapters
+
+| Provider | Purpose | Entry Point |
+| --- | --- | --- |
+| Claude Code | Existing bash investigation/worktree launchers | `spawn-agent.sh`, `spawn-session.sh` |
+| Codex CLI | Windows PowerShell investigation session | `start-codex-investigation.ps1` |
+| Codex CLI | Windows PowerShell worktree session | `start-codex-worktree.ps1` |
+| Gemini CLI | Existing bash investigation launcher | `spawn-gemini.sh` |
+
+Windows Codex PowerShell examples:
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" my-project codex/auth .worktrees/codex-auth docs/plans/auth.md
+```
+
+The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only for explicitly approved unattended runs.
 
 ## Background Tasks
 

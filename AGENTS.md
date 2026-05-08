@@ -48,11 +48,16 @@ polydev/
 
 Always call scripts through `$POLYDEV_SCRIPTS`.
 
-Do not call scripts with `./scripts/...` in agent instructions, examples, or implementation code unless you are explicitly testing path discovery itself.
+Do not call scripts with `./scripts/...` in agent instructions, examples, or implementation code unless you are explicitly testing path discovery itself. Bash scripts use `$POLYDEV_SCRIPTS`; Windows-native PowerShell scripts use `$env:POLYDEV_SCRIPTS` with `pwsh`.
 
 ```bash
 "$POLYDEV_SCRIPTS/list-sessions.sh"
 "$POLYDEV_SCRIPTS/spawn-session.sh" my-project feature/auth ../worktrees/auth plan.md
+```
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" my-project codex/auth .worktrees/codex-auth docs/plans/auth.md
 ```
 
 On Windows/Git Bash, if a script silently exits with code 0 and no output, use the fallback pattern:
@@ -95,6 +100,16 @@ Task({
 })
 ```
 
+### Provider Adapter Boundary
+
+| Provider | Investigation | Worktree |
+| --- | --- | --- |
+| Claude Code | `spawn-agent.sh` | `spawn-session.sh` |
+| Codex CLI on Windows | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` |
+| Gemini CLI | `spawn-gemini.sh` | future adapter |
+
+The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only when the human explicitly requests a fully unattended run. Do not add Codex hook emulation; status is initialized by the launcher and then maintained through explicit `task.toon` updates.
+
 ### Status Communication
 
 Sub-agents communicate through `task.toon` files. The main agent monitors with `poll.sh`.
@@ -124,8 +139,10 @@ All scripts below must be invoked via `$POLYDEV_SCRIPTS`.
 | Scenario | Script | Parameters |
 | --- | --- | --- |
 | Create worktree-backed agent session | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
+| Create Codex worktree session on Windows | `start-codex-worktree.ps1` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status loop | `poll.sh` | `<worktrees-dir> <timeout>` |
 | Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` |
+| Restore Codex worktree session on Windows | `restore-codex-worktree.ps1` | `<worktree-path> [-Force]` |
 
 ### Session Management
 
@@ -144,6 +161,7 @@ All scripts below must be invoked via `$POLYDEV_SCRIPTS`.
 | Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>] [--peek N]` |
 | Start Claude Code session | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir> [--peek N]` |
 | Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| Start Codex CLI session on Windows | `start-codex-investigation.ps1` | `<name> -Prompt "<task>" -Cwd <dir> [-Output <path>]` |
 | Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
 ### Scheduled Tasks
@@ -226,6 +244,7 @@ Examples:
 - Use `python`, not `python3`; backend detection handles this.
 - Always quote paths with spaces.
 - Scripts handle path conversion automatically.
+- Use PowerShell 7 (`pwsh`) for `*.ps1` Codex adapter scripts.
 - WezTerm may need a cold-start retry after system boot.
 
 ## Terminal Backend Guardrails

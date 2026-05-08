@@ -12,7 +12,7 @@ Use this skill for `wo:` worktree development. For `bg:` background commands, us
 ## Non-Negotiable Rules
 
 - Use this skill only in a Git repository.
-- Call Polydev scripts through `$POLYDEV_SCRIPTS`; never use `./scripts/...`.
+- Call bash Polydev scripts through `$POLYDEV_SCRIPTS` and Windows PowerShell scripts through `$env:POLYDEV_SCRIPTS`; never use `./scripts/...`.
 - Do not call tmux or WezTerm directly from the agent path.
 - Do not hand-write `git worktree add/remove` orchestration while creating sessions.
 - Do not delete `.worktrees` directly.
@@ -51,6 +51,13 @@ Use one workspace name for all related branches so Windows/WezTerm opens one win
 "$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature-auth .worktrees/feature-auth docs/plans/auth.md
 "$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature-api .worktrees/feature-api docs/plans/api.md
 "$POLYDEV_SCRIPTS/spawn-session.sh" myproject feature-ui .worktrees/feature-ui docs/plans/ui.md
+```
+
+On Windows with Codex CLI, use the native PowerShell adapter:
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" myproject codex-auth .worktrees/codex-auth docs/plans/auth.md
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" myproject codex-api .worktrees/codex-api docs/plans/api.md
 ```
 
 Wrong: using `ws1`, `ws2`, `ws3` for the same project, which creates separate windows.
@@ -104,7 +111,14 @@ Polydev core concepts are not tied to one provider. Existing scripts include:
 "$POLYDEV_SCRIPTS/spawn-gemini.sh" gemini-research --prompt "..." --cwd . --output .agent-reports/gemini.md
 ```
 
-Claude Code model cost rules apply only to Claude Code adapters. Keep provider-specific model flags and environment variables at the launcher boundary.
+Windows Codex PowerShell adapters:
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "..." -Cwd . -Output .agent-reports\codex.md
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\restore-codex-worktree.ps1" .worktrees\codex-auth -Force
+```
+
+Claude Code model cost rules apply only to Claude Code adapters. Codex PowerShell sessions default to `--sandbox workspace-write --ask-for-approval on-request`; `-DangerousBypass` is only for explicitly approved unattended runs. Keep provider-specific model flags, approval policy, and environment variables at the launcher boundary.
 
 ## References
 
