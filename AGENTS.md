@@ -13,6 +13,46 @@ Cross-platform terminal backends:
 - Linux/macOS: tmux, using an isolated socket at `/tmp/polydev.sock`
 - Windows: WezTerm
 
+## Purpose
+
+Polydev exists to make large coding tasks easier to split, supervise, and recover. Its primary job is not to replace the human engineer; it is to turn parallel agent work into visible, inspectable branches with clear status and cheap intervention points.
+
+The project should help a human coordinator:
+
+- Decompose a larger request into independent implementation or investigation tracks.
+- Launch those tracks in isolated Git worktrees without losing the ability to inspect each terminal.
+- Keep work status explicit through `task.toon` instead of relying on hidden agent state.
+- Step into a running session when an agent is blocked, needs a `hil` decision, or is drifting.
+- Reuse the same orchestration model across different coding agents and terminal backends.
+
+## Core Capabilities
+
+Polydev provides orchestration primitives rather than a single opaque workflow:
+
+- Worktree-backed coding sessions for independent branches.
+- Read-only investigation sessions for research, debugging, and codebase analysis.
+- Background terminal sessions for builds, tests, servers, and long-running commands.
+- Polling and status coordination through `task.toon` files.
+- Terminal capture and command injection for human intervention.
+- Session restore, close, and cleanup paths for recovery.
+- Polycron scheduling for recurring or delayed agent runs.
+- Provider adapters for agent-specific launch commands while keeping shared concepts agent-neutral.
+
+## Product Direction
+
+Polydev should grow into a practical control plane for multi-agent development. The long-term direction is a tool that can coordinate several coding agents, preserve human oversight, and make partial progress easy to inspect, merge, pause, resume, or discard.
+
+Future work should strengthen these properties:
+
+- Windows-first reliability for WezTerm, PowerShell, path handling, and visible session recovery.
+- Agent-neutral adapters so new providers can be added without changing the core workflow model.
+- Better status dashboards and diagnostics that explain what each agent is doing and why it stopped.
+- Safer intervention flows for `blocked`, `hil`, failing tests, crashed panes, and stale worktrees.
+- Durable scheduling and audit history for repeated tasks through Polycron.
+- Clear verification levels so teams can choose between fast docs-only runs and deeper test coverage.
+
+The vision is semi-automated parallel development that stays understandable. Polydev should make it normal to run several agents at once while still knowing where every change lives, what each agent believes it is doing, and how to take control when needed.
+
 ## Design Principles
 
 Polydev is Windows-first. Linux/macOS support matters, but many agent orchestration tools already assume Unix-like terminals; this project should treat Windows and WezTerm as first-class design targets rather than compatibility afterthoughts.
@@ -37,7 +77,11 @@ polydev/
 │   ├── terminal-task-runner/  # Background command hosting
 │   ├── polycron/              # Scheduled task automation
 │   └── agent-investigator/    # Read-only investigation agents
-├── scripts/                   # Runtime scripts; call through $POLYDEV_SCRIPTS
+├── scripts/                   # Runtime scripts; call root wrappers through $POLYDEV_SCRIPTS
+│   ├── adapters/              # Provider-specific launchers
+│   │   └── codex/windows/     # Codex CLI PowerShell implementation
+│   └── backends/              # Platform terminal backends
+│       └── windows/           # WezTerm PowerShell helpers
 ├── hooks/                     # Tool-specific hook integration
 └── templates/                 # Task templates
 ```
@@ -49,6 +93,8 @@ polydev/
 Always call scripts through `$POLYDEV_SCRIPTS`.
 
 Do not call scripts with `./scripts/...` in agent instructions, examples, or implementation code unless you are explicitly testing path discovery itself. Bash scripts use `$POLYDEV_SCRIPTS`; Windows-native PowerShell scripts use `$env:POLYDEV_SCRIPTS` with `pwsh`.
+
+Root-level scripts are the stable public entry points. Provider and platform implementations live under `scripts/adapters/` and `scripts/backends/`; keep root wrappers such as `start-codex-worktree.ps1` working when moving internal files.
 
 ```bash
 "$POLYDEV_SCRIPTS/list-sessions.sh"
@@ -102,11 +148,11 @@ Task({
 
 ### Provider Adapter Boundary
 
-| Provider | Investigation | Worktree |
-| --- | --- | --- |
-| Claude Code | `spawn-agent.sh` | `spawn-session.sh` |
-| Codex CLI on Windows | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` |
-| Gemini CLI | `spawn-gemini.sh` | future adapter |
+| Provider | Investigation | Worktree | Implementation |
+| --- | --- | --- | --- |
+| Claude Code | `spawn-agent.sh` | `spawn-session.sh` | bash adapter scripts |
+| Codex CLI on Windows | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` | `adapters/codex/windows/` plus `backends/windows/wezterm.ps1` |
+| Gemini CLI | `spawn-gemini.sh` | future adapter | bash adapter scripts |
 
 The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only when the human explicitly requests a fully unattended run. Do not add Codex hook emulation; status is initialized by the launcher and then maintained through explicit `task.toon` updates.
 

@@ -53,13 +53,15 @@ pane_id=5
 
 Windows Codex launchers use native PowerShell 7 plus WezTerm and do not require Git Bash for session creation. Existing bash scripts still use the shared backend abstraction.
 
+Root-level scripts are stable public entry points. Provider-specific implementations live under `scripts/adapters/`, and platform terminal helpers live under `scripts/backends/`.
+
 ## Provider Adapter Matrix
 
-| Provider | Investigation | Worktree | Notes |
-| --- | --- | --- | --- |
-| Claude Code | `spawn-agent.sh` | `spawn-session.sh` | Existing bash path; Claude-specific model/env handling stays in adapter |
-| Codex CLI | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` | Windows PowerShell path; prompt-file handoff; no hook emulation |
-| Gemini CLI | `spawn-gemini.sh` | future adapter | Existing investigation path |
+| Provider | Investigation | Worktree | Implementation | Notes |
+| --- | --- | --- | --- | --- |
+| Claude Code | `spawn-agent.sh` | `spawn-session.sh` | bash adapter scripts | Claude-specific model/env handling stays in adapter |
+| Codex CLI | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` | `adapters/codex/windows/` | Windows PowerShell path; prompt-file handoff; no hook emulation |
+| Gemini CLI | `spawn-gemini.sh` | future adapter | bash adapter script | Existing investigation path |
 
 Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use dangerous bypass only when a human explicitly requests unattended execution.
 

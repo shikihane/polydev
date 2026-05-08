@@ -13,6 +13,7 @@ Use this skill for `wo:` worktree development. For `bg:` background commands, us
 
 - Use this skill only in a Git repository.
 - Call bash Polydev scripts through `$POLYDEV_SCRIPTS` and Windows PowerShell scripts through `$env:POLYDEV_SCRIPTS`; never use `./scripts/...`.
+- Use root-level scripts as public entry points. Provider/platform implementations may live under `scripts/adapters/` and `scripts/backends/`.
 - Do not call tmux or WezTerm directly from the agent path.
 - Do not hand-write `git worktree add/remove` orchestration while creating sessions.
 - Do not delete `.worktrees` directly.
@@ -117,6 +118,8 @@ Windows Codex PowerShell adapters:
 pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "..." -Cwd . -Output .agent-reports\codex.md
 pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\restore-codex-worktree.ps1" .worktrees\codex-auth -Force
 ```
+
+The Codex PowerShell root scripts are wrappers. Their implementation lives under `adapters\codex\windows\`, with shared WezTerm helpers under `backends\windows\`.
 
 Claude Code model cost rules apply only to Claude Code adapters. Codex PowerShell sessions default to `--sandbox workspace-write --ask-for-approval on-request`; `-DangerousBypass` is only for explicitly approved unattended runs. Keep provider-specific model flags, approval policy, and environment variables at the launcher boundary.
 

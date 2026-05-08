@@ -16,6 +16,7 @@ Use this skill to select the right Polydev workflow before launching sessions or
 - Use Polydev scripts instead of direct tmux/WezTerm commands.
 - Call bash scripts through `$POLYDEV_SCRIPTS` and Windows PowerShell scripts through `$env:POLYDEV_SCRIPTS`, never `./scripts/...`.
 - Keep provider-specific commands, model flags, and environment handling inside adapter scripts.
+- Treat root-level scripts as stable public wrappers. Internal provider/platform implementations live under `scripts/adapters/` and `scripts/backends/`.
 
 ## Script Path
 
@@ -45,6 +46,8 @@ Windows Codex adapter scripts are native PowerShell 7 scripts:
 pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
 pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" myproject codex-auth .worktrees/codex-auth docs/plans/auth.md
 ```
+
+These root scripts are compatibility wrappers around `adapters\codex\windows\*.ps1`; use the root entry points in user-facing examples.
 
 ## Skill Selection
 

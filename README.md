@@ -33,11 +33,13 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 ```text
 commands/     Agent command entry points
 skills/       Agent workflow instructions for orchestration, planning, and execution
-scripts/      Worktree, session, background task, and scheduler scripts
+scripts/      Stable script entry points plus provider adapters and terminal backends
 hooks/        Tool-specific hook integration
 templates/    Task and workflow templates
 docs/         Supporting documentation
 ```
+
+Provider-specific and platform-specific implementation files live below `scripts/adapters/` and `scripts/backends/`. Root-level scripts remain stable wrappers so existing `$POLYDEV_SCRIPTS\...` and `$POLYDEV_SCRIPTS/...` commands keep working.
 
 ## Getting Started
 
@@ -108,12 +110,12 @@ Bash scripts should be called through `$POLYDEV_SCRIPTS`.
 
 ## Provider Adapters
 
-| Provider | Purpose | Entry Point |
-| --- | --- | --- |
-| Claude Code | Existing bash investigation/worktree launchers | `spawn-agent.sh`, `spawn-session.sh` |
-| Codex CLI | Windows PowerShell investigation session | `start-codex-investigation.ps1` |
-| Codex CLI | Windows PowerShell worktree session | `start-codex-worktree.ps1` |
-| Gemini CLI | Existing bash investigation launcher | `spawn-gemini.sh` |
+| Provider | Purpose | Stable Entry Point | Implementation |
+| --- | --- | --- | --- |
+| Claude Code | Existing bash investigation/worktree launchers | `spawn-agent.sh`, `spawn-session.sh` | bash adapter scripts |
+| Codex CLI | Windows PowerShell investigation session | `start-codex-investigation.ps1` | `scripts/adapters/codex/windows/start-investigation.ps1` |
+| Codex CLI | Windows PowerShell worktree session | `start-codex-worktree.ps1` | `scripts/adapters/codex/windows/start-worktree.ps1` |
+| Gemini CLI | Existing bash investigation launcher | `spawn-gemini.sh` | bash adapter script |
 
 Windows Codex PowerShell examples:
 
