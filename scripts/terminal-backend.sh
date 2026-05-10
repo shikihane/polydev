@@ -13,44 +13,18 @@
 
 set -e
 
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+
 # =============================================================================
 # Configuration
 # =============================================================================
 
 TB_SOCKET="/tmp/polydev.sock"
 TB_BACKEND=""
-TB_PYTHON=""
 
 # No external map file needed
 # - tmux: native session:window.pane naming
 # - wezterm: lookup via workspace + tab_title
-
-# Detect Python command (python3 or python)
-_tb_detect_python() {
-  if [ -n "$TB_PYTHON" ]; then
-    return 0
-  fi
-
-  if command -v python3 &>/dev/null; then
-    TB_PYTHON="python3"
-  elif command -v python &>/dev/null; then
-    # Verify it's Python 3
-    if python -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
-      TB_PYTHON="python"
-    else
-      echo "Error: Python 3 is required but not found" >&2
-      return 1
-    fi
-  else
-    echo "Error: Python is required but not found" >&2
-    return 1
-  fi
-
-  export TB_PYTHON
-  # Alias for scripts that use $PYTHON (polycron-*, get-pane-id.sh)
-  PYTHON="$TB_PYTHON"
-  export PYTHON
-}
 
 # =============================================================================
 # Initialization
@@ -60,9 +34,6 @@ _tb_init() {
   if [ -n "$TB_BACKEND" ]; then
     return 0
   fi
-
-  # Detect Python first (needed for wezterm backend)
-  _tb_detect_python
 
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*|Windows*)
@@ -100,6 +71,19 @@ _parse_session_id() {
   TARGET="$SESSION:$WINDOW.$PANE"   # tmux target format
 }
 
+_tmux_target_for_id() {
+  local id="$1"
+  case "$id" in
+    %*)
+      echo "$id"
+      ;;
+    *)
+      _parse_session_id "$id"
+      echo "$TARGET"
+      ;;
+  esac
+}
+
 # Build session_id from components
 # Usage: _build_session_id "workspace" "window" "0"
 _build_session_id() {
@@ -134,30 +118,33 @@ _tmux_create_session() {
 }
 
 _tmux_is_alive() {
-  local session_id="$1"
-  _parse_session_id "$session_id"
-  _tmux list-panes -t "$TARGET" &>/dev/null
+  local id="$1"
+  local target
+  target=$(_tmux_target_for_id "$id")
+  _tmux list-panes -t "$target" &>/dev/null
 }
 
 _tmux_send_command() {
-  local session_id="$1"
+  local id="$1"
   local command="$2"
   local execute="${3:-true}"
 
-  _parse_session_id "$session_id"
+  local target
+  target=$(_tmux_target_for_id "$id")
 
-  _tmux send-keys -t "$TARGET" -l "$command"
+  _tmux send-keys -t "$target" -l "$command"
   if [ "$execute" = "true" ]; then
-    _tmux send-keys -t "$TARGET" C-m
+    _tmux send-keys -t "$target" C-m
   fi
 }
 
 _tmux_send_multiline_text() {
-  local session_id="$1"
+  local id="$1"
   local text="$2"
   local execute="${3:-true}"
 
-  _parse_session_id "$session_id"
+  local target
+  target=$(_tmux_target_for_id "$id")
 
   # For multiline text, send without -l flag so newlines are processed
   # But we need to escape the text to avoid shell interpretation
@@ -167,45 +154,54 @@ _tmux_send_multiline_text() {
 
   # Use load-buffer and paste-buffer for safe multiline sending
   _tmux load-buffer "$tmp_file"
-  _tmux paste-buffer -t "$TARGET"
+  _tmux paste-buffer -t "$target"
   rm -f "$tmp_file"
 
   if [ "$execute" = "true" ]; then
     # Wait for Claude Code to process the pasted text before submitting
     sleep 2
     # Claude Code multiline mode: C-j submits, C-m just inserts newline
-    _tmux send-keys -t "$TARGET" C-j
+    _tmux send-keys -t "$target" C-j
   fi
 }
 
 _tmux_focus_session() {
-  local session_id="$1"
-  _parse_session_id "$session_id"
+  local id="$1"
+  local target
+  target=$(_tmux_target_for_id "$id")
 
   # Switch to session and select pane
-  _tmux switch-client -t "$SESSION" 2>/dev/null || true
-  _tmux select-window -t "$SESSION:$WINDOW" 2>/dev/null || true
-  _tmux select-pane -t "$TARGET" 2>/dev/null || true
+  if [[ "$id" == %* ]]; then
+    _tmux select-pane -t "$target" 2>/dev/null || true
+  else
+    _tmux switch-client -t "$SESSION" 2>/dev/null || true
+    _tmux select-window -t "$SESSION:$WINDOW" 2>/dev/null || true
+    _tmux select-pane -t "$target" 2>/dev/null || true
+  fi
 }
 
 _tmux_cleanup_session() {
-  local session_id="$1"
-  _parse_session_id "$session_id"
+  local id="$1"
+  local target
+  target=$(_tmux_target_for_id "$id")
 
-  _tmux kill-pane -t "$TARGET" 2>/dev/null || true
+  _tmux kill-pane -t "$target" 2>/dev/null || true
 
   # If no more windows in session, kill session
-  if ! _tmux list-windows -t "$SESSION" &>/dev/null; then
-    _tmux kill-session -t "$SESSION" 2>/dev/null || true
+  if [[ "$id" != %* ]]; then
+    if ! _tmux list-windows -t "$SESSION" &>/dev/null; then
+      _tmux kill-session -t "$SESSION" 2>/dev/null || true
+    fi
   fi
 }
 
 _tmux_get_session_info() {
-  local session_id="$1"
-  _parse_session_id "$session_id"
+  local id="$1"
+  local target
+  target=$(_tmux_target_for_id "$id")
 
   local info
-  info=$(_tmux list-panes -t "$TARGET" -F "#{pane_id}|#{pane_current_command}|#{window_name}|#{pane_current_path}" 2>/dev/null | head -n1)
+  info=$(_tmux list-panes -t "$target" -F "#{pane_id}|#{pane_current_command}|#{window_name}|#{pane_current_path}" 2>/dev/null | head -n1)
 
   if [ -n "$info" ]; then
     echo "$info"
@@ -235,6 +231,66 @@ _tmux_poll_sessions() {
 # wezterm Backend Implementation
 # =============================================================================
 
+_json_unquote() {
+  local value="$1"
+  value="${value%$'\r'}"
+  if [ "${value#\"}" != "$value" ] && [ "${value%\"}" != "$value" ]; then
+    value="${value#\"}"
+    value="${value%\"}"
+    value="${value//\\\"/\"}"
+    value="${value//\\\\/\\}"
+    value="${value//\\\//\/}"
+  fi
+  printf '%s' "$value"
+}
+
+_wezterm_json_rows() {
+  sh "$SCRIPT_DIR/lib/jq.sh" -l 2>/dev/null | while IFS=$'\t' read -r path value; do
+    case "$path" in
+      \[[0-9]*,\"workspace\"\]|\[[0-9]*,\"tab_title\"\]|\[[0-9]*,\"title\"\]|\[[0-9]*,\"cwd\"\]|\[[0-9]*,\"pane_id\"\]|\[[0-9]*,\"window_id\"\])
+        local index field
+        index="${path#\[}"
+        index="${index%%,*}"
+        field="${path#*,\"}"
+        field="${field%\"\]}"
+        printf '%s\t%s\t%s\n' "$index" "$field" "$(_json_unquote "$value")"
+        ;;
+    esac
+  done
+}
+
+_wezterm_first_window_id_for_workspace() {
+  local workspace="$1"
+  awk -F '\t' -v ws="$workspace" '
+    $2 == "workspace" { workspace_by_index[$1] = $3 }
+    $2 == "window_id" { window_by_index[$1] = $3 }
+    END {
+      for (i = 0; i <= 10000; i++) {
+        if (workspace_by_index[i] == ws && window_by_index[i] != "") {
+          print window_by_index[i]
+          exit
+        }
+      }
+    }
+  '
+}
+
+_wezterm_title_for_pane_id() {
+  local pane_id="$1"
+  awk -F '\t' -v pid="$pane_id" '
+    $2 == "pane_id" { pane_by_index[$1] = $3 }
+    $2 == "title" { title_by_index[$1] = $3 }
+    END {
+      for (i = 0; i <= 10000; i++) {
+        if (pane_by_index[i] == pid) {
+          print title_by_index[i]
+          exit
+        }
+      }
+    }
+  '
+}
+
 # Create session, return numeric pane_id
 _wezterm_create_session() {
   local workspace="$1"
@@ -253,18 +309,7 @@ _wezterm_create_session() {
   tmpfile="$(mktemp)"
   wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
 
-  existing_window=$(WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c "
-import sys, json, os
-try:
-    workspace = os.environ.get('WORKSPACE', '')
-    tmpfile = os.environ.get('TMPFILE', '')
-    with open(tmpfile, 'r') as f:
-        d = json.load(f)
-    w = [x['window_id'] for x in d if x.get('workspace') == workspace]
-    print(w[0] if w else '')
-except:
-    print('')
-" 2>/dev/null) || existing_window=""
+  existing_window=$(_wezterm_json_rows < "$tmpfile" | _wezterm_first_window_id_for_workspace "$workspace") || existing_window=""
   rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
@@ -287,7 +332,7 @@ except:
   else
     local pane_title
     pane_title=$(wezterm cli list --format json 2>/dev/null | \
-      $PYTHON -c "import sys,json;[print(p.get('title','')) for p in json.load(sys.stdin) if p.get('pane_id')==$pane_id]" 2>/dev/null) || pane_title=""
+      _wezterm_json_rows | _wezterm_title_for_pane_id "$pane_id") || pane_title=""
     if echo "$pane_title" | grep -qiE 'pwsh|powershell'; then
       shell_type="powershell"
     elif echo "$pane_title" | grep -qiE 'cmd\.exe'; then
@@ -491,19 +536,23 @@ _wezterm_get_session_info() {
   fi
 
   local info
-  info=$(wezterm cli list --format json 2>/dev/null | $TB_PYTHON -c '
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    for p in d:
-        if p.get("pane_id") == int('"$pane_id"'):
-            print("{}|active|{}|{}".format(p.get("pane_id", ""), p.get("title", ""), p.get("cwd", "")))
-            break
-    else:
-        print("|dead||")
-except:
-    print("|dead||")
-' 2>/dev/null) || info="|dead||"
+  info=$(wezterm cli list --format json 2>/dev/null | _wezterm_json_rows | awk -F '\t' -v pid="$pane_id" '
+    $2 == "pane_id" { pane_by_index[$1] = $3 }
+    $2 == "title" { title_by_index[$1] = $3 }
+    $2 == "cwd" { cwd_by_index[$1] = $3 }
+    END {
+      for (i = 0; i <= 10000; i++) {
+        if (pane_by_index[i] == pid) {
+          print pane_by_index[i] "|active|" title_by_index[i] "|" cwd_by_index[i]
+          found = 1
+          break
+        }
+      }
+      if (!found) {
+        print "|dead||"
+      }
+    }
+  ') || info="|dead||"
 
   echo "$info"
 }
@@ -516,22 +565,18 @@ _wezterm_poll_sessions() {
   tmpfile="$(mktemp)"
   wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
 
-  WORKSPACE="$workspace" TMPFILE="$tmpfile" $TB_PYTHON -c '
-import json, os
-
-workspace = os.environ.get("WORKSPACE", "")
-tmpfile = os.environ.get("TMPFILE", "")
-
-with open(tmpfile, "r") as f:
-    data = json.load(f)
-
-for p in data:
-    ws = p.get("workspace", "")
-    tab_title = p.get("tab_title", "")
-    pane_id = p.get("pane_id", "")
-    if ws == workspace and tab_title and pane_id:
-        print(str(pane_id) + "|active")
-' 2>/dev/null
+  _wezterm_json_rows < "$tmpfile" | awk -F '\t' -v ws="$workspace" '
+    $2 == "workspace" { workspace_by_index[$1] = $3 }
+    $2 == "tab_title" { tab_by_index[$1] = $3 }
+    $2 == "pane_id" { pane_by_index[$1] = $3 }
+    END {
+      for (i = 0; i <= 10000; i++) {
+        if (workspace_by_index[i] == ws && tab_by_index[i] != "" && pane_by_index[i] != "") {
+          print pane_by_index[i] "|active"
+        }
+      }
+    }
+  '
 
   rm -f "$tmpfile"
 }
@@ -722,8 +767,9 @@ _tb_capture_pane() {
       wezterm cli get-text --pane-id "$pane_id" 2>/dev/null
       ;;
     tmux)
-      _parse_session_id "$pane_id"
-      _tmux capture-pane -t "$TARGET" -p 2>/dev/null
+      local target
+      target=$(_tmux_target_for_id "$pane_id")
+      _tmux capture-pane -t "$target" -p 2>/dev/null
       ;;
   esac
 }

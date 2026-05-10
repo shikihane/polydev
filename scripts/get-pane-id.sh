@@ -22,6 +22,7 @@
 set -e
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+source "$SCRIPT_DIR/terminal-backend.sh"
 
 # Detect backend
 case "$(uname -s)" in
@@ -32,17 +33,6 @@ case "$(uname -s)" in
     BACKEND="tmux"
     ;;
 esac
-
-# Detect Python (for wezterm)
-detect_python() {
-  if command -v python3 &>/dev/null; then
-    echo "python3"
-  elif command -v python &>/dev/null; then
-    echo "python"
-  else
-    echo ""
-  fi
-}
 
 SESSION_ID="$1"
 
@@ -87,13 +77,6 @@ get_tmux_pane() {
 # wezterm backend
 # =============================================================================
 get_wezterm_pane() {
-  local PYTHON
-  PYTHON=$(detect_python)
-  if [ -z "$PYTHON" ]; then
-    echo "Error: Python not found" >&2
-    return 1
-  fi
-
   # Query wezterm
   local panes_json
   panes_json=$(wezterm cli list --format json 2>/dev/null) || {
@@ -101,45 +84,50 @@ get_wezterm_pane() {
     return 1
   }
 
-  # Find pane_id using Python
+  # Find pane_id using the vendored shell JSON parser.
   local result
-  result=$(WORKSPACE="$WORKSPACE" TAB_TITLE="$WINDOW" PANES_JSON="$panes_json" $PYTHON -c "
-import json, os, sys
+  result=$(printf '%s' "$panes_json" | _wezterm_json_rows | awk -F '\t' -v ws="$WORKSPACE" -v title="$WINDOW" '
+    $2 == "workspace" { workspace_by_index[$1] = $3 }
+    $2 == "tab_title" { tab_by_index[$1] = $3 }
+    $2 == "pane_id" { pane_by_index[$1] = $3 }
+    END {
+      count = 0
+      for (i = 0; i <= 10000; i++) {
+        if (workspace_by_index[i] == ws) {
+          count += 1
+          indexes[count] = i
+        }
+      }
 
-workspace = os.environ.get('WORKSPACE', '')
-tab_title = os.environ.get('TAB_TITLE', '')
-panes_json = os.environ.get('PANES_JSON', '[]')
+      if (count == 0) {
+        exit 1
+      }
 
-try:
-    data = json.loads(panes_json)
-except:
-    sys.exit(1)
+      for (n = 1; n <= count; n++) {
+        i = indexes[n]
+        if (tab_by_index[i] == title) {
+          print pane_by_index[i]
+          exit 0
+        }
+      }
 
-# Filter by workspace
-ws_panes = [p for p in data if p.get('workspace') == workspace]
-if not ws_panes:
-    sys.exit(1)
+      if (count == 1) {
+        print pane_by_index[indexes[1]]
+        exit 0
+      }
 
-# Strategy 1: exact match
-for p in ws_panes:
-    if p.get('tab_title') == tab_title:
-        print(p['pane_id'])
-        sys.exit(0)
+      for (n = 1; n <= count; n++) {
+        i = indexes[n]
+        tab = tab_by_index[i]
+        if (index(tab, title) > 0 || index(title, tab) > 0) {
+          print pane_by_index[i]
+          exit 0
+        }
+      }
 
-# Strategy 2: single pane in workspace
-if len(ws_panes) == 1:
-    print(ws_panes[0]['pane_id'])
-    sys.exit(0)
-
-# Strategy 3: partial match
-for p in ws_panes:
-    t = p.get('tab_title', '')
-    if tab_title in t or t in tab_title:
-        print(p['pane_id'])
-        sys.exit(0)
-
-sys.exit(1)
-" 2>/dev/null)
+      exit 1
+    }
+  ' 2>/dev/null)
 
   if [ -n "$result" ]; then
     echo "$result"

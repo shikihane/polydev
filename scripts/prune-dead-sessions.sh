@@ -19,40 +19,39 @@ fi
 panes_json=$(wezterm cli list --format json 2>/dev/null) || panes_json="[]"
 
 # Process and output TOON
-PANES_JSON="$panes_json" $TB_PYTHON -c "
-import json, os
+printf '%s' "$panes_json" | _wezterm_json_rows | awk -F '\t' '
+  $2 == "workspace" { workspace_by_index[$1] = $3 }
+  $2 == "tab_title" { tab_by_index[$1] = $3 }
+  $2 == "cwd" { cwd_by_index[$1] = $3 }
+  $2 == "pane_id" { pane_by_index[$1] = $3 }
+  END {
+    count = 0
+    for (i = 0; i <= 10000; i++) {
+      workspace = workspace_by_index[i]
+      tab_title = tab_by_index[i]
+      cwd = cwd_by_index[i]
+      pane_id = pane_by_index[i]
 
-panes_json = os.environ.get('PANES_JSON', '[]')
-
-try:
-    panes = json.loads(panes_json)
-except:
-    panes = []
-
-count = 0
-for p in panes:
-    workspace = p.get('workspace', '')
-    tab_title = p.get('tab_title', '')
-    pane_id = str(p.get('pane_id', ''))
-    cwd = p.get('cwd', '')
-
-    if not workspace:
+      if (workspace == "") {
         continue
+      }
 
-    # Determine prefix
-    if workspace.startswith('ag-'):
-        prefix = 'ag'
-    elif workspace.startswith('bg-'):
-        prefix = 'bg'
-    elif '-parallel' in workspace or workspace.startswith('wo-'):
-        prefix = 'wo'
-    else:
+      if (workspace ~ /^ag-/) {
+        prefix = "ag"
+      } else if (workspace ~ /^bg-/) {
+        prefix = "bg"
+      } else if (workspace ~ /-parallel/ || workspace ~ /^wo-/) {
+        prefix = "wo"
+      } else {
         continue
+      }
 
-    count += 1
-    session_id = f'{prefix}:{workspace}:{tab_title}.0'
-    print(f'session_id={session_id},status=alive,pane_id={pane_id},cwd={cwd}')
+      count += 1
+      print "session_id=" prefix ":" workspace ":" tab_title ".0,status=alive,pane_id=" pane_id ",cwd=" cwd
+    }
 
-if count == 0:
-    print('status=no sessions found')
-"
+    if (count == 0) {
+      print "status=no sessions found"
+    }
+  }
+'

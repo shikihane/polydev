@@ -47,41 +47,38 @@ _list_wezterm_sessions() {
   local panes_json
   panes_json=$(wezterm cli list --format json 2>/dev/null) || panes_json="[]"
 
-  FILTER="$filter" PANES_JSON="$panes_json" $TB_PYTHON -c "
-import json
-import os
+  printf '%s' "$panes_json" | _wezterm_json_rows | awk -F '\t' -v filter="$filter" '
+    $2 == "workspace" { workspace_by_index[$1] = $3 }
+    $2 == "tab_title" { tab_by_index[$1] = $3 }
+    $2 == "cwd" { cwd_by_index[$1] = $3 }
+    $2 == "pane_id" { pane_by_index[$1] = $3 }
+    END {
+      for (i = 0; i <= 10000; i++) {
+        workspace = workspace_by_index[i]
+        tab_title = tab_by_index[i]
+        cwd = cwd_by_index[i]
+        pane_id = pane_by_index[i]
 
-filter_ws = os.environ.get('FILTER', '')
-panes_json = os.environ.get('PANES_JSON', '[]')
+        if (workspace == "" || tab_title == "") {
+          continue
+        }
 
-try:
-    panes = json.loads(panes_json)
-except:
-    panes = []
+        if (filter != "" && workspace != filter) {
+          continue
+        }
 
-for p in panes:
-    workspace = p.get('workspace', '')
-    tab_title = p.get('tab_title', '')
-    cwd = p.get('cwd', '')
-    pane_id = p.get('pane_id', '')
+        if (workspace ~ /^ag-/) {
+          prefix = "ag"
+        } else if (workspace ~ /^bg-/) {
+          prefix = "bg"
+        } else {
+          prefix = "wo"
+        }
 
-    if not workspace or not tab_title:
-        continue
-
-    if filter_ws and workspace != filter_ws:
-        continue
-
-    # Determine prefix
-    if workspace.startswith('ag-'):
-        prefix = 'ag'
-    elif workspace.startswith('bg-'):
-        prefix = 'bg'
-    else:
-        prefix = 'wo'
-
-    session_id = f'{prefix}:{workspace}:{tab_title}.0'
-    print(f'session_id={session_id},status=alive,cwd={cwd},pane_id={pane_id}')
-"
+        print "session_id=" prefix ":" workspace ":" tab_title ".0,status=alive,cwd=" cwd ",pane_id=" pane_id
+      }
+    }
+  '
 }
 
 output=""
@@ -97,5 +94,5 @@ esac
 if [ -n "$output" ]; then
   echo "$output"
 else
-  echo "(No sessions found)" >&2
+  echo "(No sessions found)"
 fi

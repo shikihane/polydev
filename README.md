@@ -26,7 +26,6 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 - tmux on Linux/macOS, or WezTerm on Windows
 - Bash-compatible shell for the scripts
 - PowerShell 7 (`pwsh`) for Windows-native Codex adapter scripts
-- Python available as `python` on Windows
 
 ## Repository Layout
 

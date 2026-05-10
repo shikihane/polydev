@@ -74,13 +74,13 @@ _capture_tmux() {
   local pane_id="$1"
   local lines="$2"
 
-  # Parse session_id to get tmux target format
-  _parse_session_id "$pane_id"
+  local target
+  target=$(_tmux_target_for_id "$pane_id")
 
   if [ -n "$lines" ]; then
-    _tmux capture-pane -t "$TARGET" -p -S -"$lines"
+    _tmux capture-pane -t "$target" -p -S -"$lines"
   else
-    _tmux capture-pane -t "$TARGET" -p
+    _tmux capture-pane -t "$target" -p
   fi
 }
 

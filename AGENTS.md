@@ -119,6 +119,22 @@ If `~/.polydev/scripts-path` does not exist, the hook has not initialized the pa
 POLYDEV_SCRIPTS="$CLAUDE_PLUGIN_ROOT/scripts"
 ```
 
+### Cross-Platform Script Dependencies
+
+Shared Bash scripts must remain cross-platform. Do not add Windows-only dependencies such as `pwsh`, PowerShell cmdlets, `cmd.exe`, Windows path syntax, or WezTerm-only assumptions to generic Bash entry points unless the code is explicitly guarded by a Windows/WezTerm backend branch and the Linux/macOS tmux path remains functional.
+
+PowerShell 7 (`pwsh`) is allowed for Windows-native `*.ps1` adapter scripts and Windows-only backend helpers. It must not become a hidden requirement for Linux/macOS workflows or shared script initialization.
+
+If shared scripts need JSON parsing, use a cross-platform strategy: prefer an already-required portable tool, a vendored helper that works on supported shells, or backend-specific implementations selected after platform detection. Do not replace Python with `pwsh` as a universal Bash-script dependency.
+
+### Verification Failures And Timeouts
+
+Do not dismiss timeouts, hangs, slow commands, interrupted tool calls, orphaned processes, partial output, or surprising verification results as "flaky" or "incidental" without evidence. Investigate until there is a concrete explanation tied to a process, command, environment condition, or code path.
+
+Do not route around a failing check just to produce a green result. If a verification command times out or is interrupted, inspect for leftover processes and stale terminal sessions before rerunning. If a replacement verification is used, explain why the original failure is understood and why the replacement covers the same behavior.
+
+Never report a feature as verified while a related timeout, hang, residual process, or unexplained warning remains unresolved. Document residual risk explicitly if the root cause is outside the repository.
+
 ### Workspace Names
 
 The `workspace` parameter controls terminal window grouping. Use one consistent workspace name for parallel tasks in the same project.
@@ -287,7 +303,7 @@ Examples:
 
 ## Windows Notes
 
-- Use `python`, not `python3`; backend detection handles this.
+- Do not add new Python dependencies to shared Bash scripts. If maintaining a legacy path that still invokes Python on Windows, use `python`, not `python3`.
 - Always quote paths with spaces.
 - Scripts handle path conversion automatically.
 - Use PowerShell 7 (`pwsh`) for `*.ps1` Codex adapter scripts.
