@@ -174,7 +174,7 @@ fi
 
 CLAUDE_MODEL="${CLAUDE_MODEL:-sonnet}"
 
-# Start Claude (auto-detects shell: bash uses 'unset', PowerShell uses 'Remove-Item Env:')
+# Start Claude in a Bash pane. Native Windows Codex uses separate adapters.
 if ! tb_launch_claude "$new_pane_id" "$CLAUDE_BIN" "$CLAUDE_MODEL"; then
   echo "Failed to start Claude"
   echo "Pane ID: $new_pane_id"

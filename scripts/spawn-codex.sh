@@ -1,7 +1,7 @@
 #!/bin/bash
 # spawn-codex.sh - Start a Codex CLI session with a prompt (no worktree)
 #
-# Usage: spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--output <path>] [--verbose]
+# Usage: spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--model <name>] [--output <path>] [--verbose]
 #
 # Output (TOON by default):
 #   [I] event=agent_starting,name=...,workspace=...,cwd=...
@@ -25,6 +25,7 @@ PROMPT=""
 OUTPUT_PATH=""
 CWD=""
 WORKSPACE=""
+MODEL=""
 VERBOSE=false
 
 # Parse arguments
@@ -46,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       WORKSPACE="$2"
       shift 2
       ;;
+    --model|-m)
+      MODEL="$2"
+      shift 2
+      ;;
     --verbose)
       VERBOSE=true
       shift
@@ -61,7 +66,7 @@ done
 
 if [ -z "$NAME" ] || [ -z "$PROMPT" ] || [ -z "$CWD" ]; then
   echo "error=Missing required parameter(s): name, prompt, or cwd" >&2
-  echo "Usage: spawn-codex.sh <name> --prompt \"<task>\" --cwd <dir> [--output <path>] [--verbose]" >&2
+  echo "Usage: spawn-codex.sh <name> --prompt \"<task>\" --cwd <dir> [--model <name>] [--output <path>] [--verbose]" >&2
   exit 1
 fi
 
@@ -77,7 +82,8 @@ if [ -z "$WORKSPACE" ]; then
   WORKSPACE="$(basename "$CWD")"
 fi
 
-# Handle output path if provided
+# Handle output path if provided. This Bash adapter is for D3 Linux Codex Bash,
+# not D1 native Windows Codex.
 if [ -n "$OUTPUT_PATH" ]; then
   if [[ "$OUTPUT_PATH" != /* ]]; then
     OUTPUT_PATH="$CWD/$OUTPUT_PATH"
@@ -111,13 +117,24 @@ pane_id=$(tb_create_worktree_session "$ag_workspace" "$NAME" "$CWD" "")
 
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
 
+if [ -n "$OUTPUT_PATH" ]; then
+  PROMPT="${PROMPT}
+
+Write your final answer to: ${OUTPUT_PATH}
+Do this before replying AGENT_DONE."
+fi
+
 # Start Codex
-if ! tb_send_command "$pane_id" "codex --dangerously-bypass-approvals-and-sandbox" "true"; then
+CODEX_CMD="codex --dangerously-bypass-approvals-and-sandbox"
+if [ -n "$MODEL" ]; then
+  CODEX_CMD="$CODEX_CMD -m $MODEL"
+fi
+if ! tb_send_command "$pane_id" "$CODEX_CMD" "true"; then
   echo "[E] error=Failed to start Codex" >&2
   exit 1
 fi
 
-toon_log "codex_started" "pane_id=$pane_id"
+toon_log "codex_started" "pane_id=$pane_id${MODEL:+,model=$MODEL}"
 
 # Wait for Codex to be ready (detects old context marker or current startup prompt, max 15s)
 if ! tb_wait_for_codex "$pane_id" 15; then

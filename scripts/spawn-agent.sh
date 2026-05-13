@@ -128,7 +128,7 @@ if ! tb_find_claude_bin; then
   exit 1
 fi
 
-# Start Claude (auto-detects shell: bash uses 'unset', PowerShell uses 'Remove-Item Env:')
+# Start Claude in a Bash pane. Native Windows Codex uses separate adapters.
 if ! tb_launch_claude "$pane_id" "$CLAUDE_BIN" "$MODEL"; then
   echo "[E] error=Failed to start Claude" >&2
   exit 1

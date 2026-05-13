@@ -1,7 +1,8 @@
 #!/bin/bash
 # terminal-backend.sh - Terminal multiplexer abstraction layer
 #
-# Provides unified API for both tmux (Linux/macOS) and wezterm (Windows)
+# Provides unified API for tmux bash panes and WezTerm Git Bash panes.
+# Windows Codex native sessions use terminal-backend.ps1 instead.
 #
 # Session ID Format: wo:session:window.pane
 #   wo:myproject-parallel:feature-auth.0
@@ -321,10 +322,8 @@ _wezterm_create_session() {
   # Set tab_title - includes pane_id for easy identification
   wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
 
-  # Detect shell type: 3-layer detection
-  # Layer 1: POLYDEV_PANE_SHELL env override (user can force a shell type)
-  # Layer 2: wezterm cli list title (process name, reliable on default configs)
-  # Layer 3: Platform fallback (Windows→powershell, others→bash)
+  # Detect pane shell for the Windows ClaudeCode dimension.
+  # This Bash backend only supports Git Bash panes under WezTerm.
   sleep 2  # Wait for shell to initialize
   local shell_type=""
   if [ -n "${POLYDEV_PANE_SHELL:-}" ]; then
@@ -333,39 +332,32 @@ _wezterm_create_session() {
     local pane_title
     pane_title=$(wezterm cli list --format json 2>/dev/null | \
       _wezterm_json_rows | _wezterm_title_for_pane_id "$pane_id") || pane_title=""
-    if echo "$pane_title" | grep -qiE 'pwsh|powershell'; then
-      shell_type="powershell"
-    elif echo "$pane_title" | grep -qiE 'cmd\.exe'; then
-      shell_type="cmd"
-    elif echo "$pane_title" | grep -qiE 'bash|MINGW|MSYS|zsh'; then
+    if echo "$pane_title" | grep -qiE 'bash|MINGW|MSYS'; then
       shell_type="bash"
     else
-      # Platform fallback: WezTerm defaults to PowerShell on Windows
-      case "$(uname -s)" in
-        MINGW*|MSYS*|CYGWIN*) shell_type="powershell" ;;
-        *) shell_type="bash" ;;
-      esac
+      shell_type="unsupported"
     fi
   fi
+
+  if [ "$shell_type" != "bash" ]; then
+    echo "[E] error=WezTerm Bash backend requires a Git Bash pane, got=$shell_type" >&2
+    echo "[E] hint=Configure WezTerm to launch Git Bash for Windows ClaudeCode sessions." >&2
+    wezterm cli kill-pane --pane-id "$pane_id" 2>/dev/null || true
+    return 1
+  fi
+
   # Store shell type in temp file keyed by pane_id
   local shell_type_dir="${TMPDIR:-/tmp}/polydev-shell-types"
   mkdir -p "$shell_type_dir"
   echo "$shell_type" > "$shell_type_dir/$pane_id"
 
-  # Explicitly cd to the target directory after shell starts
-  # Git Bash paths (/c/...) are invalid in PowerShell, convert with cygpath
-  local cd_path="$cwd"
-  local clear_cmd="clear"
-  if [ "$shell_type" = "powershell" ] || [ "$shell_type" = "cmd" ]; then
-    cd_path=$(cygpath -w "$cwd" 2>/dev/null || echo "$cwd")
-    clear_cmd="cls"
-  fi
+  # Explicitly cd to the target directory after Git Bash starts.
   # Send cd command (separate text + Enter calls; positional arg for \r)
-  printf 'cd "%s"' "$cd_path" | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  printf 'cd "%s"' "$cwd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
   wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
   sleep 2
-  printf '%s' "$clear_cmd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
+  printf '%s' "clear" | wezterm cli send-text --no-paste --pane-id "$pane_id"
   sleep 2
   wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
 
@@ -403,10 +395,10 @@ tb_find_claude_bin() {
   return 0
 }
 
-# ─── Shell Detection (cross-shell support) ───
+# --- Pane Shell Detection ---
 
 # Get the detected shell type for a WezTerm pane
-# Returns: "powershell" or "bash"
+# Returns: "bash" or "unsupported"
 _wezterm_get_pane_shell() {
   local pane_id="$1"
   # Strip \r that wezterm cli may return on Windows
@@ -415,15 +407,12 @@ _wezterm_get_pane_shell() {
   if [ -f "$shell_type_file" ]; then
     cat "$shell_type_file"
   else
-    # Platform-aware fallback: WezTerm defaults to PowerShell on Windows
-    case "$(uname -s)" in
-      MINGW*|MSYS*|CYGWIN*) echo "powershell" ;;
-      *) echo "bash" ;;
-    esac
+    echo "unsupported"
   fi
 }
 
-# Launch Claude CLI in a pane, adapting syntax to the pane's shell (bash or PowerShell)
+# Launch Claude CLI in a Bash pane.
+# D2/D4 ClaudeCode flows use Bash only; D1 Windows Codex uses native adapters.
 # Usage: tb_launch_claude <pane_id> <claude_bin> <model> [extra_args...]
 tb_launch_claude() {
   local pane_id="$1"
@@ -435,25 +424,17 @@ tb_launch_claude() {
   # Strip \r that wezterm cli may return on Windows
   pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
 
-  # Build the launch command based on shell type
-  local cmd
   if [ "$TB_BACKEND" = "wezterm" ]; then
     local shell_type
     shell_type=$(_wezterm_get_pane_shell "$pane_id")
-    if [ "$shell_type" = "powershell" ]; then
-      # PowerShell: Remove-Item instead of unset, basename only (Git Bash paths invalid)
-      local ps_bin
-      ps_bin=$(basename "$claude_bin" .cmd)
-      cmd="Remove-Item Env:CLAUDECODE -ErrorAction SilentlyContinue; $ps_bin --dangerously-skip-permissions --model $model $extra_args"
+    if [ "$shell_type" != "bash" ]; then
+      echo "[E] error=ClaudeCode Bash adapter requires a bash pane, got=$shell_type" >&2
+      echo "[E] hint=Configure WezTerm/Git Bash for Windows ClaudeCode sessions." >&2
+      return 1
     fi
   fi
 
-  # Default: bash syntax (used by tmux and wezterm-bash)
-  if [ -z "$cmd" ]; then
-    cmd="unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args"
-  fi
-
-  tb_send_command "$pane_id" "$cmd" "true"
+  tb_send_command "$pane_id" "unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args" "true"
 }
 
 _wezterm_send_command() {
@@ -503,10 +484,7 @@ _wezterm_send_multiline_text() {
   printf '%s' "$text" > "$prompt_file"
 
   if [ "$execute" = "true" ]; then
-    # Convert to Windows path (Git Bash paths invalid in Claude Code's Read tool)
-    local win_path
-    win_path=$(cygpath -w "$prompt_file" 2>/dev/null || echo "$prompt_file")
-    _wezterm_send_command "$pane_id" "Read ${win_path} and follow all instructions in it" "true"
+    _wezterm_send_command "$pane_id" "Read ${prompt_file} and follow all instructions in it" "true"
   fi
 }
 

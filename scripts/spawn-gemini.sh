@@ -77,7 +77,7 @@ if [ -z "$WORKSPACE" ]; then
   WORKSPACE="$(basename "$CWD")"
 fi
 
-# Handle output path if provided
+# Handle output path if provided. This adapter is for Bash panes only.
 if [ -n "$OUTPUT_PATH" ]; then
   if [[ "$OUTPUT_PATH" != /* ]]; then
     OUTPUT_PATH="$CWD/$OUTPUT_PATH"
@@ -110,6 +110,13 @@ ag_workspace="ag-${WORKSPACE}"
 pane_id=$(tb_create_worktree_session "$ag_workspace" "$NAME" "$CWD" "")
 
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
+
+if [ -n "$OUTPUT_PATH" ]; then
+  PROMPT="${PROMPT}
+
+Write your final answer to: ${OUTPUT_PATH}
+Do this before replying AGENT_DONE."
+fi
 
 # Start Gemini
 if ! tb_send_command "$pane_id" "gemini -y" "true"; then

@@ -70,3 +70,4 @@ fi
 tb_cleanup_session "$PANE_ID"
 
 echo "[I] event=session_closed,pane_id=$PANE_ID"
+exit 0
