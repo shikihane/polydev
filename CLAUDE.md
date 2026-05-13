@@ -130,6 +130,16 @@ SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh"
 | Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 | Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
 
+For Codex, choose the entry point for the caller shell:
+
+```bash
+"$POLYDEV_SCRIPTS/spawn-codex.sh" research --prompt "Inspect repository only." --cwd .
+```
+
+```powershell
+pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+```
+
 **Scheduled tasks:**
 | Scenario | Script | Parameters |
 |----------|--------|------------|
@@ -253,7 +263,8 @@ echo "Backend: $(tb_get_backend)"
 
 ## Windows Git Bash Notes
 
-- Use `python` not `python3` (detection handled by `terminal-backend.sh`)
+- Shared Bash scripts should not depend on Python for terminal backend JSON parsing.
+- If maintaining a legacy Windows path that still invokes Python, use `python`, not `python3`.
 - Always quote paths with spaces
 - Scripts handle path conversion automatically
 
@@ -348,11 +359,11 @@ When passing shell variables to inline Python, use environment variables instead
 
 ```bash
 # ✅ Correct - use environment variable
-PANE_ID="$pane_id" $PYTHON -c "
+PANE_ID="$pane_id" python -c "
 import os
 pid = os.environ.get('PANE_ID', '')
 "
 
 # ❌ Wrong - string interpolation breaks on special chars
-$PYTHON -c "if pid == '$pane_id': ..."
+python -c "if pid == '$pane_id': ..."
 ```

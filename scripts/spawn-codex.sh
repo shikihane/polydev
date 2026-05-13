@@ -119,7 +119,7 @@ fi
 
 toon_log "codex_started" "pane_id=$pane_id"
 
-# Wait for Codex to be ready (detects "context left" marker, max 15s)
+# Wait for Codex to be ready (detects old context marker or current startup prompt, max 15s)
 if ! tb_wait_for_codex "$pane_id" 15; then
   echo "[E] error=Codex failed to start within timeout" >&2
   exit 1

@@ -809,11 +809,41 @@ _tb_wait_for_marker() {
   done
 }
 
-# Wait for Codex CLI to be ready
+# Wait for Codex CLI to be ready by polling for known startup prompts.
 # Usage: tb_wait_for_codex <pane_id> [timeout_seconds=15]
 # Returns: 0 if ready, 1 if timeout or session died
 tb_wait_for_codex() {
-  _tb_wait_for_marker "Codex" "$1" "context left" "${2:-15}"
+  local pane_id="$1"
+  local timeout="${2:-15}"
+  local start_time=$(date +%s)
+
+  while true; do
+    local now=$(date +%s)
+    local elapsed=$((now - start_time))
+
+    if [ $elapsed -ge $timeout ]; then
+      echo "[W] Codex wait timeout after ${timeout}s" >&2
+      return 1
+    fi
+
+    if ! tb_is_session_alive "$pane_id"; then
+      echo "[E] Session died while waiting for Codex" >&2
+      return 1
+    fi
+
+    local current_content
+    current_content=$(_tb_capture_pane "$pane_id")
+
+    if echo "$current_content" | grep -q "context left"; then
+      return 0
+    fi
+
+    if echo "$current_content" | grep -q "OpenAI Codex" && echo "$current_content" | grep -q "›"; then
+      return 0
+    fi
+
+    sleep 0.5
+  done
 }
 
 # Wait for Gemini CLI to be ready
