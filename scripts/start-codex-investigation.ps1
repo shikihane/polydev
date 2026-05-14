@@ -6,6 +6,7 @@ param(
   [Parameter(Mandatory)][string]$Cwd,
   [string]$Output,
   [string]$Workspace,
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',

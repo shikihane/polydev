@@ -3,6 +3,7 @@
 param(
   [Parameter(Mandatory, Position = 0)][string]$WorktreePath,
   [switch]$Force,
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',
@@ -101,7 +102,8 @@ function Get-WorkspaceName {
 
 Assert-PolydevCommand -Name @('wezterm', 'codex')
 
-$ResolvedWorktree = Resolve-PolydevFullPath -Path $WorktreePath
+$ResolvedCallerCwd = Get-PolydevCallerCwd -CallerCwd $CallerCwd
+$ResolvedWorktree = Resolve-PolydevFullPath -Path $WorktreePath -BasePath $ResolvedCallerCwd
 if (-not (Test-Path -LiteralPath $ResolvedWorktree -PathType Container)) {
   throw "Worktree not found: $ResolvedWorktree"
 }

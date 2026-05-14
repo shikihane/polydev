@@ -39,10 +39,13 @@ function Resolve-PolydevFullPath {
     [string]$BasePath = (Get-Location).Path
   )
 
-  if ([System.IO.Path]::IsPathFullyQualified($Path)) {
-    $candidate = $Path
+  $normalizedPath = ConvertFrom-PolydevGitBashPath -Path $Path
+  $normalizedBasePath = ConvertFrom-PolydevGitBashPath -Path $BasePath
+
+  if ([System.IO.Path]::IsPathFullyQualified($normalizedPath)) {
+    $candidate = $normalizedPath
   } else {
-    $candidate = [System.IO.Path]::Combine($BasePath, $Path)
+    $candidate = [System.IO.Path]::Combine($normalizedBasePath, $normalizedPath)
   }
 
   try {
@@ -50,6 +53,32 @@ function Resolve-PolydevFullPath {
   } catch {
     return [System.IO.Path]::GetFullPath($candidate)
   }
+}
+
+function ConvertFrom-PolydevGitBashPath {
+  param([Parameter(Mandatory)][string]$Path)
+
+  if ($Path -match '^/([A-Za-z])(?:/|$)') {
+    $drive = $matches[1].ToUpperInvariant()
+    $suffix = $Path.Substring(2).Replace('/', '\')
+    return "${drive}:$suffix"
+  }
+
+  return $Path
+}
+
+function Get-PolydevCallerCwd {
+  param([string]$CallerCwd)
+
+  if (-not [string]::IsNullOrWhiteSpace($CallerCwd)) {
+    return (Resolve-PolydevFullPath -Path $CallerCwd)
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:PWD)) {
+    return (Resolve-PolydevFullPath -Path $env:PWD)
+  }
+
+  return (Get-Location).Path
 }
 
 function ConvertTo-PolydevWindowsPath {
@@ -160,6 +189,8 @@ if ($SelfTest) {
     'Test-PolydevPaneAlive',
     'Close-PolydevPane',
     'Resolve-PolydevFullPath',
+    'ConvertFrom-PolydevGitBashPath',
+    'Get-PolydevCallerCwd',
     'ConvertTo-PolydevWindowsPath',
     'Write-PolydevInfo',
     'Write-PolydevError',

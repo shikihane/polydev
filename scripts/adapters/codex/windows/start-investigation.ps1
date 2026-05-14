@@ -6,6 +6,7 @@ param(
   [Parameter(Mandatory)][string]$Cwd,
   [string]$Output,
   [string]$Workspace,
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',
@@ -63,7 +64,8 @@ function New-InvestigationPrompt {
 
 Assert-PolydevCommand -Name @('wezterm', 'codex')
 
-$ResolvedCwd = Resolve-PolydevFullPath -Path $Cwd
+$ResolvedCallerCwd = Get-PolydevCallerCwd -CallerCwd $CallerCwd
+$ResolvedCwd = Resolve-PolydevFullPath -Path $Cwd -BasePath $ResolvedCallerCwd
 if (-not (Test-Path -LiteralPath $ResolvedCwd -PathType Container)) {
   throw "Directory not found: $ResolvedCwd"
 }

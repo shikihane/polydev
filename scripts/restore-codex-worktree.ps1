@@ -3,6 +3,7 @@
 param(
   [Parameter(Mandatory, Position = 0)][string]$WorktreePath,
   [switch]$Force,
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',

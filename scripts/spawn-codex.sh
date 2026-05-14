@@ -136,10 +136,26 @@ fi
 
 toon_log "codex_started" "pane_id=$pane_id${MODEL:+,model=$MODEL}"
 
-# Wait for Codex to be ready (detects old context marker or current startup prompt, max 15s)
-if ! tb_wait_for_codex "$pane_id" 15; then
-  echo "[E] error=Codex failed to start within timeout" >&2
-  exit 1
+# Wait for Codex to be ready. Codex startup can be slow when it prints plugin or
+# skill warnings; if the pane is still alive, keep the session and try a short
+# recovery wait before sending the prompt.
+if ! tb_wait_for_codex "$pane_id" 30; then
+  if ! tb_is_session_alive "$pane_id"; then
+    echo "[E] error=Codex session died while starting" >&2
+    exit 1
+  fi
+
+  toon_log "codex_wait_timeout" "pane_id=$pane_id,timeout=30"
+
+  if tb_wait_for_codex "$pane_id" 10; then
+    toon_log "codex_wait_recovered" "pane_id=$pane_id"
+  else
+    if ! tb_is_session_alive "$pane_id"; then
+      echo "[E] error=Codex session died after startup timeout" >&2
+      exit 1
+    fi
+    toon_log "codex_wait_recovery_warning" "pane_id=$pane_id"
+  fi
 fi
 
 # Send prompt directly (no template wrapping)

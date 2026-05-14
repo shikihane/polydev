@@ -799,11 +799,6 @@ tb_wait_for_codex() {
     local now=$(date +%s)
     local elapsed=$((now - start_time))
 
-    if [ $elapsed -ge $timeout ]; then
-      echo "[W] Codex wait timeout after ${timeout}s" >&2
-      return 1
-    fi
-
     if ! tb_is_session_alive "$pane_id"; then
       echo "[E] Session died while waiting for Codex" >&2
       return 1
@@ -816,8 +811,13 @@ tb_wait_for_codex() {
       return 0
     fi
 
-    if echo "$current_content" | grep -q "OpenAI Codex" && echo "$current_content" | grep -q "›"; then
+    if echo "$current_content" | grep -q "›"; then
       return 0
+    fi
+
+    if [ $elapsed -ge $timeout ]; then
+      echo "[W] Codex wait timeout after ${timeout}s" >&2
+      return 1
     fi
 
     sleep 0.5

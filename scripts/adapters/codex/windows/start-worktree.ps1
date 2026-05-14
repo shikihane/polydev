@@ -8,6 +8,7 @@ param(
   [string]$VerifyLevel = 'L2',
   [string]$VerifyFallback = 'L1',
   [string]$VerifyCommands = '',
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',
@@ -122,12 +123,13 @@ function Update-TaskToonForPane {
 
 Assert-PolydevCommand -Name @('wezterm', 'git', 'codex')
 
-$ResolvedPlan = Resolve-PolydevFullPath -Path $PlanFile
+$ResolvedCallerCwd = Get-PolydevCallerCwd -CallerCwd $CallerCwd
+$ResolvedPlan = Resolve-PolydevFullPath -Path $PlanFile -BasePath $ResolvedCallerCwd
 if (-not (Test-Path -LiteralPath $ResolvedPlan -PathType Leaf)) {
   throw "Plan file not found: $ResolvedPlan"
 }
 
-$ResolvedWorktree = Resolve-PolydevFullPath -Path $WorktreePath
+$ResolvedWorktree = Resolve-PolydevFullPath -Path $WorktreePath -BasePath $ResolvedCallerCwd
 if (Test-Path -LiteralPath $ResolvedWorktree -PathType Leaf) {
   throw "WorktreePath is an existing file: $ResolvedWorktree"
 }

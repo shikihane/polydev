@@ -8,6 +8,7 @@ param(
   [string]$VerifyLevel = 'L2',
   [string]$VerifyFallback = 'L1',
   [string]$VerifyCommands = '',
+  [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',
