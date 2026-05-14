@@ -1,4 +1,0 @@
-interface:
-  display_name: "Terminal Task Runner"
-  short_description: "Host long terminal tasks visibly"
-  default_prompt: "Use the terminal-task-runner skill to run and monitor this long terminal command."

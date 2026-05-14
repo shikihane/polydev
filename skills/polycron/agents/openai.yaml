@@ -1,4 +1,0 @@
-interface:
-  display_name: "Polycron"
-  short_description: "Schedule Polydev agent sessions"
-  default_prompt: "Use the polycron skill to schedule this agent task through the OS scheduler."

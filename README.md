@@ -37,7 +37,7 @@ templates/    Task and workflow templates
 docs/         Supporting documentation
 ```
 
-Provider-specific and platform-specific implementation files live below `scripts/adapters/` and `scripts/backends/`. Root-level scripts remain stable wrappers so existing `$POLYDEV_SCRIPTS\...` and `$POLYDEV_SCRIPTS/...` commands keep working.
+Provider-specific and platform-specific implementation files live below `scripts/adapters/` and `scripts/backends/`. Root-level scripts remain stable wrappers, but user-facing commands should call those wrappers by full absolute script path.
 
 ## Getting Started
 
@@ -55,32 +55,31 @@ For task decomposition, start with:
 
 ### Script Path
 
-Polydev scripts must be loaded from the installed Polydev package, not from a user-global path file or a repository checkout. Keep `POLYDEV_SCRIPTS` local to the command being run, and do not write it into shell profiles or user-level environment variables.
+Polydev scripts must be loaded from the installed Polydev package, not from a user-global path file or a repository checkout. Resolve the Polydev scripts root once per agent session and keep that root as a literal fact in the agent prompt/context. Every script command must then use the full absolute script path by appending the script filename to that resolved root.
 
-Use the package path for the agent runtime:
+For Claude Code, the installed package path is the Claude skill directory. D2 and D4 must resolve to `.claude/skills/polydev/scripts`; do not substitute a repository checkout path, `.claudecode`, or `.claude/plugins/cache/...`.
 
-```bash
-# Codex
-POLYDEV_SCRIPTS="$HOME/.codex/polydev/scripts"
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+Initial resolution is runtime-specific:
 
-# Claude Code
-POLYDEV_SCRIPTS="$HOME/.claude/plugins/cache/polydev-marketplace/polydev/1.8.1/scripts"
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+```text
+D1 Windows Codex: C:\Users\<user>\.codex\polydev\scripts
+D2 Windows Claude Code: /c/Users/<user>/.claude/skills/polydev/scripts
+D3 Linux/macOS Codex: /home/<user>/.codex/polydev/scripts
+D4 Linux/macOS Claude Code: /home/<user>/.claude/skills/polydev/scripts
 ```
 
-PowerShell callers should initialize `$env:POLYDEV_SCRIPTS` from the installed Codex package path unless they are running inside a Claude Code plugin context:
+Do not use `$POLYDEV_SCRIPTS`, `$env:POLYDEV_SCRIPTS`, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
+
+D1 PowerShell callers use the complete `.ps1` path:
 
 ```powershell
-$env:POLYDEV_SCRIPTS = Join-Path $HOME '.codex\polydev\scripts'
-pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
 ```
 
-When launching a Windows PowerShell adapter from Bash, use Bash expansion and pass the resolved path to `pwsh`. Bash cannot expand PowerShell variables such as `$env:POLYDEV_SCRIPTS`.
+When launching a Windows PowerShell adapter from Bash, pass a Bash-form full absolute path to `pwsh`.
 
 ```bash
-POLYDEV_SCRIPTS="$HOME/.codex/polydev/scripts"
-pwsh -NoProfile -File "$POLYDEV_SCRIPTS/start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
+pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
 ```
 
 ## Typical Workflow
@@ -95,26 +94,26 @@ pwsh -NoProfile -File "$POLYDEV_SCRIPTS/start-codex-investigation.ps1" research 
 
 ## Common Scripts
 
-Bash scripts should be called through `$POLYDEV_SCRIPTS`.
+Bash scripts should be called with the full absolute script path.
 
 ```bash
 # List active terminal sessions
-"$POLYDEV_SCRIPTS/list-sessions.sh"
+"/c/Users/<user>/.claude/skills/polydev/scripts/list-sessions.sh"
 
 # Spawn a worktree-backed agent session
-"$POLYDEV_SCRIPTS/spawn-session.sh" my-project feature/auth ../worktrees/auth plan.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" my-project feature/auth ../worktrees/auth plan.md
 
 # Monitor worktree task status
-"$POLYDEV_SCRIPTS/poll.sh" ../worktrees 1800
+"/c/Users/<user>/.claude/skills/polydev/scripts/poll.sh" ../worktrees 1800
 
 # Send a command to an existing session
-"$POLYDEV_SCRIPTS/send-to-session.sh" 5 "npm test" --peek 5
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" 5 "npm test" --peek 5
 
 # Capture terminal output
-"$POLYDEV_SCRIPTS/capture-screen.sh" --pane-id 5 --lines 80
+"/c/Users/<user>/.claude/skills/polydev/scripts/capture-screen.sh" --pane-id 5 --lines 80
 
 # Clean up a worktree and session
-"$POLYDEV_SCRIPTS/cleanup-worktree.sh" ../worktrees/auth
+"/c/Users/<user>/.claude/skills/polydev/scripts/cleanup-worktree.sh" ../worktrees/auth
 ```
 
 ## Provider Adapters
@@ -129,16 +128,14 @@ Bash scripts should be called through `$POLYDEV_SCRIPTS`.
 Windows Codex PowerShell examples:
 
 ```powershell
-$env:POLYDEV_SCRIPTS = Join-Path $HOME '.codex\polydev\scripts'
-pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
-pwsh -NoProfile -File "$env:POLYDEV_SCRIPTS\start-codex-worktree.ps1" my-project codex/auth .worktrees/codex-auth docs/plans/auth.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" my-project codex/auth .worktrees\codex-auth docs\plans\auth.md
 ```
 
-Bash callers should still use Bash variable syntax when launching a PowerShell adapter:
+Bash callers should still use Bash path syntax when launching a PowerShell adapter:
 
 ```bash
-POLYDEV_SCRIPTS="$HOME/.codex/polydev/scripts"
-pwsh -NoProfile -File "$POLYDEV_SCRIPTS/start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
 ```
 
 The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only for explicitly approved unattended runs.
@@ -148,9 +145,9 @@ The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-ap
 Use background sessions for long-running commands, local servers, test watchers, and read-only investigations:
 
 ```bash
-"$POLYDEV_SCRIPTS/run-background.sh" tests "npm test" --cwd /path/to/project --peek 10
+"/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" tests "npm test" --cwd /path/to/project --peek 10
 
-"$POLYDEV_SCRIPTS/spawn-agent.sh" investigator \
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" investigator \
   --prompt "Investigate the failing auth tests and write a report." \
   --report /tmp/auth-investigation.md \
   --cwd /path/to/project \
@@ -162,14 +159,14 @@ Use background sessions for long-running commands, local servers, test watchers,
 Polycron lets you schedule agent sessions through the operating system scheduler.
 
 ```bash
-"$POLYDEV_SCRIPTS/polycron-add.sh" daily-report \
+"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-add.sh" daily-report \
   --schedule "0 9 * * *" \
   --prompt "Generate daily metrics report" \
   --cwd /path/to/project
 
-"$POLYDEV_SCRIPTS/polycron-list.sh"
-"$POLYDEV_SCRIPTS/polycron-history.sh" --last 10
-"$POLYDEV_SCRIPTS/polycron-remove.sh" daily-report
+"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-list.sh"
+"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-history.sh" --last 10
+"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-remove.sh" daily-report
 ```
 
 Polycron stores job definitions and history under `~/.polydev/cron/`.
@@ -187,11 +184,10 @@ Polycron stores job definitions and history under `~/.polydev/cron/`.
 
 ## Windows Notes
 
-On Windows, Polydev uses WezTerm as the terminal backend. If a script exits successfully but prints no output in Git Bash, use the fallback form with the installed scripts directory:
+On Windows, Polydev uses WezTerm as the terminal backend. If a direct full-path script call exits successfully but prints no output in Git Bash, use the fallback form with the same full script path:
 
 ```bash
-POLYDEV_SCRIPTS="$HOME/.codex/polydev/scripts"
-SCRIPT_DIR="$POLYDEV_SCRIPTS" bash -c "$(cat "$POLYDEV_SCRIPTS/list-sessions.sh")"
+bash -c "$(cat "/c/Users/<user>/.claude/skills/polydev/scripts/list-sessions.sh")"
 ```
 
 After a fresh boot, WezTerm's mux server may need a few seconds to initialize. Retry the command or open a WezTerm window once before launching sessions.

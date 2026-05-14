@@ -91,7 +91,7 @@ backup_task_toon() {
 
 **使用方法**:
 ```bash
-./scripts/restore-session.sh .worktrees/feature-auth
+"/c/Users/<user>/.claude/skills/polydev/scripts/restore-session.sh" .worktrees/feature-auth
 ```
 
 **交互流程**:
@@ -148,7 +148,7 @@ Choose [1-3]: 1
 
 **使用方法**:
 ```bash
-./scripts/cleanup-worktree.sh .worktrees/feature-auth
+"/c/Users/<user>/.claude/skills/polydev/scripts/cleanup-worktree.sh" .worktrees/feature-auth
 ```
 
 **交互流程**:
@@ -308,8 +308,8 @@ Branch:      feature-auth
 Backend:     wezterm
 
 💡 Next steps:
-   - Monitor with: ./scripts/poll.sh .worktrees 10
-   - Focus with:   ./scripts/focus-session.sh .worktrees/auth
+   - Monitor with: "/c/Users/<user>/.claude/skills/polydev/scripts/poll.sh" .worktrees 10
+   - Focus with:   "/c/Users/<user>/.claude/skills/polydev/scripts/focus-session.sh" .worktrees/auth
    - Check status: cat .worktrees/auth/task.toon
 ```
 
@@ -351,30 +351,30 @@ fi
 
 1. **创建新会话**:
    ```bash
-   ./scripts/spawn-session.sh myproject-parallel feature-auth .worktrees/auth ./PLAN.md
+   "/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" myproject-parallel feature-auth .worktrees/auth ./PLAN.md
    ```
 
 2. **监控会话**:
    ```bash
-   ./scripts/poll.sh .worktrees 10
+   "/c/Users/<user>/.claude/skills/polydev/scripts/poll.sh" .worktrees 10
    ```
 
 3. **聚焦会话**:
    ```bash
-   ./scripts/focus-session.sh .worktrees/auth
+   "/c/Users/<user>/.claude/skills/polydev/scripts/focus-session.sh" .worktrees/auth
    ```
 
 ### 故障恢复流程
 
 1. **会话崩溃后恢复**:
    ```bash
-   ./scripts/restore-session.sh .worktrees/auth
+   "/c/Users/<user>/.claude/skills/polydev/scripts/restore-session.sh" .worktrees/auth
    ```
 
 2. **task.toon 被误删**:
    ```bash
    # 恢复脚本会自动从 .task_backups/ 恢复
-   ./scripts/restore-session.sh .worktrees/auth
+   "/c/Users/<user>/.claude/skills/polydev/scripts/restore-session.sh" .worktrees/auth
    ```
 
 3. **手动恢复备份**:
@@ -391,7 +391,7 @@ fi
 
 1. **安全清理 worktree**:
    ```bash
-   ./scripts/cleanup-worktree.sh .worktrees/auth
+   "/c/Users/<user>/.claude/skills/polydev/scripts/cleanup-worktree.sh" .worktrees/auth
    ```
 
 2. **从 git 移除 worktree**:
@@ -407,7 +407,7 @@ fi
 
 ```bash
 # 创建测试 worktree
-./scripts/spawn-session.sh test-workspace test-branch .worktrees/test ./PLAN.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" test-workspace test-branch .worktrees/test ./PLAN.md
 
 # 检查 task.toon 中的 session_id 是否正确
 grep "wo:test-workspace:test-branch" .worktrees/test/task.toon
@@ -418,7 +418,7 @@ grep "wo:test-workspace:test-branch" .worktrees/test/task.toon
 
 ```bash
 # 创建会话
-./scripts/spawn-session.sh test-workspace test-branch .worktrees/test ./PLAN.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" test-workspace test-branch .worktrees/test ./PLAN.md
 
 # 检查备份是否创建
 ls .worktrees/test/.task_backups/
@@ -436,13 +436,13 @@ ls .worktrees/test/.task_backups/ | wc -l
 
 ```bash
 # 创建会话
-./scripts/spawn-session.sh test-workspace test-branch .worktrees/test ./PLAN.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" test-workspace test-branch .worktrees/test ./PLAN.md
 
 # 模拟删除 task.toon
 rm .worktrees/test/task.toon
 
 # 尝试恢复
-./scripts/restore-session.sh .worktrees/test
+"/c/Users/<user>/.claude/skills/polydev/scripts/restore-session.sh" .worktrees/test
 # 应该提示从备份恢复
 
 # 验证恢复成功
@@ -453,10 +453,10 @@ cat .worktrees/test/task.toon
 
 ```bash
 # 创建测试 worktree
-./scripts/spawn-session.sh test-workspace test-branch .worktrees/test ./PLAN.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" test-workspace test-branch .worktrees/test ./PLAN.md
 
 # 尝试删除
-./scripts/cleanup-worktree.sh .worktrees/test
+"/c/Users/<user>/.claude/skills/polydev/scripts/cleanup-worktree.sh" .worktrees/test
 # 应该显示安全确认界面
 
 # 验证备份被保留

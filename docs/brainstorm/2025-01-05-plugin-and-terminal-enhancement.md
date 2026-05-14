@@ -163,8 +163,8 @@ polydev/
 # 返回: session_id (格式: bg:<workspace>:<name>.0)
 #
 # 示例:
-#   ./scripts/run-background.sh build "npm run build"
-#   ./scripts/run-background.sh dev "npm run dev" --cwd ./frontend
+#   "/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" build "npm run build"
+#   "/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" dev "npm run dev" --cwd ./frontend
 ```
 
 ### 5.2 spawn-agent.sh
@@ -177,7 +177,7 @@ polydev/
 # 返回: session_id (格式: ag:<workspace>:<name>.0)
 #
 # 示例:
-#   ./scripts/spawn-agent.sh auth-research \
+#   "/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" auth-research \
 #     --prompt "分析项目的认证机制，找出安全隐患" \
 #     --report ./reports/auth-analysis.md
 ```
@@ -255,10 +255,10 @@ description: Use when executing long-running background commands. Prefer tmux/we
 
 ## 核心流程
 
-1. 启动: `./scripts/run-background.sh <name> "<command>"`
-2. 监控: `./scripts/analyze-output.sh <session_id> --lines 20`
-3. 或等待: `./scripts/wait-for-pattern.sh <session_id> --success "Done"`
-4. 清理: `./scripts/close-session.sh <session_id>`
+1. 启动: `"/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" <name> "<command>"`
+2. 监控: `"/c/Users/<user>/.claude/skills/polydev/scripts/analyze-output.sh" <session_id> --lines 20`
+3. 或等待: `"/c/Users/<user>/.claude/skills/polydev/scripts/wait-for-pattern.sh" <session_id> --success "Done"`
+4. 清理: `"/c/Users/<user>/.claude/skills/polydev/scripts/close-session.sh" <session_id>`
 
 ## 状态判断
 

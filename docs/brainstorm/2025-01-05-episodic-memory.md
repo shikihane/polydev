@@ -299,12 +299,12 @@ episodes[]{ts,agent,type,severity,title,context,resolution,lesson,tags}:
 
 ```bash
 # 新增脚本: log-episode.sh
-./scripts/log-episode.sh <type> "<content>" [--severity <level>] [--tags <tags>]
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" <type> "<content>" [--severity <level>] [--tags <tags>]
 
 # 示例
-./scripts/log-episode.sh observe "登录偶尔失败，重试后成功"
-./scripts/log-episode.sh discovery "Token刷新存在竞态条件" --severity high --tags "auth,concurrency"
-./scripts/log-episode.sh lesson "共享状态修改必须加锁"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" observe "登录偶尔失败，重试后成功"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" discovery "Token刷新存在竞态条件" --severity high --tags "auth,concurrency"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" lesson "共享状态修改必须加锁"
 ```
 
 ### 5.4 子 Agent 的 Skill 更新
@@ -318,13 +318,13 @@ episodes[]{ts,agent,type,severity,title,context,resolution,lesson,tags}:
 
 ```bash
 # 发现问题时
-./scripts/log-episode.sh discovery "描述问题" --severity high --tags "相关标签"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" discovery "描述问题" --severity high --tags "相关标签"
 
 # 做出决策时
-./scripts/log-episode.sh decision "选择了什么，为什么"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" decision "选择了什么，为什么"
 
 # 解决问题后
-./scripts/log-episode.sh lesson "学到了什么教训"
+"/c/Users/<user>/.claude/skills/polydev/scripts/log-episode.sh" lesson "学到了什么教训"
 ```
 
 **什么时候记录？**
@@ -349,29 +349,29 @@ episodes[]{ts,agent,type,severity,title,context,resolution,lesson,tags}:
 # 新增脚本: query-episodes.sh
 
 # 查看最近的发现
-./scripts/query-episodes.sh --type discovery --limit 10
+"/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --type discovery --limit 10
 
 # 查看高严重度事件
-./scripts/query-episodes.sh --severity high
+"/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --severity high
 
 # 按标签查询
-./scripts/query-episodes.sh --tags auth,concurrency
+"/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --tags auth,concurrency
 
 # 查看某个分支的事件
-./scripts/query-episodes.sh --agent feature/auth
+"/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --agent feature/auth
 
 # 查看经验教训
-./scripts/query-episodes.sh --type lesson
+"/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --type lesson
 ```
 
 ### 6.2 在 Poll 循环中检查
 
 ```bash
 while branches_remaining; do
-  result=$(./scripts/poll.sh .worktrees 10)
+  result=$("/c/Users/<user>/.claude/skills/polydev/scripts/poll.sh" .worktrees 10)
 
   # 检查是否有新的高严重度发现
-  new_discoveries=$(./scripts/query-episodes.sh --severity high --since "$last_check")
+  new_discoveries=$("/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --severity high --since "$last_check")
   if [ -n "$new_discoveries" ]; then
     echo "⚠️ 发现重要问题:"
     echo "$new_discoveries"
@@ -388,7 +388,7 @@ done
 
 ```bash
 # 在 spawn-session.sh 中添加
-relevant_lessons=$(./scripts/query-episodes.sh --type lesson --tags "$BRANCH_TAGS")
+relevant_lessons=$("/c/Users/<user>/.claude/skills/polydev/scripts/query-episodes.sh" --type lesson --tags "$BRANCH_TAGS")
 if [ -n "$relevant_lessons" ]; then
   # 将相关经验注入到子 Agent 的提示词中
   echo "## 相关历史经验" >> "$WORKTREE_PATH/PLAN.md"
@@ -405,7 +405,7 @@ fi
 定期（或在所有任务完成后）运行：
 
 ```bash
-./scripts/summarize-episodes.sh > .agent-memory/lessons-learned.md
+"/c/Users/<user>/.claude/skills/polydev/scripts/summarize-episodes.sh" > .agent-memory/lessons-learned.md
 ```
 
 生成的文件：

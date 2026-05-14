@@ -123,8 +123,8 @@ fi
 - 不传: 不截屏
 
 示例:
-  "$POLYDEV_SCRIPTS/send-to-session.sh" 5 "docker ps" --peek 3
-  "$POLYDEV_SCRIPTS/run-background.sh" build "npm test" --peek 10
+  "/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" 5 "docker ps" --peek 3
+  "/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" build "npm test" --peek 10
 ```
 
 ---
