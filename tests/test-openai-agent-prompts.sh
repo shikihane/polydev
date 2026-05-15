@@ -7,7 +7,7 @@ trap 'rm -f "$tmp_files"' EXIT
 
 failures=0
 
-find "$ROOT_DIR/skills" -path '*/agents/openai.yaml' -print > "$tmp_files"
+find "$ROOT_DIR/polydev" -path '*/agents/openai.yaml' -print > "$tmp_files"
 
 while IFS= read -r file; do
   if grep -nE 'default_prompt:.*\$[A-Za-z0-9_-]+' "$file"; then

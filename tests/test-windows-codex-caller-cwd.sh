@@ -39,7 +39,7 @@ SH
 chmod +x "$tmp/bin/codex"
 
 investigation_output="$(
-  PATH="$tmp/bin:$PATH" PWD=/e/polydev-caller-cwd-test pwsh -NoProfile -File "$ROOT_DIR/scripts/start-codex-investigation.ps1" smoke \
+  PATH="$tmp/bin:$PATH" PWD=/e/polydev-caller-cwd-test pwsh -NoProfile -File "$ROOT_DIR/polydev/scripts/start-codex-investigation.ps1" smoke \
     -Prompt "Inspect repository only." \
     -Cwd . \
     -WhatIf
@@ -58,7 +58,7 @@ if grep -Fq "cwd=C:\\Users" <<<"$investigation_output"; then
 fi
 
 worktree_output="$(
-  PATH="$tmp/bin:$PATH" PWD=/e/polydev-caller-cwd-test pwsh -NoProfile -File "$ROOT_DIR/scripts/start-codex-worktree.ps1" smoke codex-cwd .worktrees/codex-cwd plan.md \
+  PATH="$tmp/bin:$PATH" PWD=/e/polydev-caller-cwd-test pwsh -NoProfile -File "$ROOT_DIR/polydev/scripts/start-codex-worktree.ps1" smoke codex-cwd .worktrees/codex-cwd plan.md \
     -WhatIf
 )"
 

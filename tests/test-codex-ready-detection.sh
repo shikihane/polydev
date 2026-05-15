@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$ROOT_DIR/scripts/terminal-backend.sh"
+source "$ROOT_DIR/polydev/scripts/terminal-backend.sh"
 
 SCREEN_CONTENT=""
 

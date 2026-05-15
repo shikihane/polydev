@@ -18,9 +18,9 @@ reject_text() {
 }
 
 for file in \
-  skills/polydev/references/using-polydev.md \
-  skills/polydev/SKILL.md \
-  skills/polydev/references/architecture.md
+  polydev/references/using-polydev.md \
+  polydev/SKILL.md \
+  polydev/references/architecture.md
 do
   reject_text "$file" "-CallerCwd"
   reject_text "$file" 'Bash-launched PowerShell adapters resolve relative paths'

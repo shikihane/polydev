@@ -71,7 +71,7 @@ The dashboard server resolves its skill-local script root from `dashboard/../scr
 Manual startup:
 
 ```bash
-cd /path/to/polydev/dashboard
+cd /path/to/dashboard
 npm install
 npm run build
 POLYDEV_PROJECT_ROOT=/path/to/project node server/index.js
@@ -80,7 +80,7 @@ POLYDEV_PROJECT_ROOT=/path/to/project node server/index.js
 Wrapper startup:
 
 ```bash
-"/path/to/polydev/scripts/dashboard.sh" --cwd /path/to/project --port 3120
+"/path/to/scripts/dashboard.sh" --cwd /path/to/project --port 3120
 ```
 
 D1 Windows PowerShell startup:

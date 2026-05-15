@@ -17,6 +17,7 @@ Polydev is the single top-level skill. Use the internal references in this folde
 | Run a read-only investigation | `references/agent-investigator.md` |
 | Write or revise an implementation plan | `references/writing-plans.md` |
 | Schedule recurring or delayed runs | `references/polycron.md` |
+| Start or explain the Dashboard/Kanban monitor | `references/kanban.md` |
 
 ## Core rules
 

@@ -81,11 +81,11 @@ When design is complete, output:
 ## Next Steps
 
 <CRITICAL>
-When user makes a choice, you MUST immediately invoke the Skill tool:
-- User chooses "Write Plans" → Skill(skill: "polydev:writing-plans")
-- User chooses "Direct Execution" → Skill(skill: "polydev:polydev")
+When the user makes a choice, you MUST immediately load the top-level `polydev` skill and use the matching internal reference:
+- User chooses "Write Plans" -> `references/writing-plans.md`
+- User chooses "Direct Execution" -> `references/worktree-executor.md`
 
-DO NOT just describe what to do. INVOKE the Skill tool immediately.
+DO NOT just describe what to do. Continue with the selected Polydev reference immediately.
 </CRITICAL>
 
 
@@ -95,10 +95,10 @@ After brainstorming, offer:
 Design complete. Options:
 
 1. **Write Plans** - Create detailed implementation plans
-   → Run /polydev-plan for each task
+   -> Use `polydev` with `references/writing-plans.md`
 
 2. **Direct Execution** - Start parallel development now
-   → Use polydev:polydev skill
+   -> Use `polydev` with `references/worktree-executor.md`
 
 Which approach?
 ```

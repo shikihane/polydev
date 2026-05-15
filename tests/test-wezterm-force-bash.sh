@@ -42,7 +42,7 @@ bash -c '
   source "$1"
   sleep() { :; }
   _wezterm_create_session "demo" "background" "/e/repo" >/dev/null
-' _ "$ROOT_DIR/scripts/terminal-backend.sh"
+' _ "$ROOT_DIR/polydev/scripts/terminal-backend.sh"
 
 if ! grep -Eq '^cli spawn .* -- .*bash(\.exe)?([[:space:]]|$)' "$tmp/wezterm.log"; then
   echo "expected wezterm spawn to force a bash program" >&2

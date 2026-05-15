@@ -30,22 +30,25 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 ## Repository Layout
 
 ```text
-commands/     Agent command entry points
-skills/       Agent workflow instructions for orchestration, planning, and execution
-scripts/      Stable script entry points plus provider adapters and terminal backends
-dashboard/    Skill-carried web dashboard for monitoring sessions and task state
-templates/    Task and workflow templates
+polydev/      Installable Polydev skill package; copy this directory to the skill root
+  SKILL.md    Top-level skill entry point
+  references/ Workflow and architecture references
+  scripts/    Stable script entry points plus provider adapters and terminal backends
+  dashboard/  Skill-carried web dashboard for monitoring sessions and task state
+  templates/  Task and workflow templates
+  commands/   Agent command entry points
 docs/         Supporting documentation
+tests/        Regression tests for the package
 ```
 
-Provider-specific and platform-specific implementation files live below `scripts/adapters/` and `scripts/backends/`. Root-level scripts remain stable wrappers, but user-facing commands should call those wrappers by full absolute script path.
+Provider-specific and platform-specific implementation files live below `polydev/scripts/adapters/` and `polydev/scripts/backends/` in this repository, and below `scripts/adapters/` and `scripts/backends/` after installation. Root-level scripts remain stable wrappers, but user-facing commands should call those wrappers by full absolute script path.
 
 ## Getting Started
 
 Install or load Polydev through the integration for your coding agent. Use the entry workflow to choose the right orchestration path:
 
 ```text
-polydev:using-polydev
+polydev -> references/using-polydev.md
 ```
 
 For task decomposition, start with:
@@ -69,7 +72,7 @@ D3 Linux/macOS Codex: /home/<user>/.codex/polydev/scripts
 D4 Linux/macOS Claude Code: /home/<user>/.claude/skills/polydev/scripts
 ```
 
-Do not use script-root environment variables, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
+Do not use script-root environment variables, shell profiles, inherited process environments, or repository-relative `./polydev/scripts/...` / `./scripts/...` paths as the script path mechanism.
 
 D1 PowerShell callers use the complete `.ps1` path:
 
@@ -86,8 +89,8 @@ pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-invest
 ## Typical Workflow
 
 1. Decompose the work with `/polydev-brainstorm`.
-2. Write implementation plans with `polydev:writing-plans`.
-3. Launch parallel worktrees with `polydev:polydev`.
+2. Write implementation plans with `polydev` with `references/writing-plans.md`.
+3. Launch parallel worktrees with `polydev` with `references/worktree-executor.md`.
 4. Monitor status using `poll.sh`.
 5. Resolve `blocked` and `hil` statuses as needed.
 6. Verify each branch at the required level.

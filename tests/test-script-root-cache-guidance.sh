@@ -24,7 +24,7 @@ reject_text() {
   fi
 }
 
-for file in AGENTS.md CLAUDE.md README.md skills/polydev/references/architecture.md; do
+for file in AGENTS.md CLAUDE.md README.md polydev/references/architecture.md; do
   require_text "$file" ".claude/skills/polydev/scripts"
   reject_text "$file" ".claude-plugin"
   reject_text "$file" "marketplace"

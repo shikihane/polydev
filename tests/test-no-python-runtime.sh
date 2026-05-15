@@ -72,7 +72,7 @@ test_list_sessions_does_not_call_python() {
   trap 'rm -rf "$tmp"' RETURN
   make_fake_bin "$tmp/bin"
 
-  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/scripts/list-sessions.sh" demo)"
+  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/polydev/scripts/list-sessions.sh" demo)"
 
   assert_eq "session_id=wo:demo:feature-a [101].0,status=alive,cwd=E:/repo/.worktrees/feature-a,pane_id=101" "$output" "list-sessions"
 }
@@ -83,7 +83,7 @@ test_get_pane_id_does_not_call_python() {
   trap 'rm -rf "$tmp"' RETURN
   make_fake_bin "$tmp/bin"
 
-  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/scripts/get-pane-id.sh" "wo:demo:feature-a.0")"
+  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/polydev/scripts/get-pane-id.sh" "wo:demo:feature-a.0")"
 
   assert_eq "101" "$output" "get-pane-id"
 }
@@ -94,7 +94,7 @@ test_prune_dead_sessions_does_not_call_python() {
   trap 'rm -rf "$tmp"' RETURN
   make_fake_bin "$tmp/bin"
 
-  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/scripts/prune-dead-sessions.sh")"
+  output="$(PATH="$tmp/bin:$PATH" "$ROOT_DIR/polydev/scripts/prune-dead-sessions.sh")"
 
   assert_eq "session_id=ag:ag-demo:research [102].0,status=alive,pane_id=102,cwd=E:/repo" "$output" "prune-dead-sessions"
 }
@@ -105,7 +105,7 @@ test_terminal_backend_helpers_do_not_call_python() {
   trap 'rm -rf "$tmp"' RETURN
   make_fake_bin "$tmp/bin"
 
-  output="$(PATH="$tmp/bin:$PATH" bash -c 'source "$1"; _wezterm_get_session_info 101; tb_poll_sessions demo' _ "$ROOT_DIR/scripts/terminal-backend.sh")"
+  output="$(PATH="$tmp/bin:$PATH" bash -c 'source "$1"; _wezterm_get_session_info 101; tb_poll_sessions demo' _ "$ROOT_DIR/polydev/scripts/terminal-backend.sh")"
 
   assert_eq $'101|active|pwsh.exe|E:/repo/.worktrees/feature-a\n101|active' "$output" "terminal-backend helpers"
 }
