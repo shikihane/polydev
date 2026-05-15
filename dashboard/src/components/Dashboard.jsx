@@ -17,7 +17,7 @@ export default function Dashboard({ sessions, tasks, error, lastRefresh, config 
       sessionId: `orphan:${t.paneId}`,
       type: 'wo',
       name: t.branch || t.worktree || 'Unknown',
-      status: 'ended',
+      status: t.overallStatus || t.agentStatus || 'ended',
       cwd: t.worktree || '',
       paneId: t.paneId,
       task: t,

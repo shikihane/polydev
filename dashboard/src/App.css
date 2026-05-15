@@ -133,6 +133,8 @@ body {
 .card-type.bg { background: #2a1f3a; color: #a371f7; }
 .card-type.ag { background: #1f2d3a; color: #58a6ff; }
 .card-type.ended { background: #1f2d3a; color: #8b949e; }
+.card-type.blocked, .card-type.failed { background: #3d1214; color: #f85149; }
+.card-type.hil { background: #3a2f1f; color: #d29922; }
 
 .card-name {
   font-size: 15px;
@@ -165,6 +167,8 @@ body {
 .dot.crashed, .dot.dead { background: #f85149; }
 .dot.completed { background: #58a6ff; }
 .dot.ended { background: #8b949e; }
+.dot.blocked, .dot.failed { background: #f85149; }
+.dot.hil { background: #d29922; }
 
 .card-header-right {
   display: flex;

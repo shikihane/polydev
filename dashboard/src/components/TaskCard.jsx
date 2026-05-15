@@ -14,15 +14,17 @@ export default function TaskCard({ item }) {
 
   const branch = task?.branch || name;
   const created = task?.created || '';
+  const importantState = task?.overallStatus || task?.agentStatus;
+  const orphanedStatus = importantState || 'ended';
 
   const dotClass = orphaned
-    ? 'ended'
+    ? (importantState || 'ended')
     : task
-      ? (task.agentStatus || 'pending')
+      ? (task.agentStatus || task.overallStatus || 'pending')
       : (status === 'alive' ? 'active' : 'dead');
 
   const statusText = orphaned
-    ? (task?.overallStatus === 'completed' ? 'completed' : 'ended (pane lost)')
+    ? `${orphanedStatus}${orphanedStatus === 'completed' ? '' : ' (pane lost)'}`
     : task
       ? `${task.overallStatus || ''} / ${task.agentStatus || status}`
       : status;
@@ -62,7 +64,7 @@ export default function TaskCard({ item }) {
         <div className="card-header-left">
           <span className={`card-type ${orphaned ? 'ended' : type}`}>{type}</span>
           <span className="card-name">{branch || name}</span>
-          {orphaned && <span className="card-type ended">ended</span>}
+          {orphaned && <span className={`card-type ${orphanedStatus}`}>{orphanedStatus}</span>}
         </div>
         <div className="card-header-right">
           {isAlive && (
