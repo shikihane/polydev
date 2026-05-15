@@ -10,7 +10,7 @@ The design should remain agent-tool neutral. Codex CLI, Cursor, OpenCode, Claude
 ## Core Rules
 
 - Treat `AGENTS.md` as the repo-wide source of truth.
-- Use `skills/polydev` for the main skill and workflow references.
+- Use `polydev` for the main skill and workflow references.
 - Use full absolute script paths only.
 - For Claude Code runtimes, the scripts root is `.claude/skills/polydev/scripts`.
 - Do not rely on `$POLYDEV_SCRIPTS` or `$env:POLYDEV_SCRIPTS`.
@@ -20,7 +20,7 @@ The design should remain agent-tool neutral. Codex CLI, Cursor, OpenCode, Claude
 ## Common Entry Points
 
 ```text
-polydev:using-polydev
+polydev -> references/using-polydev.md
 /polydev-brainstorm
 ```
 
@@ -33,4 +33,4 @@ polydev:using-polydev
 ## Notes
 
 - Use `task.toon` for session state and terminal capture for diagnosis.
-- Follow `skills/polydev/references/architecture.md` for the session model and `skills/polydev/references/verification-levels.md` for verification scope.
+- Follow `polydev/references/architecture.md` for the session model and `polydev/references/verification-levels.md` for verification scope.

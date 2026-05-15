@@ -46,7 +46,7 @@ tb_send_multiline_text() {
 STUB
 
 TEST_STATE_DIR="$STATE_DIR" SCRIPT_DIR="$TMP_DIR" \
-  "$ROOT_DIR/scripts/spawn-codex.sh" recovery-test \
+  "$ROOT_DIR/polydev/scripts/spawn-codex.sh" recovery-test \
   --prompt "Investigate timeout recovery" \
   --cwd "$ROOT_DIR" > "$STATE_DIR/stdout"
 
