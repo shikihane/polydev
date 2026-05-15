@@ -8,21 +8,22 @@ fail() {
   exit 1
 }
 
-require_text() {
+reject_text() {
   local file="$1"
   local text="$2"
 
-  grep -Fq -- "$text" "$ROOT_DIR/$file" || fail "$file missing required text: $text"
+  if grep -Fq -- "$text" "$ROOT_DIR/$file"; then
+    fail "$file contains stale text: $text"
+  fi
 }
 
 for file in \
-  skills/using-polydev/SKILL.md \
+  skills/polydev/references/using-polydev.md \
   skills/polydev/SKILL.md \
   skills/polydev/references/architecture.md
 do
-  require_text "$file" "-CallerCwd"
-  require_text "$file" 'Bash-launched PowerShell'
-  require_text "$file" 'relative paths'
+  reject_text "$file" "-CallerCwd"
+  reject_text "$file" 'Bash-launched PowerShell adapters resolve relative paths'
 done
 
-echo "windows Codex caller cwd guidance tests passed"
+echo "windows Codex caller cwd stale guidance tests passed"
