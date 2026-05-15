@@ -69,7 +69,7 @@ D3 Linux/macOS Codex: /home/<user>/.codex/polydev/scripts
 D4 Linux/macOS Claude Code: /home/<user>/.claude/skills/polydev/scripts
 ```
 
-Do not use `$POLYDEV_SCRIPTS`, `$env:POLYDEV_SCRIPTS`, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
+Do not use script-root environment variables, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
 
 D1 PowerShell callers use the complete `.ps1` path:
 
