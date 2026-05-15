@@ -293,17 +293,39 @@ _wezterm_title_for_pane_id() {
 }
 
 # Create session, return numeric pane_id
+_wezterm_bash_program_args() {
+  local bash_bin
+  bash_bin="$(command -v bash 2>/dev/null || true)"
+  if [ -z "$bash_bin" ]; then
+    echo "[E] error=bash binary not found" >&2
+    return 1
+  fi
+
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows*)
+      if command -v cygpath >/dev/null 2>&1; then
+        bash_bin="$(cygpath -w "$bash_bin")"
+      fi
+      ;;
+  esac
+
+  printf '%s\n' "$bash_bin"
+}
+
 _wezterm_create_session() {
   local workspace="$1"
   local branch="$2"
   local cwd="$3"
   local pane_id
   local existing_window
+  local bash_program
 
   # Normalize path for Windows: remove trailing slashes (wezterm bug)
   # See: https://github.com/wezterm/wezterm/discussions/4703
   cwd="${cwd%/}"
   cwd="${cwd%\\}"
+
+  bash_program="$(_wezterm_bash_program_args)"
 
   # Find existing window in workspace (use temp file to avoid pipe issues)
   local tmpfile
@@ -314,9 +336,9 @@ _wezterm_create_session() {
   rm -f "$tmpfile"
 
   if [ -n "$existing_window" ]; then
-    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" | tr -d '\r')
+    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" -- "$bash_program" | tr -d '\r')
   else
-    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" | tr -d '\r')
+    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" -- "$bash_program" | tr -d '\r')
   fi
 
   # Set tab_title - includes pane_id for easy identification
