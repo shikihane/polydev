@@ -13,7 +13,7 @@
 ## 架构
 
 ```
-plugins/polydev/
+polydev/
 ├── skills/polycron/SKILL.md           # 新 skill
 ├── scripts/
 │   ├── polycron-add.sh                # 注册定时任务
