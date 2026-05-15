@@ -4,7 +4,17 @@ import cors from 'cors';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { listSessions, listTasks, capturePane, isPaneAlive, isValidPaneId, killPane, closePane } from './shell.js';
+import {
+  listSessions,
+  listTasks,
+  capturePane,
+  isPaneAlive,
+  isValidPaneId,
+  killPane,
+  closePane,
+  resolveProjectRoot,
+  worktreesDirForProject,
+} from './shell.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -30,10 +40,15 @@ app.get('/api/sessions', async (req, res) => {
   }
 });
 
+app.get('/api/config', (req, res) => {
+  const projectRoot = resolveProjectRoot(req.query.cwd || req.query.root);
+  res.json({ projectRoot, worktreesDir: worktreesDirForProject(projectRoot) });
+});
+
 app.get('/api/tasks', async (req, res) => {
   try {
-    // Look for .worktrees in current working directory
-    const worktreesDir = req.query.dir || resolve(process.cwd(), '.worktrees');
+    const projectRoot = resolveProjectRoot(req.query.cwd || req.query.root);
+    const worktreesDir = req.query.dir || worktreesDirForProject(projectRoot);
     const tasks = await listTasks(worktreesDir);
     res.json({ tasks });
   } catch (err) {

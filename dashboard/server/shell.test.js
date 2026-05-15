@@ -1,6 +1,13 @@
 // server/shell.test.js
 import { describe, it, expect } from 'vitest';
-import { parseSessionsToon, parseTaskToon, parseWezTermSessions, isValidPaneId } from './shell.js';
+import {
+  parseSessionsToon,
+  parseTaskToon,
+  parseWezTermSessions,
+  isValidPaneId,
+  resolveProjectRoot,
+  worktreesDirForProject,
+} from './shell.js';
 
 describe('parseSessionsToon', () => {
   it('parses single TOON line', () => {
@@ -141,5 +148,28 @@ describe('isValidPaneId', () => {
 
   it('rejects empty string', () => {
     expect(isValidPaneId('')).toBe(false);
+  });
+});
+
+describe('resolveProjectRoot', () => {
+  it('uses explicit query/root value first', () => {
+    expect(resolveProjectRoot('E:/repo', { env: {}, cwd: 'E:/skill/dashboard' })).toBe('E:/repo');
+  });
+
+  it('uses POLYDEV_PROJECT_ROOT when explicit value is absent', () => {
+    expect(resolveProjectRoot('', {
+      env: { POLYDEV_PROJECT_ROOT: '/home/me/project' },
+      cwd: '/home/me/.claude/skills/polydev/dashboard',
+    })).toBe('/home/me/project');
+  });
+
+  it('falls back to cwd only when no explicit project root exists', () => {
+    expect(resolveProjectRoot('', { env: {}, cwd: '/tmp/project' })).toBe('/tmp/project');
+  });
+});
+
+describe('worktreesDirForProject', () => {
+  it('resolves .worktrees below the project root', () => {
+    expect(worktreesDirForProject('E:/repo').replace(/\\/g, '/')).toBe('E:/repo/.worktrees');
   });
 });

@@ -121,6 +121,16 @@ export function isValidPaneId(paneId) {
   return typeof paneId === 'string' && /^[\w%.:@-]+$/.test(paneId);
 }
 
+export function resolveProjectRoot(explicitRoot, options = {}) {
+  const env = options.env || process.env;
+  const cwd = options.cwd || process.cwd();
+  return explicitRoot || env.POLYDEV_PROJECT_ROOT || cwd;
+}
+
+export function worktreesDirForProject(projectRoot) {
+  return resolve(projectRoot, '.worktrees');
+}
+
 /**
  * Locate the polydev scripts directory.
  * Reads from ~/.polydev/scripts-path (set by SessionStart hook).
