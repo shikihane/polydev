@@ -55,9 +55,9 @@ For task decomposition, start with:
 
 ### Script Path
 
-Polydev scripts must be loaded from the installed Polydev package, not from a user-global path file or a repository checkout. Resolve the Polydev scripts root once per agent session and keep that root as a literal fact in the agent prompt/context. Every script command must then use the full absolute script path by appending the script filename to that resolved root.
+Polydev scripts must be loaded from the installed skill directory, not from a user-global path file or a repository checkout. Resolve the Polydev scripts root once per agent session and keep that root as a literal fact in the agent prompt/context. Every script command must then use the full absolute script path by appending the script filename to that resolved root.
 
-For Claude Code, the installed package path is the Claude skill directory. D2 and D4 must resolve to `.claude/skills/polydev/scripts`; do not substitute a repository checkout path, `.claudecode`, or `.claude/plugins/cache/...`.
+For Claude Code, the installed path is the Claude skill directory. D2 and D4 must resolve to `.claude/skills/polydev/scripts`; do not substitute a repository checkout path, `.claudecode`, or any cache-based install path.
 
 Initial resolution is runtime-specific:
 

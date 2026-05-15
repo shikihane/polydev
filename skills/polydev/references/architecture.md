@@ -70,7 +70,7 @@ Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-re
 
 Resolve the Polydev scripts root once when first needed, keep that resolved directory as prompt/context text, and call every script by full absolute path. Do not rely on `$POLYDEV_SCRIPTS`, `$env:POLYDEV_SCRIPTS`, shell profiles, inherited process environments, `./scripts/...`, or repository-relative paths.
 
-For Claude Code runtimes, the resolved scripts root must be the installed Claude skill directory: `/c/Users/<user>/.claude/skills/polydev/scripts` on Windows Git Bash or `/home/<user>/.claude/skills/polydev/scripts` on Linux/macOS. Do not use a repository checkout, `.claudecode`, or `.claude/plugins/cache/...` path.
+For Claude Code runtimes, the resolved scripts root must be the installed Claude skill directory: `/c/Users/<user>/.claude/skills/polydev/scripts` on Windows Git Bash or `/home/<user>/.claude/skills/polydev/scripts` on Linux/macOS. Do not use a repository checkout, `.claudecode`, or any cache-based install path.
 
 For PowerShell scripts on Windows:
 
@@ -86,7 +86,7 @@ pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-invest
 "/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" myproject feature-auth .worktrees/feature-auth docs/plans/auth.md
 ```
 
-Bash-launched PowerShell adapters resolve relative paths against the caller directory, normally from Git Bash `PWD`. If `pwsh` starts in a different location, pass `-CallerCwd <path>` so `-Cwd .`, `.worktrees/...`, and plan paths use the intended project directory.
+For Bash-launched PowerShell adapters, keep the command simple and literal: pass the full adapter path to `pwsh -File` and use the documented public parameters only. If the caller's current directory matters, run the command from that directory or pass an absolute `-Cwd` path.
 
 | Script | Purpose | Parameters |
 | --- | --- | --- |

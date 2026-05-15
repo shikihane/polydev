@@ -21,8 +21,9 @@ Polydev is the single top-level skill. Use the internal references in this folde
 ## Core rules
 
 - Use the full absolute path for every Polydev script.
+- Resolve the scripts root once from the installed skill directory for the active runtime, then paste literal full script paths in commands.
+- For Claude Code runtimes, the scripts root is `.claude/skills/polydev/scripts`; do not use cache-based install paths.
 - Keep provider-specific launch logic inside adapters.
 - Treat Windows and WezTerm as first-class.
 - Use `task.toon` for session state and terminal capture for diagnosis.
 - Follow `references/architecture.md` for the session model and `references/verification-levels.md` for verification scope.
-

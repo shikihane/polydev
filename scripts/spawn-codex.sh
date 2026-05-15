@@ -136,9 +136,9 @@ fi
 
 toon_log "codex_started" "pane_id=$pane_id${MODEL:+,model=$MODEL}"
 
-# Wait for Codex to be ready. Codex startup can be slow when it prints plugin or
-# skill warnings; if the pane is still alive, keep the session and try a short
-# recovery wait before sending the prompt.
+# Wait for Codex to be ready. Codex startup can be slow when it prints a lot of
+# initialization output; if the pane is still alive, keep the session and try a
+# short recovery wait before sending the prompt.
 if ! tb_wait_for_codex "$pane_id" 30; then
   if ! tb_is_session_alive "$pane_id"; then
     echo "[E] error=Codex session died while starting" >&2
