@@ -33,6 +33,7 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 commands/     Agent command entry points
 skills/       Agent workflow instructions for orchestration, planning, and execution
 scripts/      Stable script entry points plus provider adapters and terminal backends
+dashboard/    Skill-carried web dashboard for monitoring sessions and task state
 templates/    Task and workflow templates
 docs/         Supporting documentation
 ```
@@ -68,7 +69,7 @@ D3 Linux/macOS Codex: /home/<user>/.codex/polydev/scripts
 D4 Linux/macOS Claude Code: /home/<user>/.claude/skills/polydev/scripts
 ```
 
-Do not use `$POLYDEV_SCRIPTS`, `$env:POLYDEV_SCRIPTS`, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
+Do not use script-root environment variables, shell profiles, inherited process environments, or repository-relative `./scripts/...` paths as the script path mechanism.
 
 D1 PowerShell callers use the complete `.ps1` path:
 
@@ -170,6 +171,43 @@ Polycron lets you schedule agent sessions through the operating system scheduler
 ```
 
 Polycron stores job definitions and history under `~/.polydev/cron/`.
+
+## Dashboard
+
+The dashboard is packaged beside `scripts/` in the installed Polydev skill directory:
+
+```text
+<polydev-skill-root>/
+├── scripts/
+└── dashboard/
+```
+
+It monitors an explicit project root instead of inferring the project from the dashboard server's current directory. Manage Node dependencies and frontend builds in the dashboard directory:
+
+```bash
+cd /path/to/polydev/dashboard
+npm install
+npm run build
+POLYDEV_PROJECT_ROOT=/path/to/project node server/index.js
+```
+
+The Bash wrapper keeps npm operations inside the dashboard directory and passes the monitored project through `POLYDEV_PROJECT_ROOT`:
+
+```bash
+"/path/to/polydev/scripts/dashboard.sh" --cwd /path/to/project --port 3120
+```
+
+D1 Windows Codex users can start it directly from PowerShell:
+
+```powershell
+Set-Location "C:\Users\<user>\.codex\polydev\dashboard"
+npm install
+npm run build
+$env:POLYDEV_PROJECT_ROOT = "E:\repo"
+node server/index.js
+```
+
+The v1 dashboard is for monitoring session/task state and closing panes. Sending commands, focusing panes, restoring sessions from the UI, and Polycron views are future control-plane features.
 
 ## Verification Levels
 

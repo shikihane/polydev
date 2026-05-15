@@ -1,7 +1,7 @@
 import TaskCard from './TaskCard';
 import { timeAgo } from '../utils.js';
 
-export default function Dashboard({ sessions, tasks, error, lastRefresh }) {
+export default function Dashboard({ sessions, tasks, error, lastRefresh, config }) {
   // Merge sessions and tasks by paneId
   const matchedTaskPaneIds = new Set();
   const sessionItems = sessions.map((s) => {
@@ -17,7 +17,7 @@ export default function Dashboard({ sessions, tasks, error, lastRefresh }) {
       sessionId: `orphan:${t.paneId}`,
       type: 'wo',
       name: t.branch || t.worktree || 'Unknown',
-      status: 'ended',
+      status: t.overallStatus || t.agentStatus || 'ended',
       cwd: t.worktree || '',
       paneId: t.paneId,
       task: t,
@@ -45,6 +45,10 @@ export default function Dashboard({ sessions, tasks, error, lastRefresh }) {
           {lastRefresh && <span>Updated {timeAgo(lastRefresh.toISOString())}</span>}
         </div>
       </div>
+
+      {config?.projectRoot && (
+        <div className="project-root">Project: {config.projectRoot}</div>
+      )}
 
       {error && <div className="error-banner">API Error: {error}</div>}
 

@@ -56,6 +56,45 @@ Windows Codex launchers use native PowerShell 7 plus WezTerm and do not require 
 
 Root-level scripts are stable public entry points. Provider-specific implementations live under `scripts/adapters/`, and platform terminal helpers live under `scripts/backends/`.
 
+## Dashboard Packaging
+
+The web dashboard travels with the installed Polydev skill directory as a sibling of `scripts/`:
+
+```text
+<polydev-skill-root>/
+├── scripts/
+└── dashboard/
+```
+
+The dashboard server resolves its skill-local script root from `dashboard/../scripts`. The project being monitored is configured separately with `POLYDEV_PROJECT_ROOT`, `--cwd`, or the API query root. This keeps D1/D2 Windows WezTerm behavior and D3/D4 tmux behavior behind their existing backend-specific code instead of inferring project paths from the server working directory.
+
+Manual startup:
+
+```bash
+cd /path/to/polydev/dashboard
+npm install
+npm run build
+POLYDEV_PROJECT_ROOT=/path/to/project node server/index.js
+```
+
+Wrapper startup:
+
+```bash
+"/path/to/polydev/scripts/dashboard.sh" --cwd /path/to/project --port 3120
+```
+
+D1 Windows PowerShell startup:
+
+```powershell
+Set-Location "C:\Users\<user>\.codex\polydev\dashboard"
+npm install
+npm run build
+$env:POLYDEV_PROJECT_ROOT = "E:\repo"
+node server/index.js
+```
+
+The v1 dashboard is monitor/read/close only. Command sending, pane focusing, session restore, and Polycron history are follow-up control-plane features.
+
 ## Provider Adapter Matrix
 
 | Provider | Investigation | Worktree | Implementation | Notes |
@@ -68,7 +107,7 @@ Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-re
 
 ## Script Reference
 
-Resolve the Polydev scripts root once when first needed, keep that resolved directory as prompt/context text, and call every script by full absolute path. Do not rely on `$POLYDEV_SCRIPTS`, `$env:POLYDEV_SCRIPTS`, shell profiles, inherited process environments, `./scripts/...`, or repository-relative paths.
+Resolve the Polydev scripts root once when first needed, keep that resolved directory as prompt/context text, and call every script by full absolute path. Do not rely on script-root environment variables, shell profiles, inherited process environments, `./scripts/...`, or repository-relative paths.
 
 For Claude Code runtimes, the resolved scripts root must be the installed Claude skill directory: `/c/Users/<user>/.claude/skills/polydev/scripts` on Windows Git Bash or `/home/<user>/.claude/skills/polydev/scripts` on Linux/macOS. Do not use a repository checkout, `.claudecode`, or any cache-based install path.
 
