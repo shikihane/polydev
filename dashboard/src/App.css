@@ -51,6 +51,13 @@ body {
 .status-dot.live { background: #3fb950; }
 .status-dot.error { background: #f85149; }
 
+.project-root {
+  margin: -12px 0 20px;
+  color: #8b949e;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .summary {
   display: flex;
   gap: 24px;
