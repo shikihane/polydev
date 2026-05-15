@@ -131,22 +131,18 @@ export function worktreesDirForProject(projectRoot) {
   return resolve(projectRoot, '.worktrees');
 }
 
-/**
- * Locate the polydev scripts directory.
- * Reads from ~/.polydev/scripts-path (set by SessionStart hook).
- * Falls back to relative path from this file.
- */
+export function resolveScriptsPath(serverDir, explicitScriptsRoot = '') {
+  if (explicitScriptsRoot) return explicitScriptsRoot;
+  return resolve(serverDir, '..', '..', 'scripts');
+}
+
 let _scriptsPath = null;
 export async function getScriptsPath() {
   if (_scriptsPath) return _scriptsPath;
-  try {
-    const home = process.env.HOME || process.env.USERPROFILE;
-    const stored = await readFile(join(home, '.polydev', 'scripts-path'), 'utf-8');
-    _scriptsPath = stored.trim();
-  } catch {
-    // Fallback: relative to this file → ../../scripts
-    _scriptsPath = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', 'scripts');
-  }
+  _scriptsPath = resolveScriptsPath(
+    fileURLToPath(new URL('.', import.meta.url)),
+    process.env.POLYDEV_DASHBOARD_SCRIPTS_ROOT || ''
+  );
   return _scriptsPath;
 }
 

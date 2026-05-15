@@ -7,6 +7,7 @@ import {
   isValidPaneId,
   resolveProjectRoot,
   worktreesDirForProject,
+  resolveScriptsPath,
 } from './shell.js';
 
 describe('parseSessionsToon', () => {
@@ -171,5 +172,16 @@ describe('resolveProjectRoot', () => {
 describe('worktreesDirForProject', () => {
   it('resolves .worktrees below the project root', () => {
     expect(worktreesDirForProject('E:/repo').replace(/\\/g, '/')).toBe('E:/repo/.worktrees');
+  });
+});
+
+describe('resolveScriptsPath', () => {
+  it('defaults to the dashboard sibling scripts directory', () => {
+    const scripts = resolveScriptsPath('E:/skill/dashboard/server');
+    expect(scripts.replace(/\\/g, '/')).toBe('E:/skill/scripts');
+  });
+
+  it('allows an explicit scripts root for tests and advanced callers', () => {
+    expect(resolveScriptsPath('ignored', 'E:/custom/scripts')).toBe('E:/custom/scripts');
   });
 });
