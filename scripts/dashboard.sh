@@ -1,10 +1,11 @@
 #!/bin/bash
 # dashboard.sh - Start the polydev dashboard web panel
 #
-# Usage: dashboard.sh [--dev] [--port PORT]
+# Usage: dashboard.sh [--dev] [--port PORT] [--cwd PROJECT_ROOT]
 #
 # --dev    Start in development mode (Vite + Express concurrently)
 # --port   API server port (default: 3120)
+# --cwd    Project root to monitor (default: current directory)
 
 set -e
 
@@ -22,6 +23,7 @@ if ! command -v npm &> /dev/null; then
 fi
 
 PORT="${PORT:-3120}"
+PROJECT_ROOT="${POLYDEV_PROJECT_ROOT:-$(pwd)}"
 DEV_MODE=false
 
 while [[ $# -gt 0 ]]; do
@@ -32,6 +34,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --port)
       PORT="$2"
+      shift 2
+      ;;
+    --cwd)
+      PROJECT_ROOT="$2"
       shift 2
       ;;
     *)
@@ -46,6 +52,7 @@ if [ ! -d "$DASHBOARD_DIR/node_modules" ]; then
 fi
 
 export PORT
+export POLYDEV_PROJECT_ROOT="$PROJECT_ROOT"
 
 if $DEV_MODE; then
   echo "Starting dashboard in dev mode (API :$PORT + Vite :5173)..."
