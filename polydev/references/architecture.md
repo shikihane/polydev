@@ -56,6 +56,8 @@ Windows Codex launchers use native PowerShell 7 plus WezTerm and do not require 
 
 Root-level scripts are stable public entry points. Provider-specific implementations live under `scripts/adapters/`, and platform terminal helpers live under `scripts/backends/`.
 
+`terminal-backend.sh`, `terminal-backend.ps1`, `scripts/backends/*`, and `scripts/adapters/*` are internal implementation files. Do not execute them as smoke tests or user-facing commands. Call the documented root-level wrappers instead.
+
 ## Dashboard Packaging
 
 The web dashboard travels with the installed Polydev skill directory as a sibling of `scripts/`:
@@ -108,6 +110,8 @@ Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-re
 ## Script Reference
 
 Resolve the Polydev scripts root once when first needed, keep that resolved directory as prompt/context text, and call every script by full absolute path. Do not rely on script-root environment variables, shell profiles, inherited process environments, `./scripts/...`, or repository-relative paths.
+
+Do not invent usernames or home directories. If the loaded skill path is available, derive the scripts root from that path. Otherwise, verify the target install directory exists before using it.
 
 For Claude Code runtimes, the resolved scripts root must be the installed Claude skill directory: `/c/Users/<user>/.claude/skills/polydev/scripts` on Windows Git Bash or `/home/<user>/.claude/skills/polydev/scripts` on Linux/macOS. Do not use a repository checkout, `.claudecode`, or any cache-based install path.
 
