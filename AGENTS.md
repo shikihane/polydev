@@ -15,17 +15,28 @@ polydev/                       # Installable Polydev skill directory; copy this 
 └── agents/                    # Agent adapter metadata
 
 docs/                          # Planning and historical design notes
-tests/                         # Repository verification scripts
-```## Critical Rules
+```
+
+## Critical Rules
+
+### Real-Machine Verification Only (MANDATORY)
+Polydev verification is real-machine only. This project must not rely on repository-local automated test scripts, mocked terminal output, stubbed agents, fake WezTerm/tmux sessions, or unit-style simulations to prove runtime behavior.
+
+Hard boundary:
+- Do not create, maintain, or run automated test harnesses as a substitute for real installed-skill verification.
+- Do not add a `tests/` directory for Polydev behavior checks.
+- Verify runtime behavior only through the affected real dimension: installed skill path, public root entry script, real terminal backend, real shell, and real agent/session where applicable.
+- For spawn, send, path handling, prompt injection, readiness, timeout, cleanup, and background-task behavior, inspect actual pane output and session state.
+- If real-machine verification is unavailable, report the change as unverified and state the exact missing dimension.
 
 ### Four-Dimension Reasoning Rule (MANDATORY)
 Polydev must be reasoned about in four explicit runtime dimensions. Whenever a change or recommendation touches spawn, send, path handling, prompt injection, shell syntax, or script invocation, evaluate all four before acting:
 
 | # | Runtime | Backend | Shell | Agent | Correct entry point |
 | --- | --- | --- | --- | --- | --- |
-| D1 | Windows Codex | WezTerm | PowerShell | Codex CLI | Windows PowerShell adapters by full absolute path such as `C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1` |
-| D2 | Windows ClaudeCode | WezTerm | Git Bash | Claude Code | Bash scripts by full absolute path such as `/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh` |
-| D3 | Linux Codex | tmux | bash | Codex CLI | Bash scripts by full absolute path such as `/home/<user>/.codex/polydev/scripts/spawn-codex.sh` |
+| D1 | Windows Codex | WezTerm | PowerShell | Codex CLI | Windows PowerShell adapters by full absolute path such as `C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1` |
+| D2 | Windows ClaudeCode | WezTerm | Git Bash | Claude Code | Bash scripts by full absolute path such as `/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh`; use `/c/Users/<user>/.claude/skills/polydev/scripts/spawn-codex.sh` for Codex CLI investigations |
+| D3 | Linux Codex | tmux | bash | Codex CLI | Bash scripts by full absolute path such as `/home/<user>/.codex/skills/polydev/scripts/spawn-codex.sh` |
 | D4 | Linux ClaudeCode | tmux | bash | Claude Code | Bash scripts by full absolute path such as `/home/<user>/.claude/skills/polydev/scripts/spawn-session.sh` |
 
 Hard boundary:
@@ -45,23 +56,27 @@ Dimension-specific implications:
 Before proposing or making a fix, state which dimensions it affects and why the other dimensions still work.
 
 ### Script Path
-Agents must resolve the Polydev scripts root once when the agent first needs Polydev, then carry that resolved directory as plain prompt/context text. The scripts root is the installed skill directory for the current runtime, and the scripts must travel with the skill directory itself. Do not point runtime calls at a repository checkout, a workspace-relative path, a generated link back into the repo, or any path inferred from the source tree. Do not rely on `$env:POLYDEV_SCRIPTS`, `$POLYDEV_SCRIPTS`, shell profiles, process environment inheritance, or any other runtime variable to transmit the path. After the first resolution, every script call must hard-code the full absolute script path by directly appending the script filename to the resolved scripts directory. The prompt/context should contain a literal fact such as `Polydev scripts root: C:\Users\<user>\.codex\polydev\scripts`, `Polydev scripts root: /c/Users/<user>/.claude/skills/polydev/scripts`, `Polydev scripts root: /home/<user>/.codex/polydev/scripts`, or `Polydev scripts root: /home/<user>/.claude/skills/polydev/scripts`. For ClaudeCode dimensions D2 and D4, the resolved scripts root must be the installed Claude skill directory (`.claude/skills/polydev/scripts`), not a repository checkout, `.claudecode`, or any cache-based install path. If Polydev is upgraded and that literal path becomes stale, let the script call fail clearly; the human can resolve the path again.
+Agents must resolve the Polydev scripts root once when the agent first needs Polydev, then carry that resolved directory as plain prompt/context text. The scripts root is the installed skill directory for the current runtime, and the scripts must travel with the skill directory itself. Do not point runtime calls at a repository checkout, a workspace-relative path, a generated link back into the repo, or any path inferred from the source tree. Do not rely on `$env:POLYDEV_SCRIPTS`, `$POLYDEV_SCRIPTS`, shell profiles, process environment inheritance, or any other runtime variable to transmit the path. After the first resolution, every script call must hard-code the full absolute script path by directly appending the script filename to the resolved scripts directory. The prompt/context should contain a literal fact such as `Polydev scripts root: C:\Users\<user>\.codex\skills\polydev\scripts`, `Polydev scripts root: /c/Users/<user>/.claude/skills/polydev/scripts`, `Polydev scripts root: /home/<user>/.codex/skills/polydev/scripts`, or `Polydev scripts root: /home/<user>/.claude/skills/polydev/scripts`. For ClaudeCode dimensions D2 and D4, the resolved scripts root must be the installed Claude skill directory (`.claude/skills/polydev/scripts`), not a repository checkout, `.claudecode`, or any cache-based install path. If Polydev is upgraded and that literal path becomes stale, let the script call fail clearly; the human can resolve the path again.
 
 Codex on Windows (D1, PowerShell):
 ```powershell
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" my-project codex-auth .worktrees\codex-auth docs\plans\auth.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect repository only." -Peek 5
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" my-project codex-auth .worktrees\codex-auth docs\plans\auth.md
 ```
 
 ClaudeCode on Windows (D2, Git Bash):
 ```bash
-"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" research --prompt "Inspect repository only." --report .agent-reports/research.md --cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" research --cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-prompt.sh" <pane_id> --file /tmp/research-prompt.md --peek 5
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-codex.sh" codex-research --cwd .
 "/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" my-project feature-auth .worktrees/feature-auth docs/plans/auth.md
 ```
 
 Codex on Linux (D3, bash):
 ```bash
-"/home/<user>/.codex/polydev/scripts/spawn-codex.sh" research --prompt "Inspect repository only." --cwd . --output .agent-reports/codex.md
+"/home/<user>/.codex/skills/polydev/scripts/spawn-codex.sh" research --cwd .
+"/home/<user>/.codex/skills/polydev/scripts/send-prompt.sh" <pane_id> --file /tmp/research-prompt.md --peek 5
 ```
 
 ClaudeCode on Linux (D4, bash):
@@ -102,15 +117,16 @@ Claude Code `Task` sub-agents should use `model: "sonnet"` unless the user expli
 ### Provider Adapter Boundary
 | Provider | Investigation | Worktree | Implementation |
 | --- | --- | --- | --- |
-| Claude Code | `spawn-agent.sh` | `spawn-session.sh` | bash adapter scripts |
-| Codex CLI on Windows | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` | PowerShell adapter scripts |
+| Claude Code | `spawn-agent.sh` + `send-prompt.sh` | `spawn-session.sh` | bash adapter scripts |
+| Codex CLI from Bash | `spawn-codex.sh` + `send-prompt.sh` | future adapter | bash adapter scripts |
+| Codex CLI on Windows | `start-codex-investigation.ps1` + `send-prompt.ps1` | `start-codex-worktree.ps1` | PowerShell adapter scripts |
 | Codex CLI on Linux | `spawn-codex.sh` | future adapter | bash adapter scripts |
 | Gemini CLI | `spawn-gemini.sh` | future adapter | bash adapter scripts |
 
-The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only when the human explicitly requests a fully unattended run. Do not add Codex lifecycle emulation; status is initialized by the launcher and then maintained through explicit `task.toon` updates.
+The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only when the human explicitly requests a fully unattended run. Do not add Codex lifecycle emulation. Worktree lifecycle belongs in `task.toon`; investigation lifecycle is visible pane state inspected by capture.
 
 ### Status Communication
-Sub-agents communicate through `task.toon` files. The main agent monitors with `poll.sh`.
+Worktree sub-agents communicate through `task.toon` files. The main agent monitors worktrees with `poll.sh`. Investigation and background sessions do not require `task.toon`; observe them with `capture-screen.*`, `--peek`, or direct terminal inspection.
 
 Important statuses:
 - `blocked`: main agent may be able to resolve the issue
@@ -125,4 +141,31 @@ Important statuses:
 | tmux | `session:window.pane` | `polydev:1.0` |
 
 Debug output goes to stderr and may include `[D]` prefixes with worktree, branch, or pane context.
-## Script ReferenceAll scripts below must be invoked by hard-coding the full resolved absolute path to the script file. Do not invoke them through `$env:POLYDEV_SCRIPTS` or `$POLYDEV_SCRIPTS`.### Core Workflow| Scenario | Script | Parameters || --- | --- | --- || Create worktree-backed agent session | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` || Create Codex worktree session on Windows | `start-codex-worktree.ps1` | `<workspace> <branch> <worktree-path> <plan-file>` || Monitor status loop | `poll.sh` | `<worktrees-dir> <timeout>` || Restore crashed session | `restore-session.sh` | `<worktree-path> [--force]` || Restore Codex worktree session on Windows | `restore-codex-worktree.ps1` | `<worktree-path> [-Force]` |### Session Management| Scenario | Script | Parameters || --- | --- | --- || Send to worktree session | `wo-send-command.sh` | `<worktree-path> "<cmd>" [--peek N]` || Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` || Read terminal output | `capture-screen.sh` | `<worktree-path> [--lines N]` or `--pane-id <id>` || List sessions | `list-sessions.sh` | `[workspace]` || Close session | `close-session.sh` | `<worktree-path>` or `--pane-id <id>` |### Background Tasks| Scenario | Script | Parameters || --- | --- | --- || Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>] [--peek N]` || Start Claude Code session | `spawn-agent.sh` | `<name> --prompt "<task>" --report <path> --cwd <dir> [--peek N]` || Start Codex CLI session | `spawn-codex.sh` | `<name> --prompt "<task>" --cwd <dir> [--model <name>] [--output <path>]` || Start Codex CLI session on Windows | `start-codex-investigation.ps1` | `<name> -Prompt "<task>" -Cwd <dir> [-Output <path>]` || Start Gemini CLI session | `spawn-gemini.sh` | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |### Scheduled Tasks| Scenario | Script | Parameters || --- | --- | --- || Add scheduled task | `polycron-add.sh` | `<job-id> --schedule "..." --prompt "..." --cwd <dir>` || Remove scheduled task | `polycron-remove.sh` | `<job-id>` || List scheduled tasks | `polycron-list.sh` | `[--all|--enabled|--disabled]` || View task history | `polycron-history.sh` | `[job-id] [--last N]` |### Cleanup| Scenario | Script | Parameters || --- | --- | --- || Clean worktree + session | `cleanup-worktree.sh` | `<worktree-path>` |### `--peek`Scripts that return a `pane_id` support `--peek N`.- `--peek 0`: capture immediately- `--peek 5`: wait 5 seconds, then capture- omitted: do not capture```bash"/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" 5 "docker ps" --peek 3"/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" build "npm test" --peek 10```## Development Workflow1. Brainstorm with `/polydev-brainstorm` for task decomposition.2. Plan with `polydev` with `references/writing-plans.md`.3. Execute with `polydev` with `references/worktree-executor.md`.4. Monitor with `poll.sh` and handle `blocked` or `hil` states.5. Verify according to the selected verification level.6. Clean up worktrees only after human confirmation.Use `polydev -> references/using-polydev.md` to choose the right skill or command for a task.## Verification Levels| Level | Name | Scope || --- | --- | --- || L0 | skip | No verification, suitable for docs/config only || L1 | compile | Build only || L2 | unit | Build plus unit tests || L3 | integration | Integration tests included || L4 | e2e | End-to-end tests included || L5 | manual | Human verification required |## PolycronPolycron schedules agent sessions through OS schedulers.- Linux/macOS: crontab- Windows: schtasksData lives under `~/.polydev/cron/`:- job definitions: `~/.polydev/cron/jobs/`- trigger history: `~/.polydev/cron/history.jsonl`Examples:```bash"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-add.sh" daily-report \  --schedule "0 9 * * *" \  --prompt "Generate daily metrics report" \  --cwd /path/to/project"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-list.sh""/c/Users/<user>/.claude/skills/polydev/scripts/polycron-history.sh" --last 10"/c/Users/<user>/.claude/skills/polydev/scripts/polycron-remove.sh" daily-report```## Windows Notes- Do not add new Python dependencies to shared Bash scripts. If maintaining a legacy path that still invokes Python on Windows, use `python`, not `python3`.- Always quote paths with spaces.- Scripts handle path conversion automatically.- Use PowerShell 7 (`pwsh`) for `*.ps1` Codex adapter scripts.- WezTerm may need a cold-start retry after system boot.## Terminal Backend GuardrailsDo not shorten the `sleep 2` before sending Enter in WezTerm send-text helpers. Interactive coding agents need time to process large text input before Enter is sent.Do not remove `--no-paste` from `wezterm cli send-text` calls. Without it, bracketed paste markers can make Enter arrive as literal text instead of executing the command.The Claude adapter must unset `CLAUDECODE` using shell-appropriate logic. Prefer `tb_launch_claude()` for that adapter instead of sending raw `unset CLAUDECODE && ...` commands. Keep equivalent tool-specific environment handling inside that tool's launcher.## Inline Python EscapingWhen passing shell values to inline Python, use environment variables instead of string interpolation.```bashPANE_ID="$pane_id" $PYTHON -c "import ospid = os.environ.get('PANE_ID', '')"```Avoid:```bash$PYTHON -c "if pid == '$pane_id': ..."```
+
+## Investigation Spawn Contract
+
+`spawn-agent.sh` and `spawn-codex.sh` only start a visible agent TUI, handle trust confirmation when the target cwd matches, wait for a maintainable ready keyword list, and return `pane_id`. They must not accept prompt, report, or output parameters. Send work with `send-prompt.sh`; it sends and returns immediately. Do not make completion waiting part of the default investigation flow. Use `--peek N` or `capture-screen.sh` for observation.
+
+## Script Reference
+
+All scripts below must be invoked by hard-coding the full resolved absolute path to the script file.
+
+| Scenario | Script | Parameters |
+| --- | --- | --- |
+| Create worktree-backed agent session | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
+| Monitor status loop | `poll.sh` | `<worktrees-dir> <timeout>` |
+| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` |
+| Read terminal output | `capture-screen.sh` | `<worktree-path> [--lines N]` or `--pane-id <id>` |
+| List sessions | `list-sessions.sh` | `[workspace]` |
+| Close session | `close-session.sh` | `<worktree-path>` or `--pane-id <id>` |
+| Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>] [--peek N]` |
+| Start Claude Code TUI | `spawn-agent.sh` | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| Start Codex CLI TUI | `spawn-codex.sh` | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| Send agent prompt | `send-prompt.sh` | `<pane_id> (--text <prompt> \| --file <path>) [--peek N]` |
+| Capture agent output | `capture-screen.sh` | `--pane-id <id> [--lines N]` |
+| Start Windows Codex TUI | `start-codex-investigation.ps1` | `<name> -Cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| Send Windows Codex prompt | `send-prompt.ps1` | `<pane_id> (-Text <prompt> \| -File <path>) [-Peek N]` |
+| Capture Windows Codex output | `capture-screen.ps1` | `-PaneId <id> [-Lines N]` |
+| Add scheduled task | `polycron-add.sh` | `<job-id> --schedule "..." --prompt "..." --cwd <dir>` |
+
+Scripts that return a `pane_id` support `--peek N`.

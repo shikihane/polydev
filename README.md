@@ -14,7 +14,7 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 
 - Parallel agent execution across Git worktrees
 - Terminal session management for tmux on Linux/macOS and WezTerm on Windows
-- `task.toon` status files for agent-to-main coordination
+- `task.toon` status files for worktree session coordination
 - Background command hosting for builds, tests, servers, and one-off agent investigations
 - Scheduled agent tasks through Polycron
 - Agent workflow instructions and command entry points for planning, execution, and monitoring
@@ -38,7 +38,6 @@ polydev/      Installable Polydev skill package; copy this directory to the skil
   templates/  Task and workflow templates
   commands/   Agent command entry points
 docs/         Supporting documentation
-tests/        Regression tests for the package
 ```
 
 Provider-specific and platform-specific implementation files live below `polydev/scripts/adapters/` and `polydev/scripts/backends/` in this repository, and below `scripts/adapters/` and `scripts/backends/` after installation. Root-level scripts remain stable wrappers, but user-facing commands should call those wrappers by full absolute script path.
@@ -66,9 +65,9 @@ For Claude Code, the installed path is the Claude skill directory. D2 and D4 mus
 Initial resolution is runtime-specific:
 
 ```text
-D1 Windows Codex: C:\Users\<user>\.codex\polydev\scripts
+D1 Windows Codex: C:\Users\<user>\.codex\skills\polydev\scripts
 D2 Windows Claude Code: /c/Users/<user>/.claude/skills/polydev/scripts
-D3 Linux/macOS Codex: /home/<user>/.codex/polydev/scripts
+D3 Linux/macOS Codex: /home/<user>/.codex/skills/polydev/scripts
 D4 Linux/macOS Claude Code: /home/<user>/.claude/skills/polydev/scripts
 ```
 
@@ -77,13 +76,15 @@ Do not use script-root environment variables, shell profiles, inherited process 
 D1 PowerShell callers use the complete `.ps1` path:
 
 ```powershell
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect the auth flow." -Peek 5
 ```
 
-When launching a Windows PowerShell adapter from Bash, pass a Bash-form full absolute path to `pwsh`.
+D2 Windows Claude Code callers use Bash entry points from the installed Claude skill directory. Use `spawn-codex.sh` for a Codex CLI investigation from that environment.
 
 ```bash
-pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-investigation.ps1" research -Prompt "Inspect the auth flow." -Cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-codex.sh" codex-research --cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-prompt.sh" <pane_id> --text "Inspect the auth flow." --peek 5
 ```
 
 ## Typical Workflow
@@ -111,7 +112,7 @@ Bash scripts should be called with the full absolute script path.
 "/c/Users/<user>/.claude/skills/polydev/scripts/poll.sh" ../worktrees 1800
 
 # Send a command to an existing session
-"/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" 5 "npm test" --peek 5
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" 5 "pwd" --peek 5
 
 # Capture terminal output
 "/c/Users/<user>/.claude/skills/polydev/scripts/capture-screen.sh" --pane-id 5 --lines 80
@@ -125,37 +126,37 @@ Bash scripts should be called with the full absolute script path.
 | Provider | Purpose | Stable Entry Point | Implementation |
 | --- | --- | --- | --- |
 | Claude Code | Existing bash investigation/worktree launchers | `spawn-agent.sh`, `spawn-session.sh` | bash adapter scripts |
+| Codex CLI | Bash investigation session from D2/D3 shells | `spawn-codex.sh` | bash adapter script |
 | Codex CLI | Windows PowerShell investigation session | `start-codex-investigation.ps1` | `scripts/adapters/codex/windows/start-investigation.ps1` |
 | Codex CLI | Windows PowerShell worktree session | `start-codex-worktree.ps1` | `scripts/adapters/codex/windows/start-worktree.ps1` |
-| Gemini CLI | Existing bash investigation launcher | `spawn-gemini.sh` | bash adapter script |
+| Gemini CLI | Bash investigation launcher | `spawn-gemini.sh` | bash adapter script |
 
 Windows Codex PowerShell examples:
 
 ```powershell
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" my-project codex/auth .worktrees\codex-auth docs\plans\auth.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect repository only." -Peek 5
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" my-project codex/auth .worktrees\codex-auth docs\plans\auth.md
 ```
 
-Bash callers should still use Bash path syntax when launching a PowerShell adapter:
+Bash callers starting Codex CLI investigations should use the Bash adapter:
 
 ```bash
-pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-investigation.ps1" research -Prompt "Inspect repository only." -Cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-codex.sh" codex-research --cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-prompt.sh" <pane_id> --file /tmp/codex-research.md --peek 5
 ```
 
 The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use `-DangerousBypass` only for explicitly approved unattended runs.
 
 ## Background Tasks
 
-Use background sessions for long-running commands, local servers, test watchers, and read-only investigations:
+Use background sessions for long-running commands, local servers, and read-only investigation sessions:
 
 ```bash
-"/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" tests "npm test" --cwd /path/to/project --peek 10
+"/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" server "npm run dev" --cwd /path/to/project --peek 10
 
-"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" investigator \
-  --prompt "Investigate the failing auth tests and write a report." \
-  --report /tmp/auth-investigation.md \
-  --cwd /path/to/project \
-  --peek 5
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-agent.sh" investigator --cwd /path/to/project --peek 5
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-prompt.sh" <pane_id> --file /tmp/auth-investigation-prompt.md --peek 5
 ```
 
 ## Scheduled Tasks
@@ -203,7 +204,7 @@ The Bash wrapper keeps npm operations inside the dashboard directory and passes 
 D1 Windows Codex users can start it directly from PowerShell:
 
 ```powershell
-Set-Location "C:\Users\<user>\.codex\polydev\dashboard"
+Set-Location "C:\Users\<user>\.codex\skills\polydev\dashboard"
 npm install
 npm run build
 $env:POLYDEV_PROJECT_ROOT = "E:\repo"
@@ -218,9 +219,9 @@ The v1 dashboard is for monitoring session/task state and closing panes. Sending
 | --- | --- | --- |
 | L0 | skip | Docs or config only |
 | L1 | compile | Build only |
-| L2 | unit | Build plus unit tests |
-| L3 | integration | Integration tests |
-| L4 | e2e | End-to-end tests |
+| L2 | unit | Real-machine focused checks |
+| L3 | integration | Real installed-skill integration checks |
+| L4 | e2e | Real terminal/backend end-to-end checks |
 | L5 | manual | Human verification |
 
 ## Windows Notes
