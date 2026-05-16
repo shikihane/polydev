@@ -2,15 +2,14 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
   [Parameter(Mandatory, Position = 0)][string]$Name,
-  [Parameter(Mandatory)][string]$Prompt,
   [Parameter(Mandatory)][string]$Cwd,
-  [string]$Output,
   [string]$Workspace,
   [string]$CallerCwd,
   [string]$Model,
   [string]$Sandbox = 'workspace-write',
   [string]$Approval = 'on-request',
   [switch]$DangerousBypass,
+  [int]$ReadyTimeout = 15,
   [int]$Peek
 )
 
@@ -18,7 +17,6 @@ Set-StrictMode -Version Latest
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
 $ScriptsRoot = (Resolve-Path -LiteralPath (Join-Path $ScriptDir '..\..\..')).Path
-$RepoRoot = Split-Path -Parent $ScriptsRoot
 . (Join-Path $ScriptsRoot 'backends\windows\wezterm.ps1')
 
 function Quote-CodexArgument {
@@ -29,7 +27,6 @@ function Quote-CodexArgument {
 function New-CodexCommand {
   param(
     [Parameter(Mandatory)][string]$CwdPath,
-    [Parameter(Mandatory)][string]$PromptPath,
     [string]$ModelName,
     [string]$SandboxName,
     [string]$ApprovalMode,
@@ -45,21 +42,13 @@ function New-CodexCommand {
   if (-not [string]::IsNullOrWhiteSpace($ModelName)) {
     $parts += @('--model', (Quote-CodexArgument $ModelName))
   }
-  $parts += '--no-alt-screen'
-  $parts += (Quote-CodexArgument "Read $PromptPath and follow all instructions in it.")
+  $parts += @('--no-alt-screen', '--disable', 'plugins')
   return ($parts -join ' ')
 }
 
-function New-InvestigationPrompt {
-  param(
-    [Parameter(Mandatory)][string]$Task,
-    [string]$ReportPath
-  )
-
-  $templatePath = Join-Path $RepoRoot 'templates/codex-investigator-prompt.md'
-  $template = Get-Content -LiteralPath $templatePath -Raw
-  $reportValue = if ([string]::IsNullOrWhiteSpace($ReportPath)) { '(not enforced)' } else { $ReportPath }
-  return $template.Replace('{{TASK}}', $Task).Replace('{{REPORT_PATH}}', $reportValue)
+function Test-CodexReadyText {
+  param([string]$Text)
+  return $Text -match 'OpenAI Codex|Use /skills|context left|Ask Codex|What can I help|gpt-[^\s]+\s.*·|^\s*›|^\s*>'
 }
 
 Assert-PolydevCommand -Name @('wezterm', 'codex')
@@ -74,38 +63,39 @@ if ([string]::IsNullOrWhiteSpace($Workspace)) {
   $Workspace = Split-Path -Leaf $ResolvedCwd
 }
 
-$ResolvedOutput = ''
-if (-not [string]::IsNullOrWhiteSpace($Output)) {
-  $ResolvedOutput = Resolve-PolydevFullPath -Path $Output -BasePath $ResolvedCwd
-  $outputDir = Split-Path -Parent $ResolvedOutput
-  if (-not [string]::IsNullOrWhiteSpace($outputDir) -and -not $WhatIfPreference) {
-    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-  }
-}
-
-$promptDir = Join-Path $env:TEMP 'polydev-prompts'
-$promptFile = Join-Path $promptDir ("codex-investigation-{0}-{1}.md" -f $Name, (Get-Date -Format 'yyyyMMddHHmmss'))
 $command = New-CodexCommand `
   -CwdPath $ResolvedCwd `
-  -PromptPath $promptFile `
   -ModelName $Model `
   -SandboxName $Sandbox `
   -ApprovalMode $Approval `
   -Bypass:$DangerousBypass
 
-Write-PolydevInfo -Event 'agent_starting' -Pairs "name=$Name,workspace=$Workspace,cwd=$ResolvedCwd"
+Write-PolydevInfo -Event 'agent_starting' -Pairs "name=$Name,workspace=$Workspace,cwd=$ResolvedCwd,timeout=$ReadyTimeout"
 
 if ($PSCmdlet.ShouldProcess("Codex investigation '$Name'", 'create WezTerm pane and start Codex')) {
-  New-Item -ItemType Directory -Path $promptDir -Force | Out-Null
-  New-InvestigationPrompt -Task $Prompt -ReportPath $ResolvedOutput |
-    Set-Content -LiteralPath $promptFile -Encoding utf8NoBOM
-
   $paneId = New-PolydevPane -Workspace "ag-$Workspace" -TabTitle $Name -Cwd $ResolvedCwd
   Write-PolydevInfo -Event 'terminal_session_created' -Pairs "pane_id=$paneId,backend=wezterm"
 
   Send-PolydevText -PaneId $paneId -Text $command
   Write-PolydevInfo -Event 'codex_started' -Pairs "pane_id=$paneId"
-  Write-PolydevInfo -Event 'prompt_sent' -Pairs "path=$promptFile"
+
+  $start = Get-Date
+  while ($true) {
+    if (((Get-Date) - $start).TotalSeconds -ge $ReadyTimeout) {
+      Write-Error "Codex did not become ready after startup timeout"
+      Write-Error "diagnostic=$ScriptsRoot\capture-screen.ps1 -PaneId $paneId -Lines 80"
+      Write-Error "cleanup=$ScriptsRoot\close-session.ps1 -PaneId $paneId"
+      exit 1
+    }
+    $text = Get-PolydevPaneText -PaneId $paneId -Lines 80
+    if (Test-CodexReadyText -Text $text) {
+      break
+    }
+    Start-Sleep -Milliseconds 250
+  }
+
+  Write-PolydevInfo -Event 'agent_ready' -Pairs "pane_id=$paneId"
+  Write-Output $paneId
 
   if ($PSBoundParameters.ContainsKey('Peek')) {
     if ($Peek -gt 0) {
@@ -114,12 +104,7 @@ if ($PSCmdlet.ShouldProcess("Codex investigation '$Name'", 'create WezTerm pane 
     Write-Output '---PEEK---'
     Get-PolydevPaneText -PaneId $paneId -Lines 50
   }
-
-  $outputInfo = if ([string]::IsNullOrWhiteSpace($ResolvedOutput)) { '' } else { ",output=$ResolvedOutput" }
-  Write-PolydevInfo -Event 'agent_ready' -Pairs "pane_id=$paneId$outputInfo"
-  Write-Output $paneId
 } else {
-  Write-PolydevInfo -Event 'whatif_prompt_file' -Pairs "path=$promptFile"
   Write-PolydevInfo -Event 'whatif_codex_command' -Pairs "command=$command"
   Write-PolydevInfo -Event 'whatif_no_pane_created'
 }

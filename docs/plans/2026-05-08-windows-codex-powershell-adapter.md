@@ -9,10 +9,10 @@
 **Verification Level:** L2
 
 **Verification Commands:**
-- Syntax: `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\terminal-backend.ps1" -SelfTest`
-- Syntax: `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "start-codex-worktree.ps1"))); "parse-ok"'`
+- Syntax: `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\terminal-backend.ps1" -SelfTest`
+- Syntax: `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "start-codex-worktree.ps1"))); "parse-ok"'`
 - Test: `npm --prefix dashboard test`
-- Manual Windows smoke: `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" polydev-test codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -WhatIf`
+- Manual Windows smoke: `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" polydev-test codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -WhatIf`
 
 ---
 
@@ -21,7 +21,7 @@
 Before executing this plan, resolve the installed Polydev scripts directory once and keep it as prompt/context text:
 
 ```text
-Polydev scripts root: C:\Users\<user>\.codex\polydev\scripts
+Polydev scripts root: C:\Users\<user>\.codex\skills\polydev\scripts
 ```
 
 All script execution examples must paste the full absolute script path. Do not call scripts through `$env:POLYDEV_SCRIPTS`, `$POLYDEV_SCRIPTS`, `.\scripts\...`, or `scripts\...`.
@@ -127,8 +127,8 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
    - `Write-PolydevError` for `[E] error=...` stderr logs.
    - `Assert-PolydevCommand` for checking `wezterm`, `git`, and `codex` when a launcher needs them.
 8. Run:
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\terminal-backend.ps1" -SelfTest`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\terminal-backend.ps1" -SelfTest`
    - Expected: `self-test-ok`.
 9. Commit:
    - `git add scripts/backends/windows/wezterm.ps1 scripts/terminal-backend.ps1`
@@ -186,10 +186,10 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
    - Do not create a pane.
    - Do not start Codex.
 8. Run parse verification:
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "start-codex-investigation.ps1"))); "parse-ok"'`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "start-codex-investigation.ps1"))); "parse-ok"'`
    - Expected: `parse-ok`.
 9. Run manual dry smoke:
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" smoke -Prompt "Inspect repository only." -Cwd . -WhatIf`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" smoke -Prompt "Inspect repository only." -Cwd . -WhatIf`
    - Expected: TOON logs and the Codex command, no pane created.
 10. Commit:
    - `git add scripts/adapters/codex/windows/start-investigation.ps1 scripts/start-codex-investigation.ps1 scripts/backends/windows/wezterm.ps1`
@@ -233,10 +233,10 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
 11. Emit TOON logs equivalent to `spawn-session.sh`, but with `codex_started`.
 12. Add `-WhatIf` dry run.
 13. Run parse verification:
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "start-codex-worktree.ps1"))); "parse-ok"'`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "start-codex-worktree.ps1"))); "parse-ok"'`
    - Expected: `parse-ok`.
 14. Run manual dry smoke:
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" polydev-test codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -WhatIf`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" polydev-test codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -WhatIf`
    - Expected: TOON logs, no worktree created when `-WhatIf` is used.
 15. Commit:
    - `git add scripts/adapters/codex/windows/start-worktree.ps1 scripts/start-codex-worktree.ps1 scripts/backends/windows/wezterm.ps1`
@@ -262,7 +262,7 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
 6. Replace old pane ID in `task.toon`.
 7. Relaunch Codex with the same worktree prompt-file strategy.
 8. Run parse verification:
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "restore-codex-worktree.ps1"))); "parse-ok"'`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "restore-codex-worktree.ps1"))); "parse-ok"'`
    - Expected: `parse-ok`.
 9. Commit:
    - `git add scripts/adapters/codex/windows/restore-worktree.ps1 scripts/restore-codex-worktree.ps1`
@@ -314,11 +314,11 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
    - Codex CLI investigation: Windows `start-codex-investigation.ps1`.
    - Codex CLI worktree: Windows `start-codex-worktree.ps1`.
 2. Document that Windows Codex PowerShell scripts are called with `pwsh` directly, while existing bash scripts are called by full absolute path.
-   - PowerShell examples should paste the full `C:\Users\<user>\.codex\polydev\scripts\...` path.
+   - PowerShell examples should paste the full `C:\Users\<user>\.codex\skills\polydev\scripts\...` path.
    - Bash examples should continue to use `"/c/Users/<user>/.claude/skills/polydev/scripts/..."`.
 3. Add examples:
-   - Investigation: `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "..." -Cwd .`
-   - Worktree: `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" my-project codex/auth .worktrees/codex-auth docs/plans/auth.md`
+   - Investigation: `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Prompt "..." -Cwd .`
+   - Worktree: `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" my-project codex/auth .worktrees/codex-auth docs/plans/auth.md`
 4. Document approval defaults and the dangerous bypass policy.
 5. Run:
    - `rg -n "start-codex-worktree|start-codex-investigation|PowerShell|pwsh" README.md AGENTS.md skills`
@@ -336,21 +336,21 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
 
 **Steps:**
 1. Run PowerShell parse checks:
-    - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
-    - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\terminal-backend.ps1" -SelfTest`
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "start-codex-investigation.ps1"))); "start-codex-investigation-parse-ok"'`
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "start-codex-worktree.ps1"))); "start-codex-worktree-parse-ok"'`
-   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\polydev\scripts' "restore-codex-worktree.ps1"))); "restore-codex-worktree-parse-ok"'`
+    - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
+    - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\terminal-backend.ps1" -SelfTest`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "start-codex-investigation.ps1"))); "start-codex-investigation-parse-ok"'`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "start-codex-worktree.ps1"))); "start-codex-worktree-parse-ok"'`
+   - `pwsh -NoProfile -Command '$null = [scriptblock]::Create((Get-Content -Raw (Join-Path 'C:\Users\<user>\.codex\skills\polydev\scripts' "restore-codex-worktree.ps1"))); "restore-codex-worktree-parse-ok"'`
 2. Run dashboard tests:
    - `npm --prefix dashboard test`
    - Expected: all Vitest tests pass.
 3. Run documentation grep:
    - `rg -n "Claude adapter|Codex adapter|start-codex-worktree|PowerShell|pwsh" README.md AGENTS.md skills docs`
 4. Manual smoke if WezTerm and Codex are installed:
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" smoke -Prompt "Say READY and do not edit files." -Cwd . -Peek 5`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" smoke -Prompt "Say READY and do not edit files." -Cwd . -Peek 5`
    - Expected: pane starts, Codex runs in the current repo, no files modified.
 5. Manual worktree smoke if user approves creating a test worktree:
-   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" polydev-smoke codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -Peek 5`
+   - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" polydev-smoke codex/smoke .worktrees/codex-smoke docs/plans/2026-05-08-windows-codex-powershell-adapter.md -Peek 5`
    - Expected: worktree exists, `task.toon` has numeric pane ID, pane is alive.
 6. If manual smoke creates a worktree, do not clean it up without human confirmation.
 7. Commit any fixes:
@@ -360,8 +360,8 @@ Set `hil` and stop if the implementation requires a different autonomy policy, r
 ## Verification Checklist
 
 - [ ] PowerShell backend self-test succeeds through implementation and wrapper:
-  - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
-  - `pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\terminal-backend.ps1" -SelfTest`
+  - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\backends\windows\wezterm.ps1" -SelfTest`
+  - `pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\terminal-backend.ps1" -SelfTest`
 - [ ] PowerShell launchers parse without syntax errors.
 - [ ] Dashboard tests pass: `npm --prefix dashboard test`
 - [ ] Dashboard Windows paths use WezTerm directly instead of bash script wrappers.

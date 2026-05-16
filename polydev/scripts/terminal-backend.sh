@@ -1,177 +1,94 @@
 #!/bin/bash
-# terminal-backend.sh - Terminal multiplexer abstraction layer
-#
-# Provides unified API for tmux bash panes and WezTerm Git Bash panes.
-# Windows Codex native sessions use terminal-backend.ps1 instead.
-#
-# Session ID Format: wo:session:window.pane
-#   wo:myproject-parallel:feature-auth.0
-#   │  │                  │            │
-#   │  │                  │            └─ pane index
-#   │  │                  └─ window name (branch)
-#   │  └─ session name (workspace)
-#   └─ prefix for worktree-orchestrator
+# terminal-backend.sh - Small terminal backend API for tmux and WezTerm.
 
 set -e
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-
-# =============================================================================
-# Configuration
-# =============================================================================
-
 TB_SOCKET="/tmp/polydev.sock"
-TB_BACKEND=""
+TB_BACKEND="${TB_BACKEND:-}"
 
-# No external map file needed
-# - tmux: native session:window.pane naming
-# - wezterm: lookup via workspace + tab_title
-
-# =============================================================================
-# Initialization
-# =============================================================================
+_tb_quote_shell_arg() {
+  local value="$1"
+  printf "'%s'" "${value//\'/\'\\\'\'}"
+}
 
 _tb_init() {
-  if [ -n "$TB_BACKEND" ]; then
-    return 0
-  fi
-
+  [ -n "$TB_BACKEND" ] && return 0
   case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*|Windows*)
-      TB_BACKEND="wezterm"
-      ;;
-    Linux|Darwin|*)
-      TB_BACKEND="tmux"
-      ;;
+    MINGW*|MSYS*|CYGWIN*|Windows*) TB_BACKEND="wezterm" ;;
+    *) TB_BACKEND="tmux" ;;
   esac
-
   export TB_BACKEND
 }
 
-# Auto-initialize on source
 _tb_init
 
-# =============================================================================
-# Session ID Utilities
-# =============================================================================
-
-# Parse session_id into components
-# Usage: _parse_session_id "wo:workspace:window.0"
-# Supports prefixes: wo:, bg:, ag: (all treated the same internally)
-# Sets: SESSION, WINDOW, PANE, TARGET
 _parse_session_id() {
   local id="$1"
-  # Remove any known prefix (wo:, bg:, ag:)
   id="${id#wo:}"
   id="${id#bg:}"
   id="${id#ag:}"
-  SESSION="${id%%:*}"               # Extract session name (workspace)
+  SESSION="${id%%:*}"
   local rest="${id#*:}"
-  WINDOW="${rest%.*}"               # Extract window name (tab_title)
-  PANE="${rest##*.}"                # Extract pane index
-  TARGET="$SESSION:$WINDOW.$PANE"   # tmux target format
+  WINDOW="${rest%.*}"
+  PANE="${rest##*.}"
+  TARGET="$SESSION:$WINDOW.$PANE"
 }
 
 _tmux_target_for_id() {
   local id="$1"
   case "$id" in
-    %*)
-      echo "$id"
-      ;;
-    *)
-      _parse_session_id "$id"
-      echo "$TARGET"
-      ;;
+    %*) echo "$id" ;;
+    *) _parse_session_id "$id"; echo "$TARGET" ;;
   esac
 }
 
-# Build session_id from components
-# Usage: _build_session_id "workspace" "window" "0"
 _build_session_id() {
   echo "wo:$1:$2.$3"
 }
-
-# =============================================================================
-# tmux Backend Implementation
-# =============================================================================
 
 _tmux() {
   tmux -S "$TB_SOCKET" "$@"
 }
 
 _tmux_create_session() {
-  local workspace="$1"
-  local branch="$2"
-  local cwd="$3"
-  local pane_id
-
+  local workspace="$1" branch="$2" cwd="$3" pane_id
   if ! _tmux has-session -t "$workspace" 2>/dev/null; then
-    # Create new session with first window
-    pane_id=$(_tmux new-session -d -s "$workspace" \
-      -n "$branch" -c "$cwd" -P -F "#{pane_id}" bash)
+    pane_id=$(_tmux new-session -d -s "$workspace" -n "$branch" -c "$cwd" -P -F "#{pane_id}" bash)
   else
-    # Session exists, create new window
-    pane_id=$(_tmux new-window -t "$workspace:" \
-      -n "$branch" -c "$cwd" -P -F "#{pane_id}" bash)
+    pane_id=$(_tmux new-window -t "$workspace:" -n "$branch" -c "$cwd" -P -F "#{pane_id}" bash)
   fi
-
   _build_session_id "$workspace" "$branch" "0"
 }
 
 _tmux_is_alive() {
-  local id="$1"
-  local target
-  target=$(_tmux_target_for_id "$id")
-  _tmux list-panes -t "$target" &>/dev/null
+  _tmux list-panes -t "$(_tmux_target_for_id "$1")" &>/dev/null
 }
 
 _tmux_send_command() {
-  local id="$1"
-  local command="$2"
-  local execute="${3:-true}"
-
-  local target
-  target=$(_tmux_target_for_id "$id")
-
+  local id="$1" command="$2" execute="${3:-true}" target
+  target="$(_tmux_target_for_id "$id")"
   _tmux send-keys -t "$target" -l "$command"
-  if [ "$execute" = "true" ]; then
-    _tmux send-keys -t "$target" C-m
-  fi
+  [ "$execute" = "true" ] && _tmux send-keys -t "$target" C-m
 }
 
 _tmux_send_multiline_text() {
-  local id="$1"
-  local text="$2"
-  local execute="${3:-true}"
-
-  local target
-  target=$(_tmux_target_for_id "$id")
-
-  # For multiline text, send without -l flag so newlines are processed
-  # But we need to escape the text to avoid shell interpretation
-  # Best approach: use a temp file
-  local tmp_file="/tmp/tmux_multiline.$$"
+  local id="$1" text="$2" execute="${3:-true}" target tmp_file
+  target="$(_tmux_target_for_id "$id")"
+  tmp_file="/tmp/tmux_multiline.$$"
   printf '%s' "$text" > "$tmp_file"
-
-  # Use load-buffer and paste-buffer for safe multiline sending
   _tmux load-buffer "$tmp_file"
   _tmux paste-buffer -t "$target"
   rm -f "$tmp_file"
-
   if [ "$execute" = "true" ]; then
-    # Wait for Claude Code to process the pasted text before submitting
     sleep 2
-    # Claude Code multiline mode: C-j submits, C-m just inserts newline
     _tmux send-keys -t "$target" C-j
   fi
 }
 
 _tmux_focus_session() {
-  local id="$1"
-  local target
-  target=$(_tmux_target_for_id "$id")
-
-  # Switch to session and select pane
+  local id="$1" target
+  target="$(_tmux_target_for_id "$id")"
   if [[ "$id" == %* ]]; then
     _tmux select-pane -t "$target" 2>/dev/null || true
   else
@@ -182,55 +99,29 @@ _tmux_focus_session() {
 }
 
 _tmux_cleanup_session() {
-  local id="$1"
-  local target
-  target=$(_tmux_target_for_id "$id")
-
+  local id="$1" target
+  target="$(_tmux_target_for_id "$id")"
   _tmux kill-pane -t "$target" 2>/dev/null || true
-
-  # If no more windows in session, kill session
-  if [[ "$id" != %* ]]; then
-    if ! _tmux list-windows -t "$SESSION" &>/dev/null; then
-      _tmux kill-session -t "$SESSION" 2>/dev/null || true
-    fi
+  if [[ "$id" != %* ]] && ! _tmux list-windows -t "$SESSION" &>/dev/null; then
+    _tmux kill-session -t "$SESSION" 2>/dev/null || true
   fi
 }
 
 _tmux_get_session_info() {
-  local id="$1"
-  local target
-  target=$(_tmux_target_for_id "$id")
-
   local info
-  info=$(_tmux list-panes -t "$target" -F "#{pane_id}|#{pane_current_command}|#{window_name}|#{pane_current_path}" 2>/dev/null | head -n1)
-
-  if [ -n "$info" ]; then
-    echo "$info"
-  else
-    echo "|dead||"
-  fi
+  info=$(_tmux list-panes -t "$(_tmux_target_for_id "$1")" -F "#{pane_id}|#{pane_current_command}|#{window_name}|#{pane_current_path}" 2>/dev/null | head -n1)
+  [ -n "$info" ] && echo "$info" || echo "|dead||"
 }
 
 _tmux_poll_sessions() {
-  local workspace="$1"
-
+  local workspace="$1" window session_id status
   _tmux list-windows -t "$workspace" -F "#{window_name}" 2>/dev/null | while read -r window; do
-    local session_id
-    session_id=$(_build_session_id "$workspace" "$window" "0")
-    local status="active"
-
-    # Check if pane is still running
-    if ! _tmux list-panes -t "$workspace:$window" &>/dev/null; then
-      status="dead"
-    fi
-
+    session_id="$(_build_session_id "$workspace" "$window" "0")"
+    status="active"
+    _tmux list-panes -t "$workspace:$window" &>/dev/null || status="dead"
     echo "$session_id|$status"
   done
 }
-
-# =============================================================================
-# wezterm Backend Implementation
-# =============================================================================
 
 _json_unquote() {
   local value="$1"
@@ -263,627 +154,423 @@ _wezterm_json_rows() {
 _wezterm_first_window_id_for_workspace() {
   local workspace="$1"
   awk -F '\t' -v ws="$workspace" '
-    $2 == "workspace" { workspace_by_index[$1] = $3 }
-    $2 == "window_id" { window_by_index[$1] = $3 }
-    END {
-      for (i = 0; i <= 10000; i++) {
-        if (workspace_by_index[i] == ws && window_by_index[i] != "") {
-          print window_by_index[i]
-          exit
-        }
-      }
-    }
+    $2 == "workspace" { w[$1] = $3 }
+    $2 == "window_id" { id[$1] = $3 }
+    END { for (i = 0; i <= 10000; i++) if (w[i] == ws && id[i] != "") { print id[i]; exit } }
   '
 }
 
-_wezterm_title_for_pane_id() {
-  local pane_id="$1"
-  awk -F '\t' -v pid="$pane_id" '
-    $2 == "pane_id" { pane_by_index[$1] = $3 }
-    $2 == "title" { title_by_index[$1] = $3 }
-    END {
-      for (i = 0; i <= 10000; i++) {
-        if (pane_by_index[i] == pid) {
-          print title_by_index[i]
-          exit
-        }
-      }
-    }
-  '
-}
-
-# Create session, return numeric pane_id
 _wezterm_bash_program_args() {
   local bash_bin
+  WEZTERM_BASH_PROGRAM_ARGS=()
   bash_bin="$(command -v bash 2>/dev/null || true)"
-  if [ -z "$bash_bin" ]; then
-    echo "[E] error=bash binary not found" >&2
-    return 1
-  fi
-
+  [ -z "$bash_bin" ] && echo "[E] error=bash binary not found" >&2 && return 1
   case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*|Windows*)
-      if command -v cygpath >/dev/null 2>&1; then
-        bash_bin="$(cygpath -w "$bash_bin")"
-      fi
+      command -v cygpath >/dev/null 2>&1 && bash_bin="$(cygpath -w "$bash_bin")"
+      WEZTERM_BASH_PROGRAM_ARGS=("$bash_bin" "--noprofile" "--norc" "-i")
       ;;
+    *) WEZTERM_BASH_PROGRAM_ARGS=("$bash_bin") ;;
   esac
-
-  printf '%s\n' "$bash_bin"
 }
 
 _wezterm_create_session() {
-  local workspace="$1"
-  local branch="$2"
-  local cwd="$3"
-  local pane_id
-  local existing_window
-  local bash_program
-
-  # Normalize path for Windows: remove trailing slashes (wezterm bug)
-  # See: https://github.com/wezterm/wezterm/discussions/4703
+  local workspace="$1" branch="$2" cwd="$3" pane_id existing_window tmpfile
+  local -a bash_program_args
   cwd="${cwd%/}"
   cwd="${cwd%\\}"
-
-  bash_program="$(_wezterm_bash_program_args)"
-
-  # Find existing window in workspace (use temp file to avoid pipe issues)
-  local tmpfile
+  _wezterm_bash_program_args
+  bash_program_args=("${WEZTERM_BASH_PROGRAM_ARGS[@]}")
   tmpfile="$(mktemp)"
   wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
-
   existing_window=$(_wezterm_json_rows < "$tmpfile" | _wezterm_first_window_id_for_workspace "$workspace") || existing_window=""
   rm -f "$tmpfile"
-
   if [ -n "$existing_window" ]; then
-    pane_id=$(wezterm cli spawn --window-id "$existing_window" --cwd "$cwd" -- "$bash_program" | tr -d '\r')
+    pane_id=$(wezterm cli spawn --window-id "$existing_window" -- "${bash_program_args[@]}" | tr -d '\r')
   else
-    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" --cwd "$cwd" -- "$bash_program" | tr -d '\r')
+    pane_id=$(wezterm cli spawn --new-window --workspace "$workspace" -- "${bash_program_args[@]}" | tr -d '\r')
   fi
-
-  # Set tab_title - includes pane_id for easy identification
   wezterm cli set-tab-title --pane-id "$pane_id" "${branch} [${pane_id}]"
-
-  # Detect pane shell for the Windows ClaudeCode dimension.
-  # This Bash backend only supports Git Bash panes under WezTerm.
-  sleep 2  # Wait for shell to initialize
-  local shell_type=""
-  if [ -n "${POLYDEV_PANE_SHELL:-}" ]; then
-    shell_type="$POLYDEV_PANE_SHELL"
-  else
-    local pane_title
-    pane_title=$(wezterm cli list --format json 2>/dev/null | \
-      _wezterm_json_rows | _wezterm_title_for_pane_id "$pane_id") || pane_title=""
-    if echo "$pane_title" | grep -qiE 'bash|MINGW|MSYS'; then
-      shell_type="bash"
-    else
-      shell_type="unsupported"
-    fi
-  fi
-
-  if [ "$shell_type" != "bash" ]; then
-    echo "[E] error=WezTerm Bash backend requires a Git Bash pane, got=$shell_type" >&2
-    echo "[E] hint=Configure WezTerm to launch Git Bash for Windows ClaudeCode sessions." >&2
-    wezterm cli kill-pane --pane-id "$pane_id" 2>/dev/null || true
-    return 1
-  fi
-
-  # Store shell type in temp file keyed by pane_id
-  local shell_type_dir="${TMPDIR:-/tmp}/polydev-shell-types"
-  mkdir -p "$shell_type_dir"
-  echo "$shell_type" > "$shell_type_dir/$pane_id"
-
-  # Explicitly cd to the target directory after Git Bash starts.
-  # Send cd command (separate text + Enter calls; positional arg for \r)
-  printf 'cd "%s"' "$cwd" | wezterm cli send-text --no-paste --pane-id "$pane_id"
-  sleep 2
-  wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
-  sleep 2
-  printf '%s' "clear" | wezterm cli send-text --no-paste --pane-id "$pane_id"
-  sleep 2
-  wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
-
-  # Return the numeric pane_id (not session_id)
+  sleep "${POLYDEV_WEZTERM_SHELL_INIT_DELAY:-0.5}"
+  mkdir -p "${TMPDIR:-/tmp}/polydev-shell-types"
+  echo "bash" > "${TMPDIR:-/tmp}/polydev-shell-types/$pane_id"
+  mkdir -p "${TMPDIR:-/tmp}/polydev-pane-cwds"
+  printf '%s\n' "$cwd" > "${TMPDIR:-/tmp}/polydev-pane-cwds/$pane_id"
   echo "$pane_id"
 }
 
 _wezterm_is_alive() {
-  local pane_id="$1"
-
-  # Try to get pane info - if succeeds, pane is alive
-  wezterm cli get-text --pane-id "$pane_id" --start-line 0 --end-line 0 &>/dev/null
+  wezterm cli get-text --pane-id "$1" --start-line 0 --end-line 0 &>/dev/null
 }
 
-# ─── Claude Binary Detection ───
-
-# Find the claude CLI binary, searching PATH and common install locations.
-# Usage: tb_find_claude_bin
-# Sets: CLAUDE_BIN (exported)
-# Returns: 0 if found, 1 if not found
-tb_find_claude_bin() {
-  CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
-  if [ -z "$CLAUDE_BIN" ]; then
-    for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
-      if [ -x "$candidate" ]; then
-        CLAUDE_BIN="$candidate"
-        break
-      fi
-    done
-  fi
-  if [ -z "$CLAUDE_BIN" ]; then
-    return 1
-  fi
-  export CLAUDE_BIN
-  return 0
-}
-
-# --- Pane Shell Detection ---
-
-# Get the detected shell type for a WezTerm pane
-# Returns: "bash" or "unsupported"
 _wezterm_get_pane_shell() {
-  local pane_id="$1"
-  # Strip \r that wezterm cli may return on Windows
-  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
-  local shell_type_file="${TMPDIR:-/tmp}/polydev-shell-types/$pane_id"
-  if [ -f "$shell_type_file" ]; then
-    cat "$shell_type_file"
-  else
-    echo "unsupported"
-  fi
-}
-
-# Launch Claude CLI in a Bash pane.
-# D2/D4 ClaudeCode flows use Bash only; D1 Windows Codex uses native adapters.
-# Usage: tb_launch_claude <pane_id> <claude_bin> <model> [extra_args...]
-tb_launch_claude() {
-  local pane_id="$1"
-  local claude_bin="$2"
-  local model="$3"
-  shift 3
-  local extra_args="$*"
-
-  # Strip \r that wezterm cli may return on Windows
-  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
-
-  if [ "$TB_BACKEND" = "wezterm" ]; then
-    local shell_type
-    shell_type=$(_wezterm_get_pane_shell "$pane_id")
-    if [ "$shell_type" != "bash" ]; then
-      echo "[E] error=ClaudeCode Bash adapter requires a bash pane, got=$shell_type" >&2
-      echo "[E] hint=Configure WezTerm/Git Bash for Windows ClaudeCode sessions." >&2
-      return 1
-    fi
-  fi
-
-  tb_send_command "$pane_id" "unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args" "true"
+  local pane_id shell_type_file
+  pane_id=$(printf '%s' "$1" | tr -d '\r')
+  shell_type_file="${TMPDIR:-/tmp}/polydev-shell-types/$pane_id"
+  [ -f "$shell_type_file" ] && cat "$shell_type_file" || echo "unsupported"
 }
 
 _wezterm_send_command() {
-  local pane_id="$1"
-  local command="$2"
-  local execute="${3:-true}"
-
-  # Strip \r that wezterm cli may return on Windows
+  local pane_id="$1" command="$2" execute="${3:-true}" enter_delay="${4:-${POLYDEV_WEZTERM_ENTER_DELAY:-2}}"
   pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
-
-  # IMPORTANT: text and Enter MUST be sent as separate send-text calls.
-  # Combined (printf '%s\r') does NOT work for TUI apps like Claude Code:
-  # the TUI processes the combined buffer as one chunk and ignores the trailing \r.
   printf '%s' "$command" | wezterm cli send-text --no-paste --pane-id "$pane_id"
-
   if [ "$execute" = "true" ]; then
-    # ⛔ sleep >= 2s: target app needs time to process text before Enter
-    sleep 2
-    # Send \r as positional argument (not via stdin pipe).
-    # Piping single-byte \r is unreliable on Windows Git Bash — the byte can
-    # be swallowed by MSYS pipe text-mode translation or wezterm's stdin handling.
+    sleep "$enter_delay"
     wezterm cli send-text --no-paste --pane-id "$pane_id" -- $'\r'
   fi
 }
 
-# Send multiline text to a pane and submit.
-# For WezTerm, multiline paste + submit is unreliable: neither \r (Enter) nor
-# \n (Ctrl+J) via send-text reliably triggers submit in Claude Code multiline mode.
-# Workaround: write text to a temp file, then send a short single-line command
-# instructing Claude to read and follow the file.
-_wezterm_send_multiline_text() {
-  local pane_id="$1"
-  local text="$2"
-  local execute="${3:-true}"
-
-  # Strip \r that wezterm cli may return on Windows
+_wezterm_prepare_cwd() {
+  local pane_id="$1" cwd_file cwd marker content
   pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
+  cwd_file="${TMPDIR:-/tmp}/polydev-pane-cwds/$pane_id"
+  [ -f "$cwd_file" ] || return 0
+  cwd="$(cat "$cwd_file")"
+  [ -n "$cwd" ] || return 0
+  marker="__POLYDEV_CWD_READY_${pane_id}_$(date +%s%N)__"
+  _wezterm_send_command "$pane_id" "export PATH=\"/usr/bin:/bin:\$PATH\"; cd $(_tb_quote_shell_arg "$cwd") && printf '%s\n' '$marker'" "true" "${POLYDEV_CWD_ENTER_DELAY:-0.2}"
+  local start_time
+  start_time=$(date +%s)
+  while true; do
+    if [ $(($(date +%s) - start_time)) -ge "${POLYDEV_CWD_READY_TIMEOUT:-5}" ]; then
+      echo "[E] error=Pane did not enter cwd within timeout: $cwd" >&2
+      return 1
+    fi
+    content="$(_tb_capture_pane "$pane_id")"
+    if printf '%s' "$content" | grep -Fq "$marker"; then
+      rm -f "$cwd_file"
+      return 0
+    fi
+    sleep 0.1
+  done
+}
 
-  # If text has no newlines, just use single-line send
+_wezterm_send_multiline_text() {
+  local pane_id="$1" text="$2" execute="${3:-true}" prompt_file
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
   if ! printf '%s' "$text" | grep -q $'\n'; then
     _wezterm_send_command "$pane_id" "$text" "$execute"
     return $?
   fi
-
-  # Multiline: write to temp file, send short command to read it
-  local prompt_file="${TMPDIR:-/tmp}/polydev-prompt-${pane_id}.md"
+  prompt_file="${TMPDIR:-/tmp}/polydev-prompt-${pane_id}.md"
   printf '%s' "$text" > "$prompt_file"
-
-  if [ "$execute" = "true" ]; then
-    _wezterm_send_command "$pane_id" "Read ${prompt_file} and follow all instructions in it" "true"
-  fi
+  [ "$execute" = "true" ] && _wezterm_send_command "$pane_id" "Read ${prompt_file} and follow all instructions in it" "true"
 }
 
 _wezterm_focus_session() {
-  local pane_id="$1"
-
-  if [ -n "$pane_id" ]; then
-    wezterm cli activate-pane --pane-id "$pane_id"
-  fi
+  [ -n "$1" ] && wezterm cli activate-pane --pane-id "$1"
 }
 
 _wezterm_cleanup_session() {
-  local pane_id="$1"
-
-  if [ -n "$pane_id" ]; then
-    wezterm cli kill-pane --pane-id "$pane_id" 2>/dev/null || true
-  fi
-  # No map file to clean up - wezterm metadata is managed by wezterm itself
+  [ -n "$1" ] && wezterm cli kill-pane --pane-id "$1" 2>/dev/null || true
 }
 
 _wezterm_get_session_info() {
-  local pane_id="$1"
-
-  if [ -z "$pane_id" ]; then
-    echo "|dead||"
-    return
-  fi
-
-  local info
+  local pane_id="$1" info
+  [ -z "$pane_id" ] && echo "|dead||" && return
   info=$(wezterm cli list --format json 2>/dev/null | _wezterm_json_rows | awk -F '\t' -v pid="$pane_id" '
-    $2 == "pane_id" { pane_by_index[$1] = $3 }
-    $2 == "title" { title_by_index[$1] = $3 }
-    $2 == "cwd" { cwd_by_index[$1] = $3 }
+    $2 == "pane_id" { pane[$1] = $3 }
+    $2 == "title" { title[$1] = $3 }
+    $2 == "cwd" { cwd[$1] = $3 }
     END {
-      for (i = 0; i <= 10000; i++) {
-        if (pane_by_index[i] == pid) {
-          print pane_by_index[i] "|active|" title_by_index[i] "|" cwd_by_index[i]
-          found = 1
-          break
-        }
-      }
-      if (!found) {
-        print "|dead||"
-      }
-    }
-  ') || info="|dead||"
-
+      for (i = 0; i <= 10000; i++) if (pane[i] == pid) { print pane[i] "|active|" title[i] "|" cwd[i]; found = 1; break }
+      if (!found) print "|dead||"
+    }') || info="|dead||"
   echo "$info"
 }
 
 _wezterm_poll_sessions() {
-  local workspace="$1"
-
-  # Query wezterm directly - no map file needed
-  local tmpfile
+  local workspace="$1" tmpfile
   tmpfile="$(mktemp)"
   wezterm cli list --format json > "$tmpfile" 2>/dev/null || true
-
   _wezterm_json_rows < "$tmpfile" | awk -F '\t' -v ws="$workspace" '
-    $2 == "workspace" { workspace_by_index[$1] = $3 }
-    $2 == "tab_title" { tab_by_index[$1] = $3 }
-    $2 == "pane_id" { pane_by_index[$1] = $3 }
-    END {
-      for (i = 0; i <= 10000; i++) {
-        if (workspace_by_index[i] == ws && tab_by_index[i] != "" && pane_by_index[i] != "") {
-          print pane_by_index[i] "|active"
-        }
-      }
-    }
+    $2 == "workspace" { workspace[$1] = $3 }
+    $2 == "tab_title" { tab[$1] = $3 }
+    $2 == "pane_id" { pane[$1] = $3 }
+    END { for (i = 0; i <= 10000; i++) if (workspace[i] == ws && tab[i] != "" && pane[i] != "") print pane[i] "|active" }
   '
-
   rm -f "$tmpfile"
 }
 
-# =============================================================================
-# Public API - Backend Agnostic
-# =============================================================================
-
-# Create a new worktree session
-# Usage: tb_create_worktree_session <workspace> <branch> <worktree_path> [plan_file]
-# Returns: session_id
-tb_create_worktree_session() {
-  local workspace="$1"
-  local branch="$2"
-  local worktree_path="$3"
-  local plan_file="$4"  # Currently unused, reserved for future
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_create_session "$workspace" "$branch" "$worktree_path"
+tb_path_to_bash() {
+  local path="$1" rest drive tail
+  case "$path" in
+    file:///[A-Za-z]:/*)
+      rest="${path#file:///}"
+      drive="${rest%%:*}"
+      tail="${rest#*:}"
+      drive="$(printf '%s' "$drive" | tr '[:upper:]' '[:lower:]')"
+      printf '/%s%s\n' "$drive" "$tail"
       ;;
-    wezterm)
-      _wezterm_create_session "$workspace" "$branch" "$worktree_path"
+    [A-Za-z]:/*|[A-Za-z]:\\*)
+      command -v cygpath >/dev/null 2>&1 && cygpath -u "$path" || printf '%s\n' "$path"
       ;;
+    *) printf '%s\n' "$path" ;;
   esac
 }
 
-# Check if session is alive
-# Usage: tb_is_session_alive <session_id>
-# Returns: 0 if alive, 1 if dead
-tb_is_session_alive() {
-  local session_id="$1"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_is_alive "$session_id"
-      ;;
-    wezterm)
-      _wezterm_is_alive "$session_id"
+tb_path_to_agent() {
+  local path="$1"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows*)
+      command -v cygpath >/dev/null 2>&1 && cygpath -w "$path" && return
       ;;
   esac
+  printf '%s\n' "$path"
 }
 
-# Send command to session
-# Usage: tb_send_command <session_id> <command> [execute=true]
-tb_send_command() {
-  local session_id="$1"
-  local command="$2"
-  local execute="${3:-true}"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_send_command "$session_id" "$command" "$execute"
-      ;;
-    wezterm)
-      _wezterm_send_command "$session_id" "$command" "$execute"
-      ;;
+tb_path_is_absolute() {
+  case "$1" in
+    /*|[A-Za-z]:/*|[A-Za-z]:\\*|file:///[A-Za-z]:/*) return 0 ;;
   esac
+  return 1
 }
 
-# Focus/activate session
-# Usage: tb_focus_session <session_id>
-tb_focus_session() {
-  local session_id="$1"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_focus_session "$session_id"
-      ;;
-    wezterm)
-      _wezterm_focus_session "$session_id"
-      ;;
+tb_is_windows_bash() {
+  case "${POLYDEV_TEST_UNAME:-$(uname -s)}" in
+    MINGW*|MSYS*|CYGWIN*|Windows*) return 0 ;;
   esac
+  return 1
 }
 
-# Cleanup session
-# Usage: tb_cleanup_session <session_id>
-tb_cleanup_session() {
-  local session_id="$1"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_cleanup_session "$session_id"
-      ;;
-    wezterm)
-      _wezterm_cleanup_session "$session_id"
-      ;;
-  esac
+tb_is_default_git_bash_home() {
+  local cwd users_root="/c""/Users"
+  cwd="$(tb_path_to_bash "$1")"
+  cwd="${cwd%/}"
+  [ "${cwd##*/}" = "gitbash" ] && [ "${cwd%/*}" = "$users_root" ]
 }
 
-# Get session info
-# Usage: tb_get_session_info <session_id>
-# Returns: pane_id|status|window_name|cwd
-tb_get_session_info() {
-  local pane_id="$1"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_get_session_info "$pane_id"
-      ;;
-    wezterm)
-      _wezterm_get_session_info "$pane_id"
-      ;;
-  esac
-}
-
-# Poll all sessions in workspace
-# Usage: tb_poll_sessions <workspace>
-# Returns: pane_id|status (one per line)
-tb_poll_sessions() {
-  local workspace="$1"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_poll_sessions "$workspace"
-      ;;
-    wezterm)
-      _wezterm_poll_sessions "$workspace"
-      ;;
-  esac
-}
-
-# Send multiline text (e.g., from a file)
-# Usage: tb_send_multiline_text <session_id> <text> [execute=true]
-# This properly handles newlines and sends the entire text as one message
-tb_send_multiline_text() {
-  local session_id="$1"
-  local text="$2"
-  local execute="${3:-true}"
-
-  case "$TB_BACKEND" in
-    tmux)
-      _tmux_send_multiline_text "$session_id" "$text" "$execute"
-      ;;
-    wezterm)
-      _wezterm_send_multiline_text "$session_id" "$text" "$execute"
-      ;;
-  esac
-}
-
-# Wait for Claude to start accepting input
-# Usage: tb_wait_for_claude <pane_id> [timeout_seconds=5] [initial_content]
-# Returns: 0 if ready or timeout (proceed anyway), 1 if session died
-# Strategy: detect terminal content change from initial state
-tb_wait_for_claude() {
-  local pane_id="$1"
-  local timeout="${2:-5}"
-  local initial_content="${3:-}"
-  local start_time=$(date +%s)
-
-  # If no initial content provided, just do a brief wait
-  if [ -z "$initial_content" ]; then
-    sleep 1
+tb_infer_polydev_cwd_from_wezterm() {
+  [ "$TB_BACKEND" != "wezterm" ] && return 1
+  local tmp rows count
+  tmp="$(mktemp)"
+  wezterm cli list --format json 2>/dev/null | _wezterm_json_rows | awk -F '\t' '
+    $2 == "workspace" { workspace[$1] = $3 }
+    $2 == "cwd" { cwd[$1] = $3 }
+    END { for (i = 0; i <= 10000; i++) if (workspace[i] ~ /^(ag|bg|wo)-/ && cwd[i] != "") print cwd[i] }
+  ' | while IFS= read -r candidate; do
+    candidate="$(tb_path_to_bash "$candidate")"
+    case "$candidate" in ""|/c/Users/*) ;; *) printf '%s\n' "$candidate" ;; esac
+  done | sort -u > "$tmp"
+  count="$(wc -l < "$tmp" | tr -d ' ')"
+  if [ "$count" = "1" ]; then
+    rows="$(cat "$tmp")"
+    rm -f "$tmp"
+    printf '%s\n' "$rows"
     return 0
   fi
-
-  while true; do
-    local now=$(date +%s)
-    local elapsed=$((now - start_time))
-
-    if [ $elapsed -ge $timeout ]; then
-      return 0  # Timeout - proceed anyway
-    fi
-
-    if ! tb_is_session_alive "$pane_id"; then
-      echo "❌ Session died" >&2
-      return 1
-    fi
-
-    # Get current content
-    local current_content
-    current_content=$(_tb_capture_pane "$pane_id")
-
-    # If content changed, Claude has started
-    if [ "$current_content" != "$initial_content" ]; then
-      return 0
-    fi
-
-    sleep 0.2
-  done
+  rm -f "$tmp"
+  return 1
 }
 
-# Helper: capture pane content with proper session_id parsing
-_tb_capture_pane() {
-  local pane_id="$1"
+tb_resolve_cwd_arg() {
+  local cwd_arg="$1" caller_cwd="${2:-}" base resolved
+  if tb_path_is_absolute "$cwd_arg"; then
+    resolved="$(tb_path_to_bash "$cwd_arg")"
+  else
+    if [ -n "$caller_cwd" ]; then base="$(tb_path_to_bash "$caller_cwd")"
+    elif [ -n "${POLYDEV_CALLER_CWD:-}" ]; then base="$(tb_path_to_bash "$POLYDEV_CALLER_CWD")"
+    else base="$(pwd)"
+    fi
+    if tb_is_windows_bash && tb_is_default_git_bash_home "$base"; then
+      if inferred="$(tb_infer_polydev_cwd_from_wezterm)"; then base="$inferred"
+      else echo "[E] error=Cannot resolve relative cwd '$cwd_arg' from Git Bash home '$base'; pass --caller-cwd or an absolute --cwd" >&2; return 1
+      fi
+    fi
+    resolved="$base/$cwd_arg"
+  fi
+  [ -d "$resolved" ] || { echo "[E] error=Directory not found: $resolved" >&2; return 1; }
+  (cd "$resolved" && pwd)
+}
+
+tb_find_claude_bin() {
+  CLAUDE_BIN=$(command -v claude 2>/dev/null || true)
+  if [ -z "$CLAUDE_BIN" ]; then
+    for candidate in "$HOME/.nvm/versions/node"/*/bin/claude "$HOME/.local/bin/claude" /usr/local/bin/claude; do
+      [ -x "$candidate" ] && CLAUDE_BIN="$candidate" && break
+    done
+  fi
+  [ -n "$CLAUDE_BIN" ] || return 1
+  export CLAUDE_BIN
+}
+
+tb_launch_claude() {
+  local pane_id="$1" claude_bin="$2" model="$3" cwd="${4:-}" extra_args=""
+  if [ "$#" -gt 4 ]; then
+    shift 4
+    extra_args="$*"
+  else
+    set --
+  fi
+  pane_id=$(printf '%s' "$pane_id" | tr -d '\r')
+  if [ "$TB_BACKEND" = "wezterm" ] && [ "$(_wezterm_get_pane_shell "$pane_id")" != "bash" ]; then
+    echo "[E] error=ClaudeCode Bash adapter requires a bash pane" >&2
+    return 1
+  fi
+  local cd_part=""
+  [ -n "$cwd" ] && cd_part="cd $(_tb_quote_shell_arg "$cwd") && "
+  tb_send_command "$pane_id" "${cd_part}unset CLAUDECODE && $claude_bin --dangerously-skip-permissions --model $model $extra_args" "true" "${POLYDEV_AGENT_ENTER_DELAY:-1}"
+}
+
+tb_create_pane_session() {
   case "$TB_BACKEND" in
-    wezterm)
-      wezterm cli get-text --pane-id "$pane_id" 2>/dev/null
-      ;;
-    tmux)
-      local target
-      target=$(_tmux_target_for_id "$pane_id")
-      _tmux capture-pane -t "$target" -p 2>/dev/null
-      ;;
+    tmux) _tmux_create_session "$1" "$2" "$3" ;;
+    wezterm) _wezterm_create_session "$1" "$2" "$3" ;;
   esac
 }
 
-# Wait for a CLI tool to be ready by polling for a marker string in the pane.
-# Usage: _tb_wait_for_marker <tool_name> <pane_id> <marker_pattern> [timeout_seconds=15]
-# Returns: 0 if marker found, 1 if timeout or session died
-_tb_wait_for_marker() {
-  local tool_name="$1"
-  local pane_id="$2"
-  local marker="$3"
-  local timeout="${4:-15}"
-  local start_time=$(date +%s)
+tb_create_worktree_session() {
+  tb_create_pane_session "$@"
+}
 
+tb_is_session_alive() {
+  case "$TB_BACKEND" in
+    tmux) _tmux_is_alive "$1" ;;
+    wezterm) _wezterm_is_alive "$1" ;;
+  esac
+}
+
+tb_send_command() {
+  if [ "$TB_BACKEND" = "wezterm" ] && [ "${POLYDEV_PREPARE_CWD:-1}" = "1" ]; then
+    POLYDEV_PREPARE_CWD=0 _wezterm_prepare_cwd "$1" || return 1
+  fi
+  case "$TB_BACKEND" in
+    tmux) _tmux_send_command "$1" "$2" "${3:-true}" ;;
+    wezterm) _wezterm_send_command "$1" "$2" "${3:-true}" "${4:-}" ;;
+  esac
+}
+
+tb_send_multiline_text() {
+  case "$TB_BACKEND" in
+    tmux) _tmux_send_multiline_text "$1" "$2" "${3:-true}" ;;
+    wezterm) _wezterm_send_multiline_text "$1" "$2" "${3:-true}" ;;
+  esac
+}
+
+tb_focus_session() {
+  case "$TB_BACKEND" in tmux) _tmux_focus_session "$1" ;; wezterm) _wezterm_focus_session "$1" ;; esac
+}
+
+tb_cleanup_session() {
+  case "$TB_BACKEND" in tmux) _tmux_cleanup_session "$1" ;; wezterm) _wezterm_cleanup_session "$1" ;; esac
+}
+
+tb_get_session_info() {
+  case "$TB_BACKEND" in tmux) _tmux_get_session_info "$1" ;; wezterm) _wezterm_get_session_info "$1" ;; esac
+}
+
+tb_poll_sessions() {
+  case "$TB_BACKEND" in tmux) _tmux_poll_sessions "$1" ;; wezterm) _wezterm_poll_sessions "$1" ;; esac
+}
+
+_tb_capture_pane() {
+  case "$TB_BACKEND" in
+    wezterm) wezterm cli get-text --pane-id "$1" 2>/dev/null ;;
+    tmux) _tmux capture-pane -t "$(_tmux_target_for_id "$1")" -p 2>/dev/null ;;
+  esac
+}
+
+_tb_normalize_for_compare() {
+  local path="$1"
+  path="$(tb_path_to_bash "$path" 2>/dev/null || printf '%s' "$path")"
+  path="${path%/}"
+  printf '%s' "$path" | tr '[:upper:]' '[:lower:]'
+}
+
+_tb_trust_cwd_matches() {
+  local content="$1" expected="$2" actual
+  [ -z "$expected" ] && return 0
+  actual="$(printf '%s\n' "$content" | sed -n 's/^.*You are in //p' | head -n1 | tr -d '\r')"
+  [ -z "$actual" ] && return 0
+  [ "$(_tb_normalize_for_compare "$actual")" = "$(_tb_normalize_for_compare "$expected")" ]
+}
+
+tb_wait_for_agent_ready() {
+  local agent="$1" pane_id="$2" timeout="${3:-20}" expected_cwd="${4:-}" auto_trust="${5:-true}"
+  local start_time trusted_sent=0 content elapsed
+  start_time=$(date +%s)
   while true; do
-    local now=$(date +%s)
-    local elapsed=$((now - start_time))
-
-    if [ $elapsed -ge $timeout ]; then
-      echo "[W] $tool_name wait timeout after ${timeout}s" >&2
+    elapsed=$(($(date +%s) - start_time))
+    if [ "$elapsed" -ge "$timeout" ]; then
+      echo "[W] ${agent} wait timeout after ${timeout}s" >&2
       return 1
     fi
-
-    if ! tb_is_session_alive "$pane_id"; then
-      echo "[E] Session died while waiting for $tool_name" >&2
+    tb_is_session_alive "$pane_id" || { echo "[E] Session died while waiting for ${agent}" >&2; return 1; }
+    content="$(_tb_capture_pane "$pane_id")"
+    if printf '%s' "$content" | grep -qiE 'command not found|No such file or directory|panic|error: unexpected argument'; then
+      echo "[E] ${agent} launcher failed" >&2
       return 1
     fi
-
-    local current_content
-    current_content=$(_tb_capture_pane "$pane_id")
-
-    if echo "$current_content" | grep -q "$marker"; then
-      return 0
+    if printf '%s' "$content" | grep -qiE 'Do you trust the contents of this directory|Press enter to continue'; then
+      if ! _tb_trust_cwd_matches "$content" "$expected_cwd"; then
+        echo "[E] ${agent} trust prompt cwd does not match expected cwd: $expected_cwd" >&2
+        return 1
+      fi
+      if [ "$auto_trust" = "true" ] && [ "$trusted_sent" = "0" ]; then
+        echo "[I] event=trust_prompt_confirmed,pane_id=$pane_id,agent=$agent" >&2
+        tb_send_command "$pane_id" "" "true" "${POLYDEV_AGENT_ENTER_DELAY:-1}"
+        trusted_sent=1
+      fi
+      sleep 0.2
+      continue
     fi
-
-    sleep 0.5
+    case "$agent" in
+      codex)
+        printf '%s' "$content" | grep -qE 'OpenAI Codex|Use /skills|context left|Ask Codex|What can I help|gpt-[^[:space:]]+[[:space:]].*·|^[[:space:]]*›|^[[:space:]]*>' && return 0
+        ;;
+      claude)
+        printf '%s' "$content" | grep -qE 'Claude Code|bypass permissions|cwd:|^[[:space:]]*>|^[[:space:]]*›|❯' && return 0
+        ;;
+      gemini)
+        printf '%s' "$content" | grep -qE 'Type your message|Gemini' && return 0
+        ;;
+      *)
+        printf '%s' "$content" | grep -qE '^[[:space:]]*>|^[[:space:]]*›|❯' && return 0
+        ;;
+    esac
+    sleep 0.25
   done
 }
 
-# Wait for Codex CLI to be ready by polling for known startup prompts.
-# Usage: tb_wait_for_codex <pane_id> [timeout_seconds=15]
-# Returns: 0 if ready, 1 if timeout or session died
+tb_wait_for_claude() {
+  tb_wait_for_agent_ready "claude" "$1" "${2:-20}" "${4:-}" "true"
+}
+
 tb_wait_for_codex() {
-  local pane_id="$1"
-  local timeout="${2:-15}"
-  local start_time=$(date +%s)
+  tb_wait_for_agent_ready "codex" "$1" "${2:-20}" "${3:-}" "true"
+}
 
+_tb_wait_for_marker() {
+  local tool_name="$1" pane_id="$2" marker="$3" timeout="${4:-20}" start_time content
+  start_time=$(date +%s)
   while true; do
-    local now=$(date +%s)
-    local elapsed=$((now - start_time))
-
-    if ! tb_is_session_alive "$pane_id"; then
-      echo "[E] Session died while waiting for Codex" >&2
-      return 1
-    fi
-
-    local current_content
-    current_content=$(_tb_capture_pane "$pane_id")
-
-    if echo "$current_content" | grep -q "context left"; then
-      return 0
-    fi
-
-    if echo "$current_content" | grep -q "›"; then
-      return 0
-    fi
-
-    if [ $elapsed -ge $timeout ]; then
-      echo "[W] Codex wait timeout after ${timeout}s" >&2
-      return 1
-    fi
-
+    [ $(($(date +%s) - start_time)) -ge "$timeout" ] && echo "[W] $tool_name wait timeout after ${timeout}s" >&2 && return 1
+    tb_is_session_alive "$pane_id" || { echo "[E] Session died while waiting for $tool_name" >&2; return 1; }
+    content="$(_tb_capture_pane "$pane_id")"
+    printf '%s' "$content" | grep -q "$marker" && return 0
     sleep 0.5
   done
 }
 
-# Wait for Gemini CLI to be ready
-# Usage: tb_wait_for_gemini <pane_id> [timeout_seconds=15]
-# Returns: 0 if ready, 1 if timeout or session died
 tb_wait_for_gemini() {
-  _tb_wait_for_marker "Gemini" "$1" "Type your message" "${2:-15}"
+  tb_wait_for_agent_ready "gemini" "$1" "${2:-20}"
 }
 
-# Capture terminal content for change detection (first 5 lines)
-# Usage: tb_capture_content <pane_id>
 tb_capture_content() {
   _tb_capture_pane "$1" | head -5
 }
 
-# Get current backend
-# Usage: tb_get_backend
 tb_get_backend() {
   echo "$TB_BACKEND"
 }
 
-# Get tmux socket path (for manual debugging)
-# Usage: tb_get_socket
 tb_get_socket() {
-  if [ "$TB_BACKEND" = "tmux" ]; then
-    echo "$TB_SOCKET"
-  else
-    echo ""
-  fi
+  [ "$TB_BACKEND" = "tmux" ] && echo "$TB_SOCKET" || echo ""
 }
 
-# tb_peek - 等待后截屏
-# 用法: tb_peek <pane_id> <delay_seconds> [lines]
 tb_peek() {
-  local pane_id="$1"
-  local delay="$2"
-  local lines="${3:-50}"
-  if [ "$delay" -gt 0 ] 2>/dev/null; then
-    sleep "$delay"
-  fi
+  local pane_id="$1" delay="$2" lines="${3:-50}"
+  [ "$delay" -gt 0 ] 2>/dev/null && sleep "$delay"
   echo "---PEEK---"
   "$SCRIPT_DIR/capture-screen.sh" --pane-id "$pane_id" --lines "$lines"
 }

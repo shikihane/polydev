@@ -1,179 +1,119 @@
 #!/bin/bash
-# spawn-codex.sh - Start a Codex CLI session with a prompt (no worktree)
+# spawn-codex.sh - Start a ready Codex CLI TUI session.
 #
-# Usage: spawn-codex.sh <name> --prompt "<task>" --cwd <dir> [--model <name>] [--output <path>] [--verbose]
+# Usage:
+#   spawn-codex.sh <name> --cwd <dir> [--workspace <name>] [--model <name>] [--ready-timeout 15] [--peek N]
 #
-# Output (TOON by default):
-#   [I] event=agent_starting,name=...,workspace=...,cwd=...
-#   [I] event=terminal_session_created,pane_id=...,backend=...
-#   [I] event=codex_started,pane_id=...
-#   [I] event=prompt_sent,length=...
-#   [I] event=agent_ready,pane_id=...
-#   5  (pane_id on last line for scripting)
-#
-# Use --verbose for human-readable output
+# This script only starts the session and waits for the TUI to be ready.
+# Use send-prompt.sh to send work after readiness is confirmed.
 
 set -e
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-ORCHESTRATOR_DIR="$(dirname "$SCRIPT_DIR")"
-
 source "$SCRIPT_DIR/terminal-backend.sh"
 
 NAME=""
-PROMPT=""
-OUTPUT_PATH=""
 CWD=""
 WORKSPACE=""
 MODEL=""
 VERBOSE=false
+PEEK_DELAY=""
+CALLER_CWD=""
+READY_TIMEOUT="${CODEX_READY_TIMEOUT:-15}"
 
-# Parse arguments
+toon_log() {
+  local event="$1"
+  shift
+  echo "[I] event=${event}${*:+,$*}"
+}
+
+usage() {
+  echo "Usage: spawn-codex.sh <name> --cwd <dir> [--workspace <name>] [--model <name>] [--ready-timeout 15] [--peek N]" >&2
+}
+
+reject_old_arg() {
+  echo "[E] error=spawn-codex.sh no longer accepts $1" >&2
+  echo "[E] hint=Start the session first, then use send-prompt.sh and capture-screen.sh" >&2
+  exit 2
+}
+
+find_codex_bin() {
+  local codex_bin=""
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows*)
+      for candidate in \
+        "/c/ProgramData/npm/npm/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/codex/codex.exe" \
+        "$HOME/AppData/Local/OpenAI/Codex/bin"/*/codex.exe; do
+        [ -x "$candidate" ] && codex_bin="$candidate" && break
+      done
+      ;;
+  esac
+  [ -z "$codex_bin" ] && codex_bin="$(command -v codex 2>/dev/null || true)"
+  [ -n "$codex_bin" ] || { echo "[E] error=codex binary not found" >&2; return 1; }
+  printf '%s\n' "$codex_bin"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --prompt)
-      PROMPT="$2"
-      shift 2
-      ;;
-    --output)
-      OUTPUT_PATH="$2"
-      shift 2
-      ;;
-    --cwd)
-      CWD="$2"
-      shift 2
-      ;;
-    --workspace)
-      WORKSPACE="$2"
-      shift 2
-      ;;
-    --model|-m)
-      MODEL="$2"
-      shift 2
-      ;;
-    --verbose)
-      VERBOSE=true
-      shift
-      ;;
+    --prompt|--output|--report) reject_old_arg "$1" ;;
+    --cwd) CWD="$2"; shift 2 ;;
+    --caller-cwd) CALLER_CWD="$2"; shift 2 ;;
+    --workspace) WORKSPACE="$2"; shift 2 ;;
+    --model|-m) MODEL="$2"; shift 2 ;;
+    --ready-timeout) READY_TIMEOUT="$2"; shift 2 ;;
+    --peek) PEEK_DELAY="$2"; shift 2 ;;
+    --verbose) VERBOSE=true; shift ;;
+    -h|--help) usage; exit 0 ;;
     *)
-      if [ -z "$NAME" ]; then
-        NAME="$1"
-      fi
+      if [ -z "$NAME" ]; then NAME="$1"; else echo "[E] error=unexpected argument: $1" >&2; usage; exit 2; fi
       shift
       ;;
   esac
 done
 
-if [ -z "$NAME" ] || [ -z "$PROMPT" ] || [ -z "$CWD" ]; then
-  echo "error=Missing required parameter(s): name, prompt, or cwd" >&2
-  echo "Usage: spawn-codex.sh <name> --prompt \"<task>\" --cwd <dir> [--model <name>] [--output <path>] [--verbose]" >&2
-  exit 1
+if [ -z "$NAME" ] || [ -z "$CWD" ]; then
+  echo "[E] error=Missing required parameter(s): name or cwd" >&2
+  usage
+  exit 2
 fi
 
-if [ ! -d "$CWD" ]; then
-  echo "error=Directory not found: $CWD" >&2
-  exit 1
-fi
-
-CWD="$(cd "$CWD" && pwd)"
-
-# Derive workspace from CWD if not explicitly set
-if [ -z "$WORKSPACE" ]; then
-  WORKSPACE="$(basename "$CWD")"
-fi
-
-# Handle output path if provided. This Bash adapter is for D3 Linux Codex Bash,
-# not D1 native Windows Codex.
-if [ -n "$OUTPUT_PATH" ]; then
-  if [[ "$OUTPUT_PATH" != /* ]]; then
-    OUTPUT_PATH="$CWD/$OUTPUT_PATH"
-  fi
-  OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
-  mkdir -p "$OUTPUT_DIR"
-fi
-
-toon_log() {
-  local event="$1"
-  shift
-  local pairs="$*"
-  echo "[I] event=${event}${pairs:+,${pairs}}"
-}
+CWD="$(tb_resolve_cwd_arg "$CWD" "$CALLER_CWD")" || exit 1
+[ -n "$WORKSPACE" ] || WORKSPACE="$(basename "$CWD")"
 
 if $VERBOSE; then
-  echo "Starting Codex CLI Session"
+  echo "Starting Codex CLI session"
   echo "Name: $NAME"
-  echo "Prompt: ${PROMPT:0:50}..."
-  [ -n "$OUTPUT_PATH" ] && echo "Output: $OUTPUT_PATH"
   echo "Directory: $CWD"
   echo "Backend: $(tb_get_backend)"
   echo ""
 fi
 
-toon_log "agent_starting" "name=$NAME,workspace=$WORKSPACE,cwd=$CWD"
+toon_log "agent_starting" "name=$NAME,workspace=$WORKSPACE,cwd=$CWD,timeout=$READY_TIMEOUT"
 
-# Create session
-ag_workspace="ag-${WORKSPACE}"
-pane_id=$(tb_create_worktree_session "$ag_workspace" "$NAME" "$CWD" "")
-
+pane_id=$(tb_create_pane_session "ag-${WORKSPACE}" "$NAME" "$CWD" "")
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
 
-if [ -n "$OUTPUT_PATH" ]; then
-  PROMPT="${PROMPT}
+CODEX_BIN="$(find_codex_bin)" || exit 1
+CODEX_CMD="cd $(_tb_quote_shell_arg "$CWD") && $(_tb_quote_shell_arg "$CODEX_BIN") --cd $(_tb_quote_shell_arg "$CWD") --dangerously-bypass-approvals-and-sandbox --no-alt-screen --disable plugins"
+[ -n "$MODEL" ] && CODEX_CMD="$CODEX_CMD -m $(_tb_quote_shell_arg "$MODEL")"
 
-Write your final answer to: ${OUTPUT_PATH}
-Do this before replying AGENT_DONE."
-fi
-
-# Start Codex
-CODEX_CMD="codex --dangerously-bypass-approvals-and-sandbox"
-if [ -n "$MODEL" ]; then
-  CODEX_CMD="$CODEX_CMD -m $MODEL"
-fi
-if ! tb_send_command "$pane_id" "$CODEX_CMD" "true"; then
+if ! tb_send_command "$pane_id" "$CODEX_CMD" "true" "${POLYDEV_AGENT_ENTER_DELAY:-1}"; then
   echo "[E] error=Failed to start Codex" >&2
   exit 1
 fi
 
-toon_log "codex_started" "pane_id=$pane_id${MODEL:+,model=$MODEL}"
+toon_log "codex_started" "pane_id=$pane_id,codex_bin=$CODEX_BIN${MODEL:+,model=$MODEL}"
 
-# Wait for Codex to be ready. Codex startup can be slow when it prints a lot of
-# initialization output; if the pane is still alive, keep the session and try a
-# short recovery wait before sending the prompt.
-if ! tb_wait_for_codex "$pane_id" 30; then
-  if ! tb_is_session_alive "$pane_id"; then
-    echo "[E] error=Codex session died while starting" >&2
-    exit 1
-  fi
-
-  toon_log "codex_wait_timeout" "pane_id=$pane_id,timeout=30"
-
-  if tb_wait_for_codex "$pane_id" 10; then
-    toon_log "codex_wait_recovered" "pane_id=$pane_id"
-  else
-    if ! tb_is_session_alive "$pane_id"; then
-      echo "[E] error=Codex session died after startup timeout" >&2
-      exit 1
-    fi
-    toon_log "codex_wait_recovery_warning" "pane_id=$pane_id"
-  fi
+if ! tb_wait_for_codex "$pane_id" "$READY_TIMEOUT" "$CWD"; then
+  echo "[E] error=Codex did not become ready after startup timeout" >&2
+  echo "[E] diagnostic=$SCRIPT_DIR/capture-screen.sh --pane-id $pane_id --lines 80" >&2
+  echo "[E] cleanup=$SCRIPT_DIR/close-session.sh --pane-id $pane_id" >&2
+  exit 1
 fi
 
-# Send prompt directly (no template wrapping)
-if tb_send_multiline_text "$pane_id" "$PROMPT" "true"; then
-  toon_log "prompt_sent" "length=${#PROMPT}"
-else
-  toon_log "prompt_send_warning" "pane_id=$pane_id"
-fi
-
-output_info=""
-[ -n "$OUTPUT_PATH" ] && output_info=",output=$OUTPUT_PATH"
-toon_log "agent_ready" "pane_id=$pane_id${output_info}"
-
-if $VERBOSE; then
-  echo ""
-  echo "Codex session started: pane_id=$pane_id"
-  [ -n "$OUTPUT_PATH" ] && echo "Output: $OUTPUT_PATH"
-  echo "Monitor: capture-screen.sh --pane-id $pane_id --lines 30"
-fi
-
+toon_log "agent_ready" "pane_id=$pane_id"
 echo "$pane_id"
+
+if [ -n "$PEEK_DELAY" ]; then
+  tb_peek "$pane_id" "$PEEK_DELAY"
+fi

@@ -23,12 +23,17 @@ CWD="$(pwd)"
 WORKSPACE="$(basename "$(pwd)")"
 VERBOSE=false
 PEEK_DELAY=""
+CALLER_CWD=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cwd)
       CWD="$2"
+      shift 2
+      ;;
+    --caller-cwd)
+      CALLER_CWD="$2"
       shift 2
       ;;
     --workspace)
@@ -60,12 +65,18 @@ if [ -z "$NAME" ] || [ -z "$COMMAND" ]; then
   exit 1
 fi
 
-if [ ! -d "$CWD" ]; then
-  echo "error=Directory not found: $CWD" >&2
-  exit 1
-fi
+case "$COMMAND" in
+  *$'\n'*|*$'\r'*)
+    echo "error=Command must be a single line; newline characters usually mean the caller shell expanded part of the command before Polydev received it" >&2
+    exit 1
+    ;;
+esac
 
-CWD="$(cd "$CWD" && pwd)"
+CWD="$(tb_resolve_cwd_arg "$CWD" "$CALLER_CWD")" || exit 1
+
+if [ -z "$WORKSPACE" ] || [ "$WORKSPACE" = "$(basename "$(pwd)")" ]; then
+  WORKSPACE="$(basename "$CWD")"
+fi
 
 if $VERBOSE; then
   echo "Starting Background Task"
@@ -88,7 +99,7 @@ toon_log "bg_starting" "name=$NAME,workspace=$WORKSPACE,cwd=$CWD"
 
 # Create session
 bg_workspace="bg-${WORKSPACE}"
-pane_id=$(tb_create_worktree_session "$bg_workspace" "$NAME" "$CWD" "")
+pane_id=$(tb_create_pane_session "$bg_workspace" "$NAME" "$CWD" "")
 
 toon_log "terminal_session_created" "pane_id=$pane_id,backend=$(tb_get_backend)"
 
@@ -96,7 +107,8 @@ sleep 0.5
 
 # Send command
 if tb_send_command "$pane_id" "$COMMAND" "true"; then
-  toon_log "command_sent" "command=${COMMAND:0:50}"
+  command_cksum=$(printf '%s' "$COMMAND" | cksum | awk '{print $1}')
+  toon_log "command_sent" "length=${#COMMAND},cksum=$command_cksum"
 else
   echo "[E] error=Failed to send command" >&2
   exit 1

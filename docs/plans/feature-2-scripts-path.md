@@ -23,7 +23,7 @@ Do not use:
 D1 Windows Codex PowerShell:
 
 ```powershell
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" polydev-test codex-smoke .worktrees\codex-smoke docs\plans\feature-2-scripts-path.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" polydev-test codex-smoke .worktrees\codex-smoke docs\plans\feature-2-scripts-path.md
 ```
 
 D2 Windows Claude Code Git Bash:
@@ -35,7 +35,7 @@ D2 Windows Claude Code Git Bash:
 D3 Linux/macOS Codex:
 
 ```bash
-"/home/<user>/.codex/polydev/scripts/spawn-codex.sh" research --prompt "Inspect repository only." --cwd . --output .agent-reports/codex.md
+"/home/<user>/.codex/skills/polydev/scripts/spawn-codex.sh" research --prompt "Inspect repository only." --cwd . --output .agent-reports/codex.md
 ```
 
 D4 Linux/macOS Claude Code:

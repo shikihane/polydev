@@ -15,7 +15,7 @@ Polydev orchestrates Git worktrees and terminal-hosted coding agents. The core m
 | --- | --- | --- | --- | --- |
 | Worktree | `wo:` | yes | yes | Parallel implementation |
 | Background | `bg:` | no | no | Long-running commands, SSH, REPLs |
-| Investigation | `ag:` | no | yes | Read-only research and reports |
+| Investigation | `ag:` | no | yes | Read-only research panes |
 
 ## Status Communication
 
@@ -29,6 +29,8 @@ last_update=2026-04-30T10:30:00Z
 session_id=wo:myproject:feature.0
 pane_id=5
 ```
+
+Investigation and background sessions do not communicate through `task.toon`. They expose `pane_id`; the coordinator observes visible terminal state with `--peek`, `capture-screen.sh`, `capture-screen.ps1`, or direct terminal inspection.
 
 `overall_status` values:
 
@@ -88,7 +90,7 @@ Wrapper startup:
 D1 Windows PowerShell startup:
 
 ```powershell
-Set-Location "C:\Users\<user>\.codex\polydev\dashboard"
+Set-Location "C:\Users\<user>\.codex\skills\polydev\dashboard"
 npm install
 npm run build
 $env:POLYDEV_PROJECT_ROOT = "E:\repo"
@@ -102,8 +104,9 @@ The v1 dashboard is monitor/read/close only. Command sending, pane focusing, ses
 | Provider | Investigation | Worktree | Implementation | Notes |
 | --- | --- | --- | --- | --- |
 | Claude Code | `spawn-agent.sh` | `spawn-session.sh` | bash adapter scripts | Claude-specific model/env handling stays in adapter |
-| Codex CLI | `start-codex-investigation.ps1` | `start-codex-worktree.ps1` | `adapters/codex/windows/` | Windows PowerShell path; prompt-file handoff |
-| Gemini CLI | `spawn-gemini.sh` | future adapter | bash adapter script | Existing investigation path |
+| Codex CLI | `start-codex-investigation.ps1` + `send-prompt.ps1` | `start-codex-worktree.ps1` | `adapters/codex/windows/` | Windows PowerShell path; prompt sent after readiness |
+| Codex CLI from Bash | `spawn-codex.sh` | future adapter | bash adapter script | Used by D2 Windows Claude Code and D3 Linux/macOS Codex for investigation sessions |
+| Gemini CLI | `spawn-gemini.sh` | future adapter | bash adapter script | Investigation starts ready TUI only |
 
 Codex PowerShell defaults to `--sandbox workspace-write --ask-for-approval on-request`. Use dangerous bypass only when a human explicitly requests unattended execution.
 
@@ -118,18 +121,20 @@ For Claude Code runtimes, the resolved scripts root must be the installed Claude
 For PowerShell scripts on Windows:
 
 ```powershell
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-investigation.ps1" research -Prompt "..." -Cwd .
-pwsh -NoProfile -File "C:\Users\<user>\.codex\polydev\scripts\start-codex-worktree.ps1" myproject codex-auth .worktrees\codex-auth docs\plans\auth.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "..." -Peek 5
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" myproject codex-auth .worktrees\codex-auth docs\plans\auth.md
 ```
 
 When the caller shell is Bash, pass a Bash-form full absolute path:
 
 ```bash
-pwsh -NoProfile -File "/c/Users/<user>/.codex/polydev/scripts/start-codex-investigation.ps1" research -Prompt "..." -Cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/spawn-codex.sh" codex-research --cwd .
+"/c/Users/<user>/.claude/skills/polydev/scripts/send-prompt.sh" <pane_id> --file /tmp/codex-research.md --peek 5
 "/c/Users/<user>/.claude/skills/polydev/scripts/spawn-session.sh" myproject feature-auth .worktrees/feature-auth docs/plans/auth.md
 ```
 
-For Bash-launched PowerShell adapters, keep the command simple and literal: pass the full adapter path to `pwsh -File` and use the documented public parameters only. If the caller's current directory matters, run the command from that directory or pass an absolute `-Cwd` path.
+D2 Windows Claude Code callers use `spawn-codex.sh` from the installed Claude skill directory when starting Codex CLI investigations. D1 Windows Codex callers use the PowerShell wrappers from the installed Codex skill directory.
 
 | Script | Purpose | Parameters |
 | --- | --- | --- |
@@ -144,10 +149,14 @@ For Bash-launched PowerShell adapters, keep the command simple and literal: pass
 | `list-sessions.sh` | List sessions | `[workspace]` |
 | `close-session.sh` | Terminate session | `<worktree_path>` or `--pane-id <id>` |
 | `run-background.sh` | Background command | `<name> "<cmd>" [--cwd <dir>]` |
-| `spawn-agent.sh` | Claude Code adapter | `<name> --prompt "<task>" --report <path> --cwd <dir>` |
-| `spawn-codex.sh` | Codex CLI adapter | `<name> --prompt "<task>" --cwd <dir> [--model <name>] [--output <path>]` |
-| `start-codex-investigation.ps1` | Windows Codex investigation adapter | `<name> -Prompt "<task>" -Cwd <dir> [-Output <path>]` |
-| `spawn-gemini.sh` | Gemini CLI adapter | `<name> --prompt "<task>" --cwd <dir> [--output <path>]` |
+| `spawn-agent.sh` | Start ready Claude Code TUI | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| `spawn-codex.sh` | Start ready Codex CLI TUI | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| `send-prompt.sh` | Send prompt to ready TUI and return immediately | `<pane_id> (--text <prompt> | --file <path>) [--peek N]` |
+| `start-codex-investigation.ps1` | Windows Codex investigation adapter | `<name> -Cwd <dir> [--model <name>] [--ready-timeout 15]` |
+| `send-prompt.ps1` | Send prompt to ready Windows Codex TUI and return immediately | `<pane_id> (-Text <prompt> \| -File <path>) [-Peek N]` |
+| `capture-screen.ps1` | Read Windows Codex pane output | `-PaneId <id> [-Lines N]` |
+| `close-session.ps1` | Close Windows Codex pane | `-PaneId <id>` |
+| `spawn-gemini.sh` | Gemini CLI adapter | `<name> --cwd <dir> [--ready-timeout 15]` |
 
 ## Recovery and Cleanup
 

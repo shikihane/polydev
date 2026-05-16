@@ -138,13 +138,16 @@ function Send-PolydevText {
   param(
     [Parameter(Mandatory)][string]$PaneId,
     [Parameter(Mandatory)][string]$Text,
-    [switch]$NoEnter
+    [switch]$NoEnter,
+    [double]$EnterDelay = 2
   )
 
   Assert-PolydevCommand -Name wezterm
   & wezterm cli send-text --no-paste --pane-id $PaneId -- $Text | Out-Null
   if (-not $NoEnter) {
-    Start-Sleep -Seconds 2
+    if ($EnterDelay -gt 0) {
+      Start-Sleep -Seconds $EnterDelay
+    }
     & wezterm cli send-text --no-paste --pane-id $PaneId -- "`r" | Out-Null
   }
 }

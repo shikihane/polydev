@@ -181,8 +181,12 @@ if ! tb_launch_claude "$new_pane_id" "$CLAUDE_BIN" "$CLAUDE_MODEL"; then
   exit 1
 fi
 
-# Wait for Claude to start (detects terminal content change, max 15s)
-tb_wait_for_claude "$new_pane_id" 15 "$initial_content"
+# Wait for Claude to start before sending the prompt.
+if ! tb_wait_for_claude "$new_pane_id" 15 "$initial_content"; then
+  echo "Failed to start Claude"
+  echo "Pane ID: $new_pane_id"
+  exit 1
+fi
 
 # Send the agent prompt
 if [ -f "$ORCHESTRATOR_DIR/templates/worktree-agent-prompt.md" ]; then

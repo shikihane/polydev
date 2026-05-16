@@ -52,7 +52,8 @@ fi
 
 echo "[I] event=polycron_triggered,job_id=$JOB_ID,type=$JOB_TYPE,pane_id=$PANE_ID"
 
-# Build agent prompt
+# Build agent prompt. Polycron sends work and returns; completion is observed by
+# capture/report inspection instead of a hidden marker protocol.
 AGENT_PROMPT="You are an investigation agent. Your task:
 
 $PROMPT
@@ -60,28 +61,16 @@ $PROMPT
 ## Requirements
 
 1. Investigate thoroughly using available tools
-2. Write your findings to: $REPORT_PATH
-3. When complete, output this EXACT marker:
-
-\`\`\`
-[AGENT_DONE]
-report: $REPORT_PATH
-timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-summary: <20字以内摘要>
-\`\`\`
+2. If a report path is provided, write your findings to: $REPORT_PATH
+3. When complete, leave the terminal idle with a concise visible summary.
 
 Start now."
 
 # Send prompt to agent pane
 TMPFILE="/tmp/polycron_prompt_$$"
 printf '%s' "$AGENT_PROMPT" > "$TMPFILE"
-tmux -S "$TB_SOCKET" load-buffer "$TMPFILE"
-tmux -S "$TB_SOCKET" paste-buffer -t "$PANE_ID"
+"$SCRIPT_DIR/send-prompt.sh" "$PANE_ID" --file "$TMPFILE"
 rm -f "$TMPFILE"
-
-# Submit with C-m (Enter)
-sleep 2
-tmux -S "$TB_SOCKET" send-keys -t "$PANE_ID" C-m
 
 TRIGGERED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
