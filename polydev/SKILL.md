@@ -7,6 +7,19 @@ description: Use when coordinating Polydev workflows for parallel worktrees, bac
 
 Polydev is the single top-level skill. Use the internal references in this folder for the specific workflow.
 
+## Entry selection
+
+Choose the Polydev workflow before choosing a runtime-specific script. Runtime dimensions decide path style, shell syntax, and adapter details; they do not replace workflow selection.
+
+| Flow | Use when | Primary entry family |
+| --- | --- | --- |
+| `bg` | Hosting one long command, dev server, build, test, SSH, REPL, or CLI probe | `run-background.sh`, then `capture-screen.sh`, `send-to-session.sh`, `close-session.sh` |
+| `ag` | Starting a read-only agent investigation | `start-codex-investigation.ps1` on Windows Codex; `spawn-agent.sh` or `spawn-codex.sh` where Bash is the active shell |
+| `wo` | Starting worktree-backed implementation branches | `start-codex-worktree.ps1` on Windows Codex; `spawn-session.sh` where Bash is the active shell |
+| `cron` | Scheduling future or recurring agent work | `polycron-*.sh` |
+
+D1 Windows Codex does not mean every Polydev action uses `start-codex-*.ps1`. Those scripts are for Codex investigation and worktree flows. Background sessions and direct pane control are pane-only Polydev flows; absence of `start-codex-*.ps1` or `task.toon` is not evidence that Polydev was unused.
+
 ## Choose the workflow
 
 | Need | Read |

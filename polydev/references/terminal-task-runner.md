@@ -15,13 +15,21 @@ This is a core part of Polydev's semi-automated design: long work should remain 
 
 ## Script Path
 
+Always resolve the installed Polydev scripts root for the active runtime first. Background tasks use the public Bash wrappers. For D1 Windows Codex, first explicitly select and verify a Bash caller, then use the installed Codex skill path converted to `/c/...` form. This remains a Windows Codex flow, not a Claude Code flow.
+
+D1 Windows Codex example after selecting a Bash caller:
+
+```bash
+"/c/Users/<user>/.codex/skills/polydev/scripts/run-background.sh" build "npm run build" --cwd "/e/project" --peek 10
+```
+
 D2 Windows Claude Code example:
 
 ```bash
 "/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" build "npm run build" --cwd . --peek 10
 ```
 
-D1 Windows Codex still uses Bash wrappers for generic background tasks only when the current shell is Bash. If the active flow is Codex-specific investigation or worktree execution, use the Codex PowerShell adapters described in `using-polydev.md`.
+If the active flow is Codex-specific investigation or worktree execution, use the Codex PowerShell adapters described in `using-polydev.md` instead of `run-background.sh`.
 
 ## Core Commands
 

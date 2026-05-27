@@ -15,16 +15,26 @@ Use this reference to select the right Polydev workflow before launching session
 - Treat root-level scripts as stable public wrappers. Internal provider/platform implementations live under `scripts/adapters/` and `scripts/backends/`.
 - Do not run internal implementation files: `terminal-backend.sh`, `terminal-backend.ps1`, `scripts/backends/*`, or `scripts/adapters/*`.
 
+## Entry Selection Order
+
+Choose in this order:
+
+1. Pick the workflow: `bg` for background terminal work, `ag` for read-only agent investigation, `wo` for worktree-backed implementation, `cron` for scheduled work, or dashboard for monitoring.
+2. Pick the runtime dimension: D1, D2, D3, or D4.
+3. Resolve the installed skill scripts root for that runtime and call only public root-level scripts by literal full path.
+
+Do not infer that Polydev was unused just because a session did not use `start-codex-*.ps1` or `task.toon`. Background sessions use `run-background.sh` and `pane_id`; investigation sessions are also pane-only unless launched as worktrees.
+
 ## Four Runtime Dimensions
 
 Before choosing a script, identify the active runtime dimension. Path style, shell syntax, and adapter selection must all match that dimension.
 
-| Dimension | Runtime | Backend | Shell | Agent | Scripts root and entry point |
+| Dimension | Runtime | Backend | Shell | Agent | Scripts root and flow-specific entry points |
 | --- | --- | --- | --- | --- | --- |
-| D1 | Windows Codex | WezTerm | PowerShell | Codex CLI | `C:\Users\<user>\.codex\skills\polydev\scripts`; use `start-codex-investigation.ps1` and `start-codex-worktree.ps1` |
-| D2 | Windows Claude Code | WezTerm | Git Bash | Claude Code | `/c/Users/<user>/.claude/skills/polydev/scripts`; use `spawn-agent.sh`, `spawn-session.sh`, and `spawn-codex.sh` for Codex CLI investigations |
-| D3 | Linux/macOS Codex | tmux | bash | Codex CLI | `/home/<user>/.codex/skills/polydev/scripts`; use `spawn-codex.sh` for investigation |
-| D4 | Linux/macOS Claude Code | tmux | bash | Claude Code | `/home/<user>/.claude/skills/polydev/scripts`; use `spawn-agent.sh` and `spawn-session.sh` |
+| D1 | Windows Codex | WezTerm | PowerShell | Codex CLI | `C:\Users\<user>\.codex\skills\polydev\scripts`; `ag` uses `start-codex-investigation.ps1`, `wo` uses `start-codex-worktree.ps1`; `bg` uses the public Bash wrappers only after explicitly selecting and verifying a Bash caller |
+| D2 | Windows Claude Code | WezTerm | Git Bash | Claude Code | `/c/Users/<user>/.claude/skills/polydev/scripts`; `bg` uses `run-background.sh`, `ag` uses `spawn-agent.sh` or `spawn-codex.sh`, `wo` uses `spawn-session.sh` |
+| D3 | Linux/macOS Codex | tmux | bash | Codex CLI | `/home/<user>/.codex/skills/polydev/scripts`; `bg` uses `run-background.sh`, `ag` uses `spawn-codex.sh` |
+| D4 | Linux/macOS Claude Code | tmux | bash | Claude Code | `/home/<user>/.claude/skills/polydev/scripts`; `bg` uses `run-background.sh`, `ag` uses `spawn-agent.sh`, `wo` uses `spawn-session.sh` |
 
 Hard boundaries:
 
@@ -63,6 +73,15 @@ Prefix convention:
 - `bg:` background terminal task, no Git required, uses terminal task runner.
 - `ag:` investigation agent, no Git required, uses agent investigator.
 
+## Workflow Entry Matrix
+
+| Flow | D1 Windows Codex | D2 Windows Claude Code | D3 Linux/macOS Codex | D4 Linux/macOS Claude Code |
+| --- | --- | --- | --- | --- |
+| `bg` background task | If using a Bash caller, `run-background.sh` from `/c/Users/<user>/.codex/skills/polydev/scripts`; do not present this as a PowerShell example | `run-background.sh` | `run-background.sh` | `run-background.sh` |
+| `bg` inspect/control | If using a Bash caller, `list-sessions.sh`, `capture-screen.sh`, `send-to-session.sh`, `close-session.sh` from `/c/Users/<user>/.codex/skills/polydev/scripts` | same Bash scripts | same Bash scripts | same Bash scripts |
+| `ag` read-only investigation | `start-codex-investigation.ps1`, then `send-prompt.ps1` | `spawn-agent.sh` or `spawn-codex.sh`, then `send-prompt.sh` | `spawn-codex.sh`, then `send-prompt.sh` | `spawn-agent.sh`, then `send-prompt.sh` |
+| `wo` worktree implementation | `start-codex-worktree.ps1` | `spawn-session.sh` | future adapter | `spawn-session.sh` |
+
 ## Windows Claude Code
 
 D2 Windows Claude Code uses Git Bash under WezTerm. Use Bash paths and Bash wrappers from the installed Claude skill directory.
@@ -83,7 +102,9 @@ For D2, prompt spawned agents that they are running in a Windows Claude Code env
 
 ## Windows Codex
 
-D1 Windows Codex uses native PowerShell 7 under WezTerm. Use Windows paths and PowerShell wrappers from the installed Codex skill directory.
+D1 Windows Codex uses native PowerShell 7 under WezTerm for Codex investigation and worktree adapters. Use Windows paths and PowerShell wrappers for `ag` and `wo` flows.
+
+For `bg` background terminal tasks and pane control, first decide the caller shell. If a Bash caller is explicitly selected and verified, use the public Bash wrappers from the installed Codex skill directory converted to `/c/...` path form. This is still a D1 Polydev flow; do not reclassify it as D2 just because the wrapper command is Bash. Keep Bash commands in Bash examples, not PowerShell examples.
 
 Examples:
 
@@ -91,6 +112,13 @@ Examples:
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect repository only." -Peek 5
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" myproject codex-auth .worktrees\codex-auth docs\plans\auth.md
+```
+
+D1 background examples after explicitly selecting a Bash caller:
+
+```bash
+"/c/Users/<user>/.codex/skills/polydev/scripts/run-background.sh" build "npm run build" --cwd "/e/project" --peek 10
+"/c/Users/<user>/.codex/skills/polydev/scripts/close-session.sh" --pane-id 5
 ```
 
 Tell Codex it is running in a Windows PowerShell-oriented environment. Use Windows paths and `$env:TEMP`, not `/tmp`, unless the prompt explicitly verified Bash.
