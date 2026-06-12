@@ -15,12 +15,12 @@ This is a core part of Polydev's semi-automated design: long work should remain 
 
 ## Script Path
 
-Always resolve the installed Polydev scripts root for the active runtime first. Background tasks use the public Bash wrappers. For D1 Windows Codex, first explicitly select and verify a Bash caller, then use the installed Codex skill path converted to `/c/...` form. This remains a Windows Codex flow, not a Claude Code flow.
+Always resolve the installed Polydev scripts root for the active runtime first. For D1 Windows Codex, use the public PowerShell wrappers from the installed Codex skill directory. For D2/D3/D4 Bash runtimes, use the public Bash wrappers.
 
-D1 Windows Codex example after selecting a Bash caller:
+D1 Windows Codex example:
 
-```bash
-"/c/Users/<user>/.codex/skills/polydev/scripts/run-background.sh" build "npm run build" --cwd "/e/project" --peek 10
+```powershell
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\run-background.ps1" build -Command "npm run build" -Cwd "E:\project" -Peek 10
 ```
 
 D2 Windows Claude Code example:
@@ -39,7 +39,18 @@ Start a command:
 pane_id=$("/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" build "npm run build" --cwd . --peek 10)
 ```
 
+D1 Windows Codex:
+
+```powershell
+$paneId = pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\run-background.ps1" build -Command "npm run build" -Cwd .
+```
+
 Send input to an existing pane:
+
+```powershell
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-to-session.ps1" $paneId "docker ps" -Peek 3
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-to-session.ps1" $paneId "password" -NoEnter
+```
 
 ```bash
 "/c/Users/<user>/.claude/skills/polydev/scripts/send-to-session.sh" "$pane_id" "docker ps" --peek 3
@@ -59,15 +70,26 @@ List and close:
 "/c/Users/<user>/.claude/skills/polydev/scripts/close-session.sh" --pane-id "$pane_id"
 ```
 
+D1 Windows Codex inspect and close:
+
+```powershell
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\capture-screen.ps1" -PaneId $paneId -Lines 80
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\close-session.ps1" -PaneId $paneId
+```
+
 ## Monitoring Pattern
 
 Capture output periodically and decide from actual terminal text:
+
+```powershell
+$output = pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\capture-screen.ps1" -PaneId $paneId -Lines 80
+```
 
 ```bash
 output=$("/c/Users/<user>/.claude/skills/polydev/scripts/capture-screen.sh" --pane-id "$pane_id" --lines 80)
 ```
 
-If output shows a prompt, use `send-to-session.sh`. If it is stuck or no longer needed, use `close-session.sh`.
+If output shows a prompt, use `send-to-session.ps1` on D1 or `send-to-session.sh` on Bash runtimes. If it is stuck or no longer needed, use `close-session.ps1` on D1 or `close-session.sh` on Bash runtimes.
 
 On Windows/WezTerm, do not assume the pane shell. Probe with a harmless command before sending shell-specific syntax.
 

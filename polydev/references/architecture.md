@@ -144,11 +144,15 @@ D2 Windows Claude Code callers use `spawn-codex.sh` from the installed Claude sk
 | `restore-session.sh` | Recover worktree session | `<worktree-path> [--force]` |
 | `restore-codex-worktree.ps1` | Recover Windows Codex worktree session | `<worktree-path> [-Force]` |
 | `wo-send-command.sh` | Send to worktree session | `<worktree-path> "<cmd>" [--peek N]` |
-| `send-to-session.sh` | Send to any pane | `<pane_id> "<cmd>" [--peek N]` |
-| `capture-screen.sh` | Read terminal output | `<worktree-path>` or `--pane-id <id>` |
+| `send-to-session.ps1` | Send command to Windows pane | `<pane_id> "<cmd>" [-Peek N] [-NoEnter]` |
+| `send-to-session.sh` | Send command to Bash pane | `<pane_id> "<cmd>" [--peek N]` |
+| `capture-screen.ps1` | Read Windows terminal output | `-PaneId <id> [-Lines N]` |
+| `capture-screen.sh` | Read Bash terminal output | `<worktree-path>` or `--pane-id <id>` |
 | `list-sessions.sh` | List sessions | `[workspace]` |
-| `close-session.sh` | Terminate session | `<worktree_path>` or `--pane-id <id>` |
-| `run-background.sh` | Background command | `<name> "<cmd>" [--cwd <dir>]` |
+| `close-session.ps1` | Terminate Windows pane | `-PaneId <id>` |
+| `close-session.sh` | Terminate Bash session | `<worktree_path>` or `--pane-id <id>` |
+| `run-background.ps1` | Windows background command | `<name> -Command "<cmd>" [-Cwd <dir>]` |
+| `run-background.sh` | Bash background command | `<name> "<cmd>" [--cwd <dir>]` |
 | `spawn-agent.sh` | Start ready Claude Code TUI | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
 | `spawn-codex.sh` | Start ready Codex CLI TUI | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
 | `send-prompt.sh` | Send prompt to ready TUI and return immediately | `<pane_id> (--text <prompt> | --file <path>) [--peek N]` |
@@ -160,7 +164,7 @@ D2 Windows Claude Code callers use `spawn-codex.sh` from the installed Claude sk
 
 ## Recovery and Cleanup
 
-Use `capture-screen.sh` to inspect, `restore-session.sh` to recover worktree sessions, and `send-to-session.sh` or `wo-send-command.sh` to intervene.
+Use dimension-specific capture scripts to inspect, restore scripts to recover worktree sessions, and `send-to-session.*` or `wo-send-command.sh` to intervene.
 
 Cleanup order:
 

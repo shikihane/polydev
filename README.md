@@ -24,7 +24,7 @@ Polydev should not be tied to one coding agent. The same orchestration model sho
 - Git
 - At least one supported coding agent, such as Codex CLI, Cursor, OpenCode, Claude Code, or Gemini CLI
 - tmux on Linux/macOS, or WezTerm on Windows
-- Bash-compatible shell for the scripts
+- Bash-compatible shell for Bash scripts
 - PowerShell 7 (`pwsh`) for Windows-native Codex adapter scripts
 
 ## Repository Layout
@@ -78,6 +78,7 @@ D1 PowerShell callers use the complete `.ps1` path:
 ```powershell
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect the auth flow." -Peek 5
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\run-background.ps1" server -Command "npm run dev" -Cwd .
 ```
 
 D2 Windows Claude Code callers use Bash entry points from the installed Claude skill directory. Use `spawn-codex.sh` for a Codex CLI investigation from that environment.
@@ -151,6 +152,11 @@ The Codex PowerShell adapter defaults to `--sandbox workspace-write --ask-for-ap
 ## Background Tasks
 
 Use background sessions for long-running commands, local servers, and read-only investigation sessions:
+
+```powershell
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\run-background.ps1" server -Command "npm run dev" -Cwd "E:\project" -Peek 10
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-to-session.ps1" <pane_id> "rs" -Peek 3
+```
 
 ```bash
 "/c/Users/<user>/.claude/skills/polydev/scripts/run-background.sh" server "npm run dev" --cwd /path/to/project --peek 10

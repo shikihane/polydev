@@ -23,6 +23,11 @@ function Write-PolydevError {
   Write-Error "[E] error=$Message" -ErrorAction Continue
 }
 
+function Write-PolydevWarn {
+  param([Parameter(Mandatory)][string]$Message)
+  Write-Warning "[W] warning=$Message"
+}
+
 function Assert-PolydevCommand {
   param([Parameter(Mandatory)][string[]]$Name)
 
@@ -197,6 +202,7 @@ if ($SelfTest) {
     'ConvertTo-PolydevWindowsPath',
     'Write-PolydevInfo',
     'Write-PolydevError',
+    'Write-PolydevWarn',
     'Assert-PolydevCommand'
   )
 

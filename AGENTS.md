@@ -63,6 +63,7 @@ Codex on Windows (D1, PowerShell):
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-investigation.ps1" research -Cwd .
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\send-prompt.ps1" <pane_id> -Text "Inspect repository only." -Peek 5
 pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\start-codex-worktree.ps1" my-project codex-auth .worktrees\codex-auth docs\plans\auth.md
+pwsh -NoProfile -File "C:\Users\<user>\.codex\skills\polydev\scripts\run-background.ps1" build -Command "npm run build" -Cwd .
 ```
 
 ClaudeCode on Windows (D2, Git Bash):
@@ -154,11 +155,13 @@ All scripts below must be invoked by hard-coding the full resolved absolute path
 | --- | --- | --- |
 | Create worktree-backed agent session | `spawn-session.sh` | `<workspace> <branch> <worktree-path> <plan-file>` |
 | Monitor status loop | `poll.sh` | `<worktrees-dir> <timeout>` |
-| Send to any session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` |
+| Send to Windows pane | `send-to-session.ps1` | `<pane_id> "<cmd>" [-Peek N] [-NoEnter]` |
+| Send to Bash session | `send-to-session.sh` | `<pane_id> "<cmd>" [--peek N]` |
 | Read terminal output | `capture-screen.sh` | `<worktree-path> [--lines N]` or `--pane-id <id>` |
 | List sessions | `list-sessions.sh` | `[workspace]` |
 | Close session | `close-session.sh` | `<worktree-path>` or `--pane-id <id>` |
-| Start background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>] [--peek N]` |
+| Start Windows background command | `run-background.ps1` | `<name> -Command "<cmd>" [-Cwd <dir>] [-Peek N]` |
+| Start Bash background command | `run-background.sh` | `<name> "<cmd>" [--cwd <dir>] [--peek N]` |
 | Start Claude Code TUI | `spawn-agent.sh` | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
 | Start Codex CLI TUI | `spawn-codex.sh` | `<name> --cwd <dir> [--model <name>] [--ready-timeout 15]` |
 | Send agent prompt | `send-prompt.sh` | `<pane_id> (--text <prompt> \| --file <path>) [--peek N]` |

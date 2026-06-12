@@ -13,12 +13,12 @@ Choose the Polydev workflow before choosing a runtime-specific script. Runtime d
 
 | Flow | Use when | Primary entry family |
 | --- | --- | --- |
-| `bg` | Hosting one long command, dev server, build, test, SSH, REPL, or CLI probe | `run-background.sh`, then `capture-screen.sh`, `send-to-session.sh`, `close-session.sh` |
+| `bg` | Hosting one long command, dev server, build, test, SSH, REPL, or CLI probe | `run-background.ps1` on Windows Codex; `run-background.sh` where Bash is the active shell, then capture/send/close scripts |
 | `ag` | Starting a read-only agent investigation | `start-codex-investigation.ps1` on Windows Codex; `spawn-agent.sh` or `spawn-codex.sh` where Bash is the active shell |
 | `wo` | Starting worktree-backed implementation branches | `start-codex-worktree.ps1` on Windows Codex; `spawn-session.sh` where Bash is the active shell |
 | `cron` | Scheduling future or recurring agent work | `polycron-*.sh` |
 
-D1 Windows Codex does not mean every Polydev action uses `start-codex-*.ps1`. Those scripts are for Codex investigation and worktree flows. Background sessions and direct pane control are pane-only Polydev flows; absence of `start-codex-*.ps1` or `task.toon` is not evidence that Polydev was unused.
+D1 Windows Codex does not mean every Polydev action uses `start-codex-*.ps1`. Those scripts are for Codex investigation and worktree flows. Background sessions and direct pane control use `run-background.ps1`, `capture-screen.ps1`, `send-to-session.ps1`, `close-session.ps1`, and pane ids; absence of `start-codex-*.ps1` or `task.toon` is not evidence that Polydev was unused.
 
 ## Choose the workflow
 
